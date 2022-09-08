@@ -22,6 +22,17 @@ The code will ALWAYS be completely open source, however, and I'll have portable
 downloads for Linux and Windows (and macOS if I can get the means to test it)
 here free to use.
 
+Dependencies:
+```
+zig
+```
+
+Build instructions:
+```
+git clone --recurse-submodules https://github.com/mgord9518/yabg
+
+```
+
 Goals to get it up to feature parity:
  - [ ] Tile loading (partially complete)
  - [ ] Chunk loading (partially complete)

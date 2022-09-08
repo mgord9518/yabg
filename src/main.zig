@@ -30,13 +30,27 @@ const Chunk = struct {
     tiles: [256]u8 = undefined,
 };
 
-fn loadChunk(chunk: *Chunk) !void {
-    var f = try fs.cwd().openFile("saves/zig/0_0.vanilla0", .{.read = true});
+fn loadChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const string = try fmt.allocPrint(
+        alloc,
+        "saves/{s}/{d}_{d}.{s}", .{
+            save_name,
+            x,
+            y,
+            mod_pack,
+        },
+    );
+
+    var chunk = Chunk{.x = 0, .y = 0};
+    var f = try fs.cwd().openFile(string, .{.read = true });
     defer f.close();
 
-    //std.os.read(f, chunk.tiles);
     _ = try f.read(chunk.tiles[0..]);
-    print("{d}", .{chunk.tiles});
+    return chunk;
 }
 
 const Tile = struct {
@@ -100,8 +114,8 @@ const DebugMenu = struct {
 
 pub fn main() !void {
     // Enable vsync and resizing
-    rl.SetConfigFlags(@enumToInt(rl.ConfigFlags.FLAG_VSYNC_HINT));
-    rl.SetConfigFlags(@enumToInt(rl.ConfigFlags.FLAG_WINDOW_RESIZABLE));
+    rl.SetConfigFlags(rl.ConfigFlags.FLAG_VSYNC_HINT);
+    rl.SetConfigFlags(rl.ConfigFlags.FLAG_WINDOW_RESIZABLE);
     rl.InitWindow(screenWidth*scale, screenHeight*scale, title);
     //rl.SetTargetFPS(100);
 
@@ -122,8 +136,7 @@ pub fn main() !void {
     rl.ImageResizeNN(&hotbar_item, tileSize*scale, tileSize*scale);
     var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
 
-    var chunk = Chunk{.x = 0, .y = 0};
-    try loadChunk(&chunk);
+    var chunk = try loadChunk("DEVTEST", "vanilla0", 0, 0);
 
     var player_image = rl.LoadImage("resources/vanilla/vanilla/entities/player_front.png");
     rl.ImageResizeNN(&player_image, 12*scale, 24*scale);
@@ -165,7 +178,7 @@ pub fn main() !void {
         // Define our allocator,
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
-        const alloc = arena.allocator();
+        var alloc = arena.allocator();
 
         player.updatePlayerFrames(player.animation);
 
@@ -225,7 +238,8 @@ pub fn main() !void {
 
         // Player modulo is to draw tiles at their correct locations relative
         // to player coords
-
+        const player_mod_x = @mod(player.x, tileSize)*scale;
+        const player_mod_y = @mod(player.y, tileSize)*scale;
 
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 16 eg:
@@ -241,8 +255,7 @@ pub fn main() !void {
 
         // Draw grass tiles
         // Start at -16
-        const player_mod_x = @mod(player.x, tileSize)*scale;
-        const player_mod_y = @mod(player.y, tileSize)*scale;
+
         const x_num = @divFloor(player.x, 12);
         const y_num = @divFloor(player.y, 12);
 
@@ -278,7 +291,7 @@ pub fn main() !void {
     //                         rl.DrawTextureEx(grassTexture, rl.Vector2{.x = x_pos, .y = y_pos}, 0, 1,    rl.BLACK);
     //
     //                     }
-                    print("{d}\n", .{screen_mod_x});
+                 //   print("{d}\n", .{screen_mod_x});
                         if (tile_x+tile_y >= 0 and tile_x+tile_y < 256 and chunk.tiles[@intCast(usize, tile_x+tile_y)] == 0) {
                         rl.DrawTextureEx(grassTexture, rl.Vector2{.x = x_pos, .y = y_pos}, 0, 1,    rl.WHITE);
 
@@ -333,21 +346,26 @@ pub fn main() !void {
                 py *= -1;
             }
 
+            //   print("{s}\n", .{try int2Dozenal(@divTrunc(px, tileSize), &alloc)});
+            //print("{s}\n", .{x_str});
+
+
             // Casted because rl.DrawText* wants an array, not slice
             const string = @ptrCast(*u8, try fmt.allocPrint(
                 alloc,
-                "FPS: {d} (vsync)\nX:{s}{X}.{X}\nY:{s}{X}.{X}\n\nFrame delta: {d:.6}\nUTF-8: ᚠᚢᚦᚫᚱᚲ0123456789ⅩƐ\nTPS: {d}",
-                .{ rl.GetFPS(),
+                "FPS: {d} (vsync)\nX:{s}{s}.{s}\nY:{s}{s}.{s}\n\nFrame delta: {d:.6}\nUTF-8: ᚠᚢᚦᚫᚱᚲ0123456789ⅩƐ\nTPS: {d}", .{ rl.GetFPS(),
                     negX,
-                    @divTrunc(px, tileSize),
-                    @mod(px, tileSize),
+                    try int2Dozenal(@divTrunc(px, tileSize), &alloc),
+                    try int2Dozenal(@mod(px, tileSize), &alloc),
                     negY,
-                    @divTrunc(py, tileSize),
-                    @mod(py, tileSize),
+                    try int2Dozenal(@divTrunc(py, tileSize), &alloc),
+                    try int2Dozenal(@mod(py, tileSize), &alloc),
                     delta,
                     tps,
                 },
             ));
+            //print("{s}\n", .{x_str});
+
 
             var alpha: u8 = undefined;
             if (menu.y < 0) {
@@ -355,28 +373,59 @@ pub fn main() !void {
                // print("{d}\n", .{alpha});
             }
 
+            // Draw debug menu and its shadow
             rl.DrawTextEx(font, string, rl.Vector2{.x = scale*2, .y = 1+menu.y*@intToFloat(f32, scale)*0.75}, 6*scale, scale, rl.Color{.r = 0,   .g = 0,   .b = 0,   .a = @divTrunc(alpha, 3)});
             rl.DrawTextEx(font, string, rl.Vector2{.x = scale,   .y = menu.y*@intToFloat(f32, scale)},     6*scale, scale, rl.Color{.r = 192, .g = 192, .b = 192, .a = alpha});
         }
         if (!menu.enabled and menu.y > menu.min_y) {
             menu.y -= 4*tps*delta;
         }
-       // defer alloc.free(string);
-   //     var vec = rl.Vector2 {
-     //       .
-       // }
-
-        // Draw debug menu and its shadow
 
 
         rl.EndDrawing();
-        //----------------------------------------------------------------------------------
     }
 
-    rl.CloseWindow(); // Close window and OpenGL context
+    rl.CloseWindow();
 }
 
-fn intToString(int: u32, buf: []u8) ![]const u8 {
-    return try std.fmt.bufPrint(buf, "{}", .{int});
+fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]u8 {
+    var n = i;
+
+    // Is there a better way to do this? This feels hacky as hell
+    // Symbols to extend the arabic number set
+    var n10 = "Ⅹ".*;
+    var n11 = "Ɛ".*;
+    var symbols = [_][]u8{ &n10, &n11 };
+    var num: []u8 = "";
+
+    if (n == 0) {
+        return try fmt.allocPrint(alloc.*, "0", .{});
+    }
+
+    while ( n > 0 ) {
+        var rem = @intCast(usize, @mod(n, 12));
+       // var res: [20]u8 = undefined;
+
+        if ( rem < 10 ) {
+            //num = try fmt.allocPrint(alloc, "{d}", .{rem});
+         //   num = try fmt.allocPrint(alloc.*, "{d}", .{rem});
+            num = try fmt.allocPrint(alloc.*, "{d}{s}", .{rem, num});
+        } else {
+            num = try fmt.allocPrint(alloc.*, "{s}{s}", .{symbols[rem-10], num});
+           // num = symbols[rem-10];
+        }
+
+        n = @divFloor(n, 12);
+    }
+
+    return num;
 }
 
+fn concatVariable(allocator: *std.mem.Allocator, a: []const u8, b: []const u8) ![]u8 {
+    var result = try allocator.alloc(u8, a.len + b.len);
+    std.mem.copy(u8, result, a);
+    std.mem.copy(u8, result[a.len..], b);
+    return result;
+
+    // There is no free here, so the caller is responsible for calling allocator.free() on the result!
+}
