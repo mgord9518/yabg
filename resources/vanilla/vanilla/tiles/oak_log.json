@@ -1,0 +1,28 @@
+{
+	"nice_name": "Log (oak)",
+	"tool": [
+		"hand",
+		"shovel",
+		"axe",
+		"adze",
+		"pickaxe"
+	],
+
+	"proper_tool": [
+		"axe",
+		"adze"
+	],
+
+	"drops": "vanilla:oak_log",
+	
+	"texture": {
+		"left":   "vanilla:oak_log.png",
+		"right":  "vanilla:oak_log.png",
+		"front":  "vanilla:oak_log.png",
+		"back":   "vanilla:oak_log.png",
+		"front_raised": "vanilla:grass_raised.png"
+
+	},
+
+	"hardness": 4
+}

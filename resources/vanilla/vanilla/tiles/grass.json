@@ -1,0 +1,25 @@
+{
+	"nice_name": "Grass",
+	"tool": [
+		"hand",
+		"shovel",
+		"axe",
+		"adze",
+		"pickaxe"
+	],
+
+	"proper_tool": [
+		"shovel"
+	],
+
+	"drops": "vanilla:dirt",
+
+	"texture": {
+		"front": "vanilla:grass.png",
+		"front_raised": "vanilla:grass_raised.png"
+	},
+
+	"random_direction": true,
+
+	"hardness": 1
+}

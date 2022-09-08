@@ -1,0 +1,14 @@
+{
+	"name":        "vanilla",
+	"nice_name":   "Vanilla",
+	"description": "the default resource set",
+	"tilesets": {
+		"vanilla": [
+			"air",
+			"grass",
+			"stone",
+			"sand",
+			"water"
+		]
+	}
+}
