@@ -1,4 +1,4 @@
-#YABG (Yet Another Block Game)
+# YABG (Yet Another Block Game)
 
 A fun project to give an excuse to slightly neglect my other projects.
 I originally wrote it in Go with Ebitengine, but I wanted to learn something
@@ -23,18 +23,18 @@ downloads for Linux and Windows (and macOS if I can get the means to test it)
 here free to use.
 
 Goals to get it up to feature parity:
-[ ] Tile loading (partially complete)
-[ ] Chunk loading (partially complete)
-[ ] Chunk generation
-[ ] Entity loading
-[ ] Collision
-[ ] Complete animations
-[ ] Controls config loading
+ - [ ] Tile loading (partially complete)
+ - [ ] Chunk loading (partially complete)
+ - [ ] Chunk generation
+ - [ ] Entity loading
+ - [ ] Collision
+ - [ ] Complete animations
+ - [ ] Controls config loading
 
 Future goals:
-[ ] Entity generation
-[ ] Combat
-[ ] Music
-[ ] Inventory
-[ ] Crafting
-[ ] Multiplayer
+ - [ ] Entity generation
+ - [ ] Combat
+ - [ ] Music
+ - [ ] Inventory
+ - [ ] Crafting
+ - [ ] Multiplayer
