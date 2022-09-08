@@ -30,9 +30,12 @@ Dependencies:
 zig
 ```
 
-Build instructions:
+Building and running:
 ```
 git clone --recurse-submodules https://github.com/mgord9518/yabg
+cd yabg
+
+zig build # Or `zig build run`
 ```
 
 Goals to get it up to feature parity:
