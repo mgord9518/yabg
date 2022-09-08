@@ -420,12 +420,3 @@ fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]u8 {
 
     return num;
 }
-
-fn concatVariable(allocator: *std.mem.Allocator, a: []const u8, b: []const u8) ![]u8 {
-    var result = try allocator.alloc(u8, a.len + b.len);
-    std.mem.copy(u8, result, a);
-    std.mem.copy(u8, result[a.len..], b);
-    return result;
-
-    // There is no free here, so the caller is responsible for calling allocator.free() on the result!
-}
