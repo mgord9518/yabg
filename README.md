@@ -1,5 +1,7 @@
 # YABG (Yet Another Block Game)
 
+<p align="center"><img src="resources/yabg.avif"/></p>
+
 A fun project to give an excuse to slightly neglect my other projects.
 I originally wrote it in Go with Ebitengine, but I wanted to learn something
 new, so Zig and Raylib it is. I don't have any plans to post the original Go
