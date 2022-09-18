@@ -14,6 +14,7 @@ const tileSize     = 12;
 const scale: i32        = 6;
 // Set game ticks per second
 const tps    = 30;
+const chunk_size = 16;
 
 //var screenWidth:  i32  = 240;
 //var screenHeight: i32 = 160;
@@ -28,6 +29,13 @@ const Chunk = struct {
     y: i32,
     level: i32 = 0x80,
     tiles: [256]u8 = undefined,
+};
+
+const Direction = enum {
+    left,
+    right,
+    up,
+    down,
 };
 
 fn loadChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
@@ -45,7 +53,7 @@ fn loadChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk
         },
     );
 
-    var chunk = Chunk{.x = 0, .y = 0};
+    var chunk = Chunk{.x = x*chunk_size, .y = y*chunk_size};
     var f = try fs.cwd().openFile(string, .{.read = true });
     defer f.close();
 
@@ -53,9 +61,44 @@ fn loadChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk
     return chunk;
 }
 
+fn inputDirection(direction: Direction) bool {
+   // const axis_threashold = 0.1;
+
+
+
+    // TODO: get gamepad working
+    switch (direction) {
+        .left => {
+            if (rl.IsKeyDown(rl.KeyboardKey.KEY_A) or rl.IsGamepadButtonDown(0, rl.GamepadButton.GAMEPAD_BUTTON_UNKNOWN)) {
+                return true;
+            }
+        },
+        .right => {
+            if (rl.IsKeyDown(rl.KeyboardKey.KEY_D) or rl.IsGamepadButtonDown(0, rl.GamepadButton.GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
+                return true;
+            }
+        },
+        .up => {},
+        .down => {},
+    }
+
+    //print("{d}\n", .{rl.GetGamepadAxisMovement(0, 1)});
+
+
+    return false;
+}
+
 const Tile = struct {
     hardness: i32 = 0,
     texture:  *rl.Texture = undefined,
+};
+
+const Animation = enum {
+    idle,
+    walk_right,
+    walk_left,
+    walk_down,
+    walk_up,
 };
 
 const Player = struct {
@@ -66,34 +109,95 @@ const Player = struct {
 
     frame:    *rl.Texture = undefined,
     frames_idle:  [1]rl.Texture = undefined,
-    frames_right: [3]rl.Texture = undefined,
+    frames_right: [7]rl.Texture = undefined,
 
     frame_num_idle:  usize = 0,
     frame_num_right: usize = 0,
     frame_sub: f32 = 0,
 
-    animation: i32 = 0,
+    animation: Animation = .idle,
 
-    fn updatePlayerFrames(player: *Player, frame: i32) void {
+    fn updatePlayerFrames(player: *Player, frame: Animation) void {
+        switch (frame) {
+            .idle => {
+                player.frame = &player.frames_idle[player.frame_num_idle];
+            },
+            .walk_right => {
+                // Given an FPS of 60, this means that the animation will
+                // update at 14 FPS
+                player.frame_sub += tps*0.25*delta;
 
+                if (player.frame_sub >= 1) {
+                    player.frame_sub -= 1;
+                    player.frame_num_right += 1;
+                }
 
-        if (frame == 0) {
-        //   if (player.frame_num_idle >= 3) {
-        //        player.frame_num_idle = 0;
-    //     }
-            player.frame = &player.frames_idle[player.frame_num_idle];
-        } else if (frame == 1) {
-            player.frame_sub += tps*0.25*delta;
+                if (player.frame_num_right >= 7) {
+                    player.frame_num_right = 0;
+                }
+                player.frame = &player.frames_right[player.frame_num_right];
+            },
+            .walk_left => {},
+            .walk_up => {},
+            .walk_down => {},
+        }
+    }
 
-            if (player.frame_sub >= 1) {
-                player.frame_sub -= 1;
-                player.frame_num_right += 1;
+    // Updates the player's coords to a pixel snap value
+    fn updateCoords(player: *Player) void {
+        if (inputDirection(.right) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
+            if (player.subX > 1 and player.subY > 1) {
+                player.x += 1;
+                player.y += 1;
+                player.subX -= 1;
+                player.subY -= 1;
             }
 
-            if (player.frame_num_right >= 3) {
-                player.frame_num_right = 0;
+            return;
+        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
+            if (player.subX < -1 and player.subY > 1) {
+                player.x -= 1;
+                player.y += 1;
+                player.subX += 1;
+                player.subY -= 1;
             }
-            player.frame = &player.frames_right[player.frame_num_right];
+
+            return;
+        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_D) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
+            if (player.subX > 1 and player.subY < -1) {
+                player.x += 1;
+                player.y -= 1;
+                player.subX -= 1;
+                player.subY += 1;
+            }
+
+            return;
+        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
+            if (player.subX < -1 and player.subY < -1) {
+                player.x -= 1;
+                player.y -= 1;
+                player.subX += 1;
+                player.subY += 1;
+            }
+
+            return;
+        }
+
+        if (player.subX > 1) {
+            player.x += 1;
+            player.subX -= 1;
+        }
+        if (player.subX < -1) {
+            player.x -= 1;
+            player.subX += 1;
+        }
+        if (player.subY > 1) {
+            player.y += 1;
+            player.subY -= 1;
+        }
+        if (player.subY < -1) {
+            player.y -= 1;
+            player.subY += 1;
         }
     }
 
@@ -117,15 +221,11 @@ pub fn main() !void {
     rl.SetConfigFlags(rl.ConfigFlags.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(rl.ConfigFlags.FLAG_WINDOW_RESIZABLE);
     rl.InitWindow(screenWidth*scale, screenHeight*scale, title);
-    //rl.SetTargetFPS(100);
-
-//     var frames = [10]f32{0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-//     var frame: usize  = 0;
-    rl.SetTraceLogLevel(7);
-
+   // rl.SetTraceLogLevel(7);
 
     var player = Player{};
     var menu   = DebugMenu{};
+    var chunks: [9]Chunk = undefined;
 
     var grass  = rl.LoadImage("resources/vanilla/vanilla/tiles/grass.png");
 
@@ -136,7 +236,7 @@ pub fn main() !void {
     rl.ImageResizeNN(&hotbar_item, tileSize*scale, tileSize*scale);
     var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
 
-    var chunk = try loadChunk("DEVTEST", "vanilla0", 0, 0);
+    chunks[0] = try loadChunk("DEVTEST", "vanilla0", 0, 0);
 
     var player_image = rl.LoadImage("resources/vanilla/vanilla/entities/player_front.png");
     rl.ImageResizeNN(&player_image, 12*scale, 24*scale);
@@ -153,11 +253,24 @@ pub fn main() !void {
     var player_image3 = rl.LoadImage("resources/vanilla/vanilla/entities/player_right2.png");
     rl.ImageResizeNN(&player_image3, 12*scale, 24*scale);
     player.frames_right[2]  = rl.LoadTextureFromImage(player_image3);
-    // menu.draw();
+
+    var player_image4 = rl.LoadImage("resources/vanilla/vanilla/entities/player_right3.png");
+    rl.ImageResizeNN(&player_image4, 12*scale, 24*scale);
+    player.frames_right[3]  = rl.LoadTextureFromImage(player_image4);
+
+    player.frames_right[4]  = rl.LoadTextureFromImage(player_image1);
+
+    var player_image5 = rl.LoadImage("resources/vanilla/vanilla/entities/player_right4.png");
+    rl.ImageResizeNN(&player_image5, 12*scale, 24*scale);
+    player.frames_right[5]  = rl.LoadTextureFromImage(player_image5);
+
+    var player_image6 = rl.LoadImage("resources/vanilla/vanilla/entities/player_right5.png");
+    rl.ImageResizeNN(&player_image6, 12*scale, 24*scale);
+    player.frames_right[6]  = rl.LoadTextureFromImage(player_image6);
 
     player.frame = &player.frames_right[0];
 
-    rl.ImageResizeNN(&grass,  tileSize*scale, tileSize*scale);
+    rl.ImageResizeNN(&grass,  tileSize*scale, tileSize*scale+8*scale);
 //    rl.ImageResizeNN(&player_image1, 12*scale, 24*scale);
 //    rl.ImageResizeNN(&player_image2, 12*scale, 24*scale);
 
@@ -174,7 +287,6 @@ pub fn main() !void {
         screenWidth  = @divTrunc(rl.GetScreenWidth(),  scale);
         screenHeight = @divTrunc(rl.GetScreenHeight(), scale);
 
-        // Update
         // Define our allocator,
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
         defer arena.deinit();
@@ -184,49 +296,34 @@ pub fn main() !void {
 
 
         // Update player coords based on keys pressed
-        if (rl.IsKeyDown(rl.KeyboardKey.KEY_D) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
-            player.animation = 1;
+        if (inputDirection(.right) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
+            player.animation = .walk_right;
             player.subX += tps*1.4*delta;
             player.subY += tps*1.4*delta;
-        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_A) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
+        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
             player.subX -= tps*1.4*delta;
             player.subY += tps*1.4*delta;
-        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_D) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
-            player.animation = 1;
+        } else if (inputDirection(.right) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
+            player.animation = .walk_right;
             player.subX += tps*1.4*delta;
             player.subY -= tps*1.4*delta;
-        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_A) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
+        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
             player.subX -= tps*1.4*delta;
             player.subY -= tps*1.4*delta;
-        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_D)) {
-            player.animation = 1;
+        } else if (inputDirection(.right)) {
+            player.animation = .walk_right;
             player.subX += tps*2*delta;
-        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_A)) {
+        } else if (inputDirection(.left)) {
             player.subX -= tps*2*delta;
         } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
             player.subY += tps*2*delta;
         } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
             player.subY -= tps*2*delta;
         } else {
-            player.animation = 0;
+            player.animation = .idle;
         }
 
-        if (player.subX > 1) {
-            player.x += 1;
-            player.subX -= 1;
-        }
-        if (player.subX < -1) {
-            player.x -= 1;
-            player.subX += 1;
-        }
-        if (player.subY > 1) {
-            player.y += 1;
-            player.subY -= 1;
-        }
-        if (player.subY < -1) {
-            player.y -= 1;
-            player.subY += 1;
-        }
+        player.updateCoords();
 
         if (rl.IsKeyPressed(rl.KeyboardKey.KEY_F3)) {
             menu.enabled = !menu.enabled;
@@ -260,7 +357,7 @@ pub fn main() !void {
         const y_num = @divFloor(player.y, 12);
 
         var x: i32 = -1;
-        var y: i32 = -1;
+        var y: i32 = -2;
         while (y*tileSize <= screenHeight) : (y += 1) {
             x = -1;
             while (x*tileSize <= screenWidth+tileSize) : (x += 1) {
@@ -271,32 +368,19 @@ pub fn main() !void {
                 const x_pos = @intToFloat(f32, x*tileSize*scale-player_mod_x+screen_mod_x);
                 const y_pos = @intToFloat(f32, y*tileSize*scale-player_mod_y+screen_mod_y+12*scale);
 
-                //       tileX := (xNum - int(screenWidth/scale/16/2)   + i)  % chunkSize
-                //     tileY := ((yNum - int(screenHeight/scale/16/2) + i2) - chunk.Y) * chunkSize
-
                 // TODO: FIX TILE_Y!!! TILE_X WORKS
                 // 24 because its tileSize*2
                 var tile_x = @mod(x_num + x - @divFloor(screenWidth, 24), 16);
-                var tile_y = ((y_num + y) - @divFloor(screenHeight, 24) - chunk.y) * 16;
-                //var tile_y = y_num;
+                var tile_y = ((y_num + y) - @divFloor(screenHeight, 24) - chunks[0].y) * 16;
 
-                if ( x_num + @divFloor(screenWidth, 24) +x > chunk.x and x_num - @divFloor(screenWidth, 24) <= chunk.x+16 and
-                    y_num + @divFloor(screenHeight, 24) +y  > chunk.y and y_num - @divFloor(screenHeight, 24) <= chunk.y+16 and
-                    x + x_num - @divFloor(screenWidth, 24) >= chunk.x and x + x_num - @divFloor(screenWidth, 24) < chunk.x+16 and
-                    y + y_num - @divFloor(screenHeight, 24) >= chunk.y and y + y_num - @divFloor(screenHeight, 24) < chunk.y+16
-                ) {
+                if ( //x_num + @divFloor(screenWidth, 24) +x > chunks[0].x and x_num - @divFloor(screenWidth, 24) <= chunks[0].x+chunk_size and
+                    //y_num + @divFloor(screenHeight, 24) +y  > chunks[0].y and y_num - @divFloor(screenHeight, 24) <= chunks[0].y+chunk_size and
+                    x + x_num - @divFloor(screenWidth, 24) >= chunks[0].x and x + x_num - @divFloor(screenWidth, 24) < chunks[0].x+chunk_size and
+                    y + y_num - @divFloor(screenHeight, 24) >= chunks[0].y and y + y_num - @divFloor(screenHeight, 24) < chunks[0].y+chunk_size) {
 
-    //                     if (x+(y*16) >= 0 and chunk.tiles[@intCast(usize, x+(y*16))] == 1) {
-    //                         print("{d}\n", .{player_mod_x});
-    //                         rl.DrawTextureEx(grassTexture, rl.Vector2{.x = x_pos, .y = y_pos}, 0, 1,    rl.BLACK);
-    //
-    //                     }
-                 //   print("{d}\n", .{screen_mod_x});
-                        if (tile_x+tile_y >= 0 and tile_x+tile_y < 256 and chunk.tiles[@intCast(usize, tile_x+tile_y)] == 0) {
+                    if (tile_x+tile_y >= 0 and tile_x+tile_y < 256 and chunks[0].tiles[@intCast(usize, tile_x+tile_y)] == 0) {
                         rl.DrawTextureEx(grassTexture, rl.Vector2{.x = x_pos, .y = y_pos}, 0, 1,    rl.WHITE);
-
-
-                        }
+                    }
                 }
             }
 
@@ -353,15 +437,13 @@ pub fn main() !void {
             // Casted because rl.DrawText* wants an array, not slice
             const string = @ptrCast(*u8, try fmt.allocPrint(
                 alloc,
-                "FPS: {d} (vsync)\nX:{s}{s}.{s}\nY:{s}{s}.{s}\n\nFrame delta: {d:.6}\nUTF-8: ᚠᚢᚦᚫᚱᚲ0123456789ⅩƐ\nTPS: {d}", .{ rl.GetFPS(),
+                "FPS: {d} (vsync)\nX:{s}{s}.{s}\nY:{s}{s}.{s}\n\nRune test: ᚠᚢᚦᚫᚱᚲ\nDozenal: 0123456789ⅩƐ", .{ rl.GetFPS(),
                     negX,
                     try int2Dozenal(@divTrunc(px, tileSize), &alloc),
                     try int2Dozenal(@mod(px, tileSize), &alloc),
                     negY,
                     try int2Dozenal(@divTrunc(py, tileSize), &alloc),
                     try int2Dozenal(@mod(py, tileSize), &alloc),
-                    delta,
-                    tps,
                 },
             ));
             //print("{s}\n", .{x_str});
@@ -374,7 +456,7 @@ pub fn main() !void {
             }
 
             // Draw debug menu and its shadow
-            rl.DrawTextEx(font, string, rl.Vector2{.x = scale*2, .y = 1+menu.y*@intToFloat(f32, scale)*0.75}, 6*scale, scale, rl.Color{.r = 0,   .g = 0,   .b = 0,   .a = @divTrunc(alpha, 3)});
+            rl.DrawTextEx(font, string, rl.Vector2{.x = scale*2, .y = @intToFloat(f32, scale)+menu.y*@intToFloat(f32, scale)*0.75}, 6*scale, scale, rl.Color{.r = 0,   .g = 0,   .b = 0,   .a = @divTrunc(alpha, 3)});
             rl.DrawTextEx(font, string, rl.Vector2{.x = scale,   .y = menu.y*@intToFloat(f32, scale)},     6*scale, scale, rl.Color{.r = 192, .g = 192, .b = 192, .a = alpha});
         }
         if (!menu.enabled and menu.y > menu.min_y) {
@@ -391,11 +473,8 @@ pub fn main() !void {
 fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]u8 {
     var n = i;
 
-    // Is there a better way to do this? This feels hacky as hell
     // Symbols to extend the arabic number set
-    var n10 = "Ⅹ".*;
-    var n11 = "Ɛ".*;
-    var symbols = [_][]u8{ &n10, &n11 };
+    const symbols = [_][]const u8{ "Ⅹ", "Ɛ" };
     var num: []u8 = "";
 
     if (n == 0) {
