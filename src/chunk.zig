@@ -4,6 +4,7 @@ const perlin = @import("perlin");
 const fmt = std.fmt;
 const print = std.debug.print;
 const fs = std.fs;
+const RndGen = std.rand.DefaultPrng;
 
 //const Player
 //var debugEnabled = false;
@@ -22,7 +23,6 @@ var screenHeight: i32 = 144;
 const title = "Yet Another Block Game (YABG)";
 const id = "io.github.mgord9518.yabg";
 var delta: f32 = 0;
-var chunks_generated: i32 = 0;
 
 const Chunk = struct {
     x: i32,
@@ -58,44 +58,32 @@ fn loadChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk
     );
 
     var chunk = Chunk{ .x = x * chunk_size, .y = y * chunk_size };
-    var f = fs.cwd().openFile(string, .{ .read = true }) catch return genChunk(save_name, mod_pack, x, y);
+    var f = try fs.cwd().openFile(string, .{ .read = true });
     defer f.close();
 
     _ = try f.read(chunk.tiles[0..]);
     return chunk;
 }
 
-fn genChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
-//     var buf: [144]u8 = undefined;
-//     const path = try fmt.bufPrint(
-//         &buf,
-//         "saves/{s}/{d}_{d}.{s}",
-//         .{
-//             save_name,
-//             x,
-//             y,
-//             mod_pack,
-//         },
-//     );
+//fn genChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+    //var buf: [144]u8 = undefined;
+    //const path = try fmt.bufPrint(
+    //    &buf,
+    //    "saves/{s}/{d}_{d}.{s}",
+    //    .{
+    //        save_name,
+    //        x,
+    //        y,
+    //        mod_pack,
+    //    },
+    //);
 
-    print("GENERATING CHUNK AT {x}, {x}\n", .{x, y});
-    chunks_generated = chunks_generated + 1;
+//    var chunk = Chunk{ .x = x * chunk_size, .y = y * chunk_size };
+    //var f = try fs.cwd().openFile(string, .{ .read = true });
 
-    _ = mod_pack;
-    _ = save_name;
+//    return chunk;
 
-    var chunk = Chunk{ .x = x * chunk_size, .y = y * chunk_size };
-   // var f = try fs.cwd().openFile(string, .{ .read = true });
-
-    // Use Perlin noise to generate the world
-    for (chunk.tiles) |*tile| {
-        tile.* = 0x00;
-    }
-
-
-    return chunk;
-
-}
+//}
 
 fn inputDirection(direction: Direction) bool {
     // const axis_threashold = 0.1;
@@ -253,31 +241,19 @@ const Player = struct {
 
     // Checks and unloads any chunks not surrounding the player in a 9x9 area
     // then loads new chunks into their pointers
-    // Not yet sure how robust this is
     fn reloadChunks(player: *Player) void {
         var cx_origin = @divTrunc(@divTrunc(player.x, tileSize), chunk_size);
-        var cy_origin = @divTrunc(@divTrunc(player.y, tileSize), chunk_size);
-
         if (player.x < 0) {
             cx_origin = cx_origin - 1;
         }
 
-        if (player.y < 0) {
-            cy_origin = cy_origin - 1;
-        }
+        for (chunks) |chunk| {
+            //print("{x}\n", .{@divTrunc(chunk.x, chunk_size)});
+            //print("{x} .\n", .{cx_origin});
 
-        for (chunks) |*chunk| {
-            const cx = @divTrunc(chunk.x, chunk_size);
-            const cy = @divTrunc(chunk.y, chunk_size);
-
-            if (@divTrunc(chunk.x, chunk_size) > cx_origin + 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx_origin - 1, cy) catch unreachable;
-            } else if (@divTrunc(chunk.x, chunk_size) < cx_origin - 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx_origin + 1, cy) catch unreachable;
-            } else if (@divTrunc(chunk.y, chunk_size) > cy_origin + 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx, cy_origin - 1) catch unreachable;
-            } else if (@divTrunc(chunk.y, chunk_size) < cy_origin - 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx, cy_origin + 1) catch unreachable;
+            if (@divTrunc(chunk.x, chunk_size) > cx_origin + 1 or
+                @divTrunc(chunk.x, chunk_size) < cx_origin - 1 ) {
+                print("UNLOAD: {x}\n", .{chunk.x});
             }
         }
     }
@@ -319,15 +295,15 @@ pub fn main() !void {
     //rl.ImageResizeNN(&menu_frame, 128 * scale, 128 * scale);
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
 
-    chunks[0] = try loadChunk("DEVTEST", "vanilla0", -1, -1);
-    chunks[1] = try loadChunk("DEVTEST", "vanilla0", -1,  0);
-    chunks[2] = try loadChunk("DEVTEST", "vanilla0", -1,  1);
-    chunks[3] = try loadChunk("DEVTEST", "vanilla0",  0, -1);
-    chunks[4] = try loadChunk("DEVTEST", "vanilla0",  0,  0);
-    chunks[5] = try loadChunk("DEVTEST", "vanilla0",  0,  1);
-    chunks[6] = try loadChunk("DEVTEST", "vanilla0",  1, -1);
-    chunks[7] = try loadChunk("DEVTEST", "vanilla0",  1,  0);
-    chunks[8] = try loadChunk("DEVTEST", "vanilla0",  1,  1);
+    chunks[0] = try loadChunk("DEVTEST", "vanilla0", 0, 0);
+    chunks[1] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[2] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[3] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[4] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[5] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[6] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[7] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
+    chunks[8] = try loadChunk("DEVTEST", "vanilla0", -2, 0);
 
     var n: usize = 1;
 
@@ -526,16 +502,15 @@ pub fn main() !void {
             // Casted because rl.DrawText* wants an array, not slice
             const string = @ptrCast(*u8, try fmt.allocPrint(
                 alloc,
-                "FPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~\nChunks generated: {s};",
+                "FPS: {d} (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nRune test: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~",
                 .{
-                    int2Dozenal(rl.GetFPS(), &alloc),
+                    rl.GetFPS(),
                     negX,
                     int2Dozenal(@divTrunc(px, tileSize), &alloc),
                     int2Dozenal(@mod(px, tileSize), &alloc),
                     negY,
                     int2Dozenal(@divTrunc(py, tileSize), &alloc),
                     int2Dozenal(@mod(py, tileSize), &alloc),
-                    int2Dozenal(chunks_generated, &alloc),
                 },
             ));
 
