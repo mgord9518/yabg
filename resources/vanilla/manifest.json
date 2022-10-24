@@ -1,6 +1,6 @@
 {
-	"name":        "vanilla",
 	"nice_name":   "Vanilla",
+	"name":        "vanilla",
 	"description": "the default resource set",
 	"tilesets": {
 		"vanilla": [
