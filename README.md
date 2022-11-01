@@ -43,9 +43,9 @@ zig build # Or `zig build run`
 Goals to get it up to feature parity:
  - [ ] Tile loading (partially complete)
  - [X] Chunk loading
- - [ ] Chunk generation (partially complete)
+ - [X] Chunk generation (needs file saving and a better format)
  - [ ] Entity loading
- - [ ] Collision
+ - [X] Collision (needs to be fixed)
  - [ ] Complete animations
  - [ ] Controls config loading
  - [X] F3 debug menu
