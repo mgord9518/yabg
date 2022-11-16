@@ -30,125 +30,126 @@ const Chunk = struct {
     y: i32,
     level: i32 = 0x80,
     tiles: [chunk_size*chunk_size*2]u8 = undefined,
+
+    fn init(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+        var buf: [144]u8 = undefined;
+        const string = try fmt.bufPrint(
+            &buf,
+            "saves/{s}/{d}_{d}.{s}",
+            .{
+                save_name,
+                x,
+                y,
+                mod_pack,
+            },
+        );
+
+        var chunk = Chunk{
+            .x = x * chunk_size,
+            .y = y * chunk_size,
+        };
+
+        // Generate chunk if unable to find file
+        var f = fs.cwd().openFile(string, .{}) catch return genChunk(save_name, mod_pack, x, y);
+        defer f.close();
+
+        _ = try f.read(chunk.tiles[0..]);
+        return chunk;
+    }
+
+    fn genChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+        var buf: [144]u8 = undefined;
+        const path = try fmt.bufPrint(
+            &buf,
+            "saves/{s}/{d}_{d}.{s}",
+            .{
+                save_name,
+                x,
+                y,
+                mod_pack,
+            },
+        );
+
+//        print("GENERATING CHUNK AT {x}, {x}\n", .{x, y});
+        chunks_generated += 1;
+
+        // TODO: Save bytes to disk
+        var chunk = Chunk{ .x = x * chunk_size, .y = y * chunk_size };
+        var f = fs.cwd().createFile(path, .{ .read = true }) catch unreachable;
+
+        var t_x: i32 = undefined;
+        var t_y: i32 = undefined;
+        // Use Perlin noise to generate the world
+        for (chunk.tiles) |*tile, idx| {
+            if (idx >= chunk_size*chunk_size) {
+                break;
+            }
+
+            t_x = chunk.x + @intCast(i32,      @mod(idx, chunk_size));
+            t_y = chunk.y + @intCast(i32, @divTrunc(idx, chunk_size));
+
+            // TODO: Fix formatting on this
+            var val = @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
+            val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
+            val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
+            val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.2, @intToFloat(f32, t_y)*0.2, 0))*127.5/4);
+
+            if (val > 170) {
+                tile.* = 0x01;
+                chunk.tiles[idx + chunk_size*chunk_size] = 0x01;
+            } else if (val > 72) {
+                tile.* = 0x01;
+                chunk.tiles[idx + chunk_size*chunk_size] = 0x00;
+            } else if (val > 48) {
+                tile.* = 0x03;
+                chunk.tiles[idx + chunk_size*chunk_size] = 0x00;
+            } else {
+                tile.* = 0x00;
+                chunk.tiles[idx + chunk_size*chunk_size] = 0x00;
+            }
+        }
+
+        _ = try f.write(&chunk.tiles);
+
+        return chunk;
+    }
+
 };
 
 var chunks: [9]Chunk = undefined;
 
 const Direction = enum {
-    left,
-    right,
-    up,
-    down,
+    Left,
+    Right,
+    Up,
+    Down,
 };
-
-fn loadChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
-    //var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    //defer arena.deinit();
-    //const alloc = arena.allocator();
-
-    var buf: [144]u8 = undefined;
-    const string = try fmt.bufPrint(
-        &buf,
-        "saves/{s}/{d}_{d}.{s}",
-        .{
-            save_name,
-            x,
-            y,
-            mod_pack,
-        },
-    );
-
-    var chunk = Chunk{
-        .x = x * chunk_size,
-        .y = y * chunk_size,
-    };
-
-    // Generate chunk if unable to find file
-    var f = fs.cwd().openFile(string, .{ .read = true }) catch return genChunk(save_name, mod_pack, x, y);
-    defer f.close();
-
-    _ = try f.read(chunk.tiles[0..]);
-    return chunk;
-}
-
-fn genChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
-     var buf: [144]u8 = undefined;
-     const path = try fmt.bufPrint(
-         &buf,
-         "saves/{s}/{d}_{d}.{s}",
-         .{
-             save_name,
-             x,
-             y,
-             mod_pack,
-         },
-     );
-
-    print("GENERATING CHUNK AT {x}, {x}\n", .{x, y});
-    chunks_generated = chunks_generated + 1;
-
-    _ = mod_pack;
-    _ = save_name;
-
-    // TODO: Save bytes to disk
-    var chunk = Chunk{ .x = x * chunk_size, .y = y * chunk_size };
-    var f = fs.cwd().createFile(path, .{ .read = true }) catch unreachable;
-    _ = f;
-
-
-    var t_x: i32 = undefined;
-    var t_y: i32 = undefined;
-    // Use Perlin noise to generate the world
-    for (chunk.tiles) |*tile, idx| {
-        if (idx >= chunk_size*chunk_size) {
-            break;
-        }
-
-        t_x = chunk.x + @intCast(i32,      @mod(idx, chunk_size));
-        t_y = chunk.y + @intCast(i32, @divTrunc(idx, chunk_size));
-
-        // TODO: Fix formatting on this
-        var val = @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
-        val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
-        val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
-        val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.2, @intToFloat(f32, t_y)*0.2, 0))*127.5/4);
-
-        if (val > 170) {
-            tile.* = 0x01;
-            chunk.tiles[idx + chunk_size*chunk_size] = 0x01;
-        } else if (val > 72) {
-            tile.* = 0x01;
-            chunk.tiles[idx + chunk_size*chunk_size] = 0x00;
-        } else if (val > 48) {
-            tile.* = 0x03;
-            chunk.tiles[idx + chunk_size*chunk_size] = 0x00;
-        } else {
-            tile.* = 0x00;
-            chunk.tiles[idx + chunk_size*chunk_size] = 0x00;
-        }
-    }
-
-    return chunk;
-
-}
 
 fn inputDirection(direction: Direction) bool {
     // const axis_threashold = 0.1;
 
     // TODO: get gamepad working
     switch (direction) {
-        .left => {
+        .Left => {
             if (rl.IsKeyDown(.KEY_A) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_UNKNOWN)) {
                 return true;
             }
         },
-        .right => {
+        .Right => {
             if (rl.IsKeyDown(.KEY_D) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
                 return true;
             }
         },
-        .up => {},
-        .down => {},
+        .Up => {
+            if (rl.IsKeyDown(.KEY_W)) {
+                return true;
+            }
+        },
+        .Down => {
+            if (rl.IsKeyDown(.KEY_S)) {
+                return true;
+            }
+        },
     }
 
     //print("{d}\n", .{rl.GetGamepadAxisMovement(0, 1)});
@@ -170,10 +171,10 @@ const Animation = enum {
 };
 
 const Player = struct {
-    x: i32 = 0,
-    y: i32 = 0,
-    subX: f32 = 0,
-    subY: f32 = 0,
+    x: f32 = 0,
+    y: f32 = 0,
+    x_speed: f32 = 0,
+    y_speed: f32 = 0,
 
     // Chunk coords, this is used to check when the player has moved over a chunk boundry
     cx: i32 = 0,
@@ -189,11 +190,12 @@ const Player = struct {
     frame_num_right: usize = 0,
     frame_sub: f32 = 0,
 
-    //loadedChunks: [9]*Chunk = undefined,
-
     animation: Animation = .Idle,
 
-    fn updatePlayerFrames(player: *Player, frame: Animation) void {
+    fn updatePlayerFrames(
+        player: *Player,
+        frame: Animation,
+    ) void {
         switch (frame) {
             .Idle => {
                 player.frame = &player.frames_idle[player.frame_num_idle];
@@ -233,70 +235,12 @@ const Player = struct {
         }
     }
 
-    // Updates the player's coords to a pixel snap value
-    fn updateCoords(player: *Player) void {
-        if (inputDirection(.right) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
-            if (player.subX > 1 and player.subY > 1) {
-                player.x += 1;
-                player.y += 1;
-                player.subX -= 1;
-                player.subY -= 1;
-            }
-
-            return;
-        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
-            if (player.subX < -1 and player.subY > 1) {
-                player.x -= 1;
-                player.y += 1;
-                player.subX += 1;
-                player.subY -= 1;
-            }
-
-            return;
-        } else if (rl.IsKeyDown(rl.KeyboardKey.KEY_D) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
-            if (player.subX > 1 and player.subY < -1) {
-                player.x += 1;
-                player.y -= 1;
-                player.subX -= 1;
-                player.subY += 1;
-            }
-
-            return;
-        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
-            if (player.subX < -1 and player.subY < -1) {
-                player.x -= 1;
-                player.y -= 1;
-                player.subX += 1;
-                player.subY += 1;
-            }
-
-            return;
-        }
-
-        if (player.subX > 1) {
-            player.x += 1;
-            player.subX -= 1;
-        }
-        if (player.subX < -1) {
-            player.x -= 1;
-            player.subX += 1;
-        }
-        if (player.subY > 1) {
-            player.y += 1;
-            player.subY -= 1;
-        }
-        if (player.subY < -1) {
-            player.y -= 1;
-            player.subY += 1;
-        }
-    }
-
     // Checks and unloads any chunks not surrounding the player in a 9x9 area
     // then loads new chunks into their pointers
     // Not yet sure how robust this is
     fn reloadChunks(player: *Player) void {
-        var cx_origin = @divTrunc(@divTrunc(player.x, tileSize), chunk_size);
-        var cy_origin = @divTrunc(@divTrunc(player.y, tileSize), chunk_size);
+        var cx_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.x, tileSize), chunk_size));
+        var cy_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.y, tileSize), chunk_size));
 
         // Return if player chunk is unchanged to save from executing the for loop every frame
         if (cx_origin == player.cx and cy_origin == player.cy) {
@@ -319,13 +263,13 @@ const Player = struct {
             const cy = @divTrunc(chunk.y, chunk_size);
 
             if (@divTrunc(chunk.x, chunk_size) > cx_origin + 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx_origin - 1, cy) catch unreachable;
+                chunk.* = Chunk.init("DEVTEST", "vanilla0", cx_origin - 1, cy) catch unreachable;
             } else if (@divTrunc(chunk.x, chunk_size) < cx_origin - 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx_origin + 1, cy) catch unreachable;
+                chunk.* = Chunk.init("DEVTEST", "vanilla0", cx_origin + 1, cy) catch unreachable;
             } else if (@divTrunc(chunk.y, chunk_size) > cy_origin + 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx, cy_origin - 1) catch unreachable;
+                chunk.* = Chunk.init("DEVTEST", "vanilla0", cx, cy_origin - 1) catch unreachable;
             } else if (@divTrunc(chunk.y, chunk_size) < cy_origin - 1) {
-                chunk.* = loadChunk("DEVTEST", "vanilla0", cx, cy_origin + 1) catch unreachable;
+                chunk.* = Chunk.init("DEVTEST", "vanilla0", cx, cy_origin + 1) catch unreachable;
             }
         }
     }
@@ -346,10 +290,12 @@ const DebugMenu = struct {
 
 pub fn main() !void {
     // Enable vsync and resizing
-    rl.SetConfigFlags(rl.ConfigFlags.FLAG_VSYNC_HINT);
-    rl.SetConfigFlags(rl.ConfigFlags.FLAG_WINDOW_RESIZABLE);
+    rl.SetConfigFlags(.FLAG_VSYNC_HINT);
+    rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
     rl.InitWindow(screenWidth * scale, screenHeight * scale, title);
-    rl.SetExitKey(rl.KeyboardKey.KEY_NULL);
+
+    // Disable exit on keypress
+    rl.SetExitKey(.KEY_NULL);
     // rl.SetTraceLogLevel(7);
 
     var player = Player{};
@@ -365,15 +311,15 @@ pub fn main() !void {
     //rl.ImageResizeNN(&menu_frame, 128 * scale, 128 * scale);
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
 
-    chunks[0] = try loadChunk("DEVTEST", "vanilla0", -1, -1);
-    chunks[1] = try loadChunk("DEVTEST", "vanilla0", -1,  0);
-    chunks[2] = try loadChunk("DEVTEST", "vanilla0", -1,  1);
-    chunks[3] = try loadChunk("DEVTEST", "vanilla0",  0, -1);
-    chunks[4] = try loadChunk("DEVTEST", "vanilla0",  0,  0);
-    chunks[5] = try loadChunk("DEVTEST", "vanilla0",  0,  1);
-    chunks[6] = try loadChunk("DEVTEST", "vanilla0",  1, -1);
-    chunks[7] = try loadChunk("DEVTEST", "vanilla0",  1,  0);
-    chunks[8] = try loadChunk("DEVTEST", "vanilla0",  1,  1);
+    chunks[0] = try Chunk.init("DEVTEST", "vanilla0", -1, -1);
+    chunks[1] = try Chunk.init("DEVTEST", "vanilla0", -1,  0);
+    chunks[2] = try Chunk.init("DEVTEST", "vanilla0", -1,  1);
+    chunks[3] = try Chunk.init("DEVTEST", "vanilla0",  0, -1);
+    chunks[4] = try Chunk.init("DEVTEST", "vanilla0",  0,  0);
+    chunks[5] = try Chunk.init("DEVTEST", "vanilla0",  0,  1);
+    chunks[6] = try Chunk.init("DEVTEST", "vanilla0",  1, -1);
+    chunks[7] = try Chunk.init("DEVTEST", "vanilla0",  1,  0);
+    chunks[8] = try Chunk.init("DEVTEST", "vanilla0",  1,  1);
 
     var n: usize = 1;
 
@@ -444,37 +390,44 @@ pub fn main() !void {
         player.reloadChunks();
 
         // Update player coords based on keys pressed
-        if (inputDirection(.right) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
+        if (inputDirection(.Right) and inputDirection(.Down)) {
             player.animation = .WalkRight;
-            player.subX += tps * 1.4 * delta;
-            player.subY += tps * 1.4 * delta;
-        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_S)) {
+            player.x_speed = tps * 1.4 * delta;
+            player.y_speed = tps * 1.4 * delta;
+        } else if (inputDirection(.Left) and inputDirection(.Down)) {
             player.animation = .WalkLeft;
-            player.subX -= tps * 1.4 * delta;
-            player.subY += tps * 1.4 * delta;
-        } else if (inputDirection(.right) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
+            player.x_speed = tps * -1.4 * delta;
+            player.y_speed = tps * 1.4 * delta;
+        } else if (inputDirection(.Right) and inputDirection(.Up)) {
             player.animation = .WalkRight;
-            player.subX += tps * 1.4 * delta;
-            player.subY -= tps * 1.4 * delta;
-        } else if (inputDirection(.left) and rl.IsKeyDown(rl.KeyboardKey.KEY_W)) {
+            player.x_speed = tps * 1.4 * delta;
+            player.y_speed = tps * -1.4 * delta;
+        } else if (inputDirection(.Left) and inputDirection(.Up)) {
             player.animation = .WalkLeft;
-            player.subX -= tps * 1.4 * delta;
-            player.subY -= tps * 1.4 * delta;
-        } else if (inputDirection(.right)) {
+            player.x_speed = tps * -1.4 * delta;
+            player.y_speed = tps * -1.4 * delta;
+        } else if (inputDirection(.Right)) {
             player.animation = .WalkRight;
-            player.subX += tps * 2 * delta;
-        } else if (inputDirection(.left)) {
+            player.y_speed = 0;
+            player.x_speed = tps * 2 * delta;
+        } else if (inputDirection(.Left)) {
             player.animation = .WalkLeft;
-            player.subX -= tps * 2 * delta;
-        } else if (rl.IsKeyDown(.KEY_S)) {
-            player.subY += tps * 2 * delta;
-        } else if (rl.IsKeyDown(.KEY_W)) {
-            player.subY -= tps * 2 * delta;
+            player.y_speed = 0;
+            player.x_speed = tps * -2 * delta;
+        } else if (inputDirection(.Down)) {
+            player.y_speed = tps * 2 * delta;
+            player.x_speed = 0;
+        } else if (inputDirection(.Up)) {
+            player.x_speed = 0;
+            player.y_speed = tps * -2 * delta;
         } else {
             player.animation = .Idle;
+            player.x_speed = 0;
+            player.y_speed = 0;
         }
 
-        player.updateCoords();
+        player.x += player.x_speed;
+        player.y += player.y_speed;
 
         if (rl.IsKeyPressed(.KEY_F3)) {
             menu.enabled = !menu.enabled;
@@ -486,36 +439,46 @@ pub fn main() !void {
 
         // Player modulo is to draw tiles at their correct locations relative
         // to player coords
-        const player_mod_x = @mod(player.x, tileSize) * scale;
-        const player_mod_y = @mod(player.y, tileSize) * scale;
+        var player_mod_x = @mod(@floatToInt(i32, player.x), tileSize) * scale;
+        var player_mod_y = @mod(@floatToInt(i32, player.y), tileSize) * scale;
+
+        if (player.y < 0 and player_mod_y == 0) {
+            player_mod_y = 12 * scale;
+        }
 
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 16 eg:
         // active resizing
-        const screen_mod_x = @mod(@divTrunc(screenWidth, 2), tileSize) * scale;
-        const screen_mod_y = @mod(@divTrunc(screenHeight, 2), tileSize) * scale;
+        var screen_mod_x = @mod(@divTrunc(screenWidth, 2), tileSize) * scale;
+        var screen_mod_y = @mod(@divTrunc(screenHeight, 2), tileSize) * scale;
+
 
         // Draw
-        rl.BeginDrawing();
-        rl.ClearBackground(rl.BLACK);
+       // rl.ClearBackground(rl.BLACK);
 
         //   var w: i32 = rl.GetScreenWidth();
 
         // Draw grass tiles
         // Start at -16
 
-        const x_num = @divFloor(player.x, 12);
-        const y_num = @divFloor(player.y, 12);
 
-        var x: i32 = -1;
-        var y: i32 = -3;
+
+        var x_num = @floatToInt(i32, @divFloor(player.x, 12));
+        const y_num = @floatToInt(i32, @divFloor(player.y, 12));
+
+        var x: i32 = 12;
+        var y: i32 = 1;
+
         while (y * tileSize <= screenHeight) : (y += 1) {
-            x = -1;
+            x = 5;
             while (x * tileSize <= screenWidth + tileSize) : (x += 1) {
                 for (chunks) |chunk| {
 
                     const x_pos = @intToFloat(f32, x * tileSize * scale - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * tileSize * scale - player_mod_y + screen_mod_y + 12 * scale);
+
+                //            print("collision {d}\n", .{y_pos});
+
 
                     // 24 because its tileSize*2
                     var tile_x = @mod(x_num + x - @divFloor(screenWidth, 24), chunk_size);
@@ -527,6 +490,81 @@ pub fn main() !void {
 
                         var raised: bool = false;
 
+                        if (tile_x + tile_y >= 0 and tile_x + tile_y < chunk_size*chunk_size and
+                            chunk.tiles[@intCast(usize, tile_x + tile_y) + chunk_size*chunk_size] != 0) {
+                                raised = true;
+                        }
+
+                        // Tile collision detection
+                        const c_x = (@divTrunc(screenWidth,  2) - tileSize) * scale;
+                        const c_y = (@divTrunc(screenHeight, 2))            * scale;
+
+                        // If collision detected
+//                         if (@floatToInt(i32, x_pos) >= c_x and @floatToInt(i32, x_pos) < c_x + (12 * scale) and
+//                             @floatToInt(i32, y_pos) >= c_y and @floatToInt(i32, y_pos) < c_y + (12 * scale) and raised) {
+//
+//                             // Check one pixel to the side of the player and apply collision accordingly
+//                             // TODO: stop the player from clipping into walls
+//                             if (@floatToInt(i32, x_pos) >= c_x+scale and @floatToInt(i32, x_pos) < c_x + (13 * scale)) {
+//                                 player.x -= std.math.fabs(player.x_speed);
+//                             }
+//                             if (@floatToInt(i32, x_pos) >= c_x-scale and @floatToInt(i32, x_pos) < c_x + (11 * scale)) {
+//                                 player.x += std.math.fabs(player.x_speed);
+//                             }
+//                             if (@floatToInt(i32, y_pos) >= c_y+scale and @floatToInt(i32, y_pos) < c_y + (13 * scale)) {
+//                                 player.y -= std.math.fabs(player.y_speed);
+//                             }
+//                             if (@floatToInt(i32, y_pos) >= c_y-scale and @floatToInt(i32, y_pos) < c_y + (11 * scale)) {
+//                                 player.y += std.math.fabs(player.y_speed);
+//                             }
+//                         }
+
+                        if (@floatToInt(i32, x_pos) >= c_x and @floatToInt(i32, x_pos) < c_x + (tileSize * scale) and
+                            @floatToInt(i32, y_pos) >= c_y and @floatToInt(i32, y_pos) < c_y + (tileSize * scale) and raised) {
+
+                            // Check one pixel to the side of the player and apply collision accordingly
+                            // TODO: stop the player from clipping into walls
+                            if (@floatToInt(i32, x_pos) >= c_x+scale and @floatToInt(i32, x_pos) < c_x + (13 * scale)) {
+                                player.x -= std.math.fabs(player.x_speed);
+                            }
+                            if (@floatToInt(i32, x_pos) >= c_x-scale and @floatToInt(i32, x_pos) < c_x + (11 * scale)) {
+                                player.x += std.math.fabs(player.x_speed);
+                            }
+                            if (@floatToInt(i32, y_pos) >= c_y+scale and @floatToInt(i32, y_pos) < c_y + (13 * scale)) {
+                                player.y -= std.math.fabs(player.y_speed);
+                            }
+                            if (@floatToInt(i32, y_pos) >= c_y-scale and @floatToInt(i32, y_pos) < c_y + (11 * scale)) {
+                                player.y += std.math.fabs(player.y_speed);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        rl.BeginDrawing();
+
+        x = -1;
+        y = -3;
+        while (y * tileSize <= screenHeight) : (y += 1) {
+            x = -1;
+            while (x * tileSize <= screenWidth + tileSize) : (x += 1) {
+                for (chunks) |chunk| {
+
+                    const x_pos = @intToFloat(f32, x * tileSize * scale - player_mod_x + screen_mod_x);
+                    const y_pos = @intToFloat(f32, y * tileSize * scale - player_mod_y + screen_mod_y + 12 * scale);
+
+                //            print("collision {d}\n", .{y_pos});
+
+
+                    // 24 because its tileSize*2
+                    var tile_x = @mod(x_num + x - @divFloor(screenWidth, 24), chunk_size);
+                    var tile_y = ((y_num + y) - @divFloor(screenHeight, 24) - chunk.y) * chunk_size;
+
+                    // Check if tile is on screen
+                    if (x + x_num - @divFloor(screenWidth, 24)  >= chunk.x and x + x_num - @divFloor(screenWidth, 24)  < chunk.x + chunk_size and
+                        y + y_num - @divFloor(screenHeight, 24) >= chunk.y and y + y_num - @divFloor(screenHeight, 24) < chunk.y + chunk_size*2) {
+
                         // Only loop through the first half of chunk tiles (floor level)
                         if (tile_x + tile_y >= 0 and tile_x + tile_y < chunk_size*chunk_size) {
                             // If wall level tile exists, draw it instead
@@ -535,40 +573,15 @@ pub fn main() !void {
                             } else {
                                 // Shadow
 //                                rl.DrawTextureEx(tiles[chunk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos -8, .y = y_pos - 8*@intToFloat(f32, scale) }, 0, 1, rl.GRAY);
-                                raised = true;
                                 rl.DrawTextureEx(tiles[chunk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8*@intToFloat(f32, scale) }, 0, 1, rl.WHITE);
                             }
-                        }
-
-                        // Tile collision detection
-                        const c_x = (@divTrunc(screenWidth, 2)-12) * scale ;
-                        const c_y = (@divTrunc(screenHeight, 2)) *scale ;
-
-                        // If collision detected
-                        if (@floatToInt(i32, x_pos) >= c_x and @floatToInt(i32, x_pos) < c_x + (12 * scale) and
-                            @floatToInt(i32, y_pos) >= c_y and @floatToInt(i32, y_pos) < c_y + (12 * scale) and raised) {
-
-                            // Check one pixel to the side of the player and apply collision accordingly
-                            // TODO: stop the player from clipping into walls
-                            if (@floatToInt(i32, x_pos) >= c_x+scale and @floatToInt(i32, x_pos) < c_x + (13 * scale)) {
-                                player.x -= 1;
-                            }
-                            if (@floatToInt(i32, x_pos) >= c_x-scale and @floatToInt(i32, x_pos) < c_x + (11 * scale)) {
-                                player.x += 1;
-                            }
-                            if (@floatToInt(i32, y_pos) >= c_y+scale and @floatToInt(i32, y_pos) < c_y + (13 * scale)) {
-                                player.y -= 1;
-                            }
-                            if (@floatToInt(i32, y_pos) >= c_y-scale and @floatToInt(i32, y_pos) < c_y + (11 * scale)) {
-                                player.y += 1;
-                            }
-                           // player.x -= 1;
-                            print("collision {d} {d}\n", .{x_pos, c_x});
                         }
                     }
                 }
             }
         }
+
+
 
         // Draw player in the center of the screen
         rl.DrawTexture(player.frame.*, scale * @divTrunc(screenWidth, 2) - 6 * scale, scale * @divTrunc(screenHeight, 2) - 12 * scale, rl.WHITE);
@@ -604,11 +617,11 @@ pub fn main() !void {
                 negY = "-";
             }
 
-            var px = player.x;
+            var px = @floatToInt(i32, player.x);
             if (px < 0) {
                 px *= -1;
             }
-            var py = player.y;
+            var py = @floatToInt(i32, player.y);
             if (py < 0) {
                 py *= -1;
             }
@@ -617,14 +630,14 @@ pub fn main() !void {
                 alloc,
                 "FPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~\nChunks generated: {s};",
                 .{
-                    int2Dozenal(rl.GetFPS(), &alloc),
+                    try int2Dozenal(rl.GetFPS(), &alloc),
                     negX,
-                    int2Dozenal(@divTrunc(px, tileSize), &alloc),
-                    int2Dozenal(@mod(px, tileSize), &alloc),
+                    try int2Dozenal(@divTrunc(px, tileSize), &alloc),
+                    try int2Dozenal(@mod(px, tileSize), &alloc),
                     negY,
-                    int2Dozenal(@divTrunc(py, tileSize), &alloc),
-                    int2Dozenal(@mod(py, tileSize), &alloc),
-                    int2Dozenal(chunks_generated, &alloc),
+                    try int2Dozenal(@divTrunc(py, tileSize), &alloc),
+                    try int2Dozenal(@mod(py, tileSize), &alloc),
+                    try int2Dozenal(chunks_generated, &alloc),
                 },
             );
 
