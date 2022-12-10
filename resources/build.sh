@@ -1,6 +1,6 @@
 #!/bin/sh
 
-git clone https://github.com/Not-Nik/raylib-zig
+git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
 git clone https://github.com/mgord9518/perlin-zig
 
 zig build -Drelease-fast -Dtarget=x86_64-windows
