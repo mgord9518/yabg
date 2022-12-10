@@ -10,12 +10,9 @@ const Chunk = chunk.Chunk;
 var scale: f32 = 6;
 // Set game ticks per second
 const tps = 30;
-//const Chunk.size = 24;
 
-//var screenWidth:  i32  = 240;
-//var screenHeight: i32 = 160;
-var screenWidth: f32 = 160;
-var screenHeight: f32 = 144;
+var screen_width: f32 = 160;
+var screen_height: f32 = 144;
 const title = "Yet Another Block Game (YABG)";
 const id = "io.github.mgord9518.yabg";
 var delta: f32 = 0;
@@ -212,11 +209,9 @@ const DebugMenu = struct {
         var alpha: u8 = undefined;
         if (menu.y < 0) {
             alpha = @floatToInt(u8, 192 + menu.y);
-            // print("{d}\n", .{alpha});
         }
 
         // Draw debug menu and its shadow
-        //            const menu_vec =
         rl.DrawTextEx(font, string.ptr, rl.Vector2{ .x = scale * 2, .y = scale + menu.y * scale * 0.75 }, 6 * scale, scale, rl.Color{ .r = 0, .g = 0, .b = 0, .a = @divTrunc(alpha, 3) });
         rl.DrawTextEx(font, string.ptr, rl.Vector2{ .x = scale, .y = menu.y * scale }, 6 * scale, scale, rl.Color{ .r = 192, .g = 192, .b = 192, .a = alpha });
     }
@@ -239,8 +234,8 @@ pub fn main() !void {
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
     const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
-    var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, screenWidth * scale);
-    var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, screenHeight * scale);
+    var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, screen_width * scale);
+    var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, screen_height * scale);
 
     // This isn't currently working correctly
     //    if (env_map.get("WINDOW_FULLSCREEN") != null) {
@@ -312,11 +307,10 @@ pub fn main() !void {
 
     // Main game loop
     while (!rl.WindowShouldClose()) { // Detect window close button or ESC key
-        //         var fps_avg: f32 = undefined;
         delta = rl.GetFrameTime();
 
-        screenWidth = @divTrunc(@intToFloat(f32, rl.GetScreenWidth()), scale);
-        screenHeight = @divTrunc(@intToFloat(f32, rl.GetScreenHeight()), scale);
+        screen_width = @divTrunc(@intToFloat(f32, rl.GetScreenWidth()), scale);
+        screen_height = @divTrunc(@intToFloat(f32, rl.GetScreenHeight()), scale);
 
         // Define our allocator,
         var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -372,7 +366,7 @@ pub fn main() !void {
         }
 
         if (rl.IsKeyPressed(.KEY_F11)) {
-            //            rl.ToggleFullscreen();
+            //rl.ToggleFullscreen();
         }
 
         var player_mod_x: i32 = undefined;
@@ -401,26 +395,12 @@ pub fn main() !void {
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 16 eg:
         // active resizing
-        var screen_mod_x: i32 = @floatToInt(i32, @mod(@divTrunc(screenWidth, 2), Tile.size) * scale);
-        var screen_mod_y: i32 = @floatToInt(i32, @mod(@divTrunc(screenHeight, 2), Tile.size) * scale);
-
-        // Draw
-        // rl.ClearBackground(rl.BLACK);
-
-        //   var w: i32 = rl.GetScreenWidth();
-
-        // Draw grass tiles
-        // Start at -16
-
-        var x_num = @floatToInt(i32, @divFloor(player.x, 12));
-        const y_num = @floatToInt(i32, @divFloor(player.y, 12));
-
-        var x: i32 = 12;
-        var y: i32 = 1;
+        var screen_mod_x: i32 = @floatToInt(i32, @mod(@divTrunc(screen_width, 2), Tile.size) * scale);
+        var screen_mod_y: i32 = @floatToInt(i32, @mod(@divTrunc(screen_height, 2), Tile.size) * scale);
 
         const player_rect = rl.Rectangle{
-            .x = @divTrunc(screenWidth * scale, 2) - 6 * scale,
-            .y = @divTrunc(screenHeight * scale + 40 * scale, 2) - 12 * scale,
+            .x = @divTrunc(screen_width * scale, 2) - 6 * scale,
+            .y = @divTrunc(screen_height * scale + 40 * scale, 2) - 12 * scale,
             .width = 12 * scale,
             .height = 6 * scale,
         };
@@ -433,34 +413,36 @@ pub fn main() !void {
             .height = 0,
         };
 
-        //   var x_off: f32 = 0;
-
         // Collision detection
-        while (y * Tile.size <= @floatToInt(i32, screenHeight)) : (y += 1) {
-            x = 5;
-            while (x * Tile.size <= @floatToInt(i32, screenWidth) + Tile.size) : (x += 1) {
+        const x_num = @floatToInt(i32, @divFloor(player.x, 12));
+        const y_num = @floatToInt(i32, @divFloor(player.y, 12));
+
+        var x = @floatToInt(i32, screen_width / Tile.size / 2) - 1;
+        var y = @floatToInt(i32, screen_height / Tile.size / 2) - 1;
+        while (y * Tile.size <= @floatToInt(i32, screen_height)) : (y += 1) {
+            x = @floatToInt(i32, screen_width / Tile.size / 2) - 1;
+            while (x * Tile.size <= @floatToInt(i32, screen_width) + Tile.size) : (x += 1) {
                 for (chunks) |chnk| {
                     const scale_i: i32 = @floatToInt(i32, scale);
                     const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
-                    //            print("collision {d}\n", .{y_pos});
-
-                    // 24 because its Tile.size*2
-                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screenWidth, 24)), Chunk.size);
-                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screenHeight, 24)) - chnk.y) * Chunk.size;
+                    // 24 because its Tile.size * 2
+                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screen_width, 24)), Chunk.size);
+                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screen_height, 24)) - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) >= chnk.x and x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) >= chnk.y and y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) < chnk.y + Chunk.size * 2)
+                    if (x + x_num - @floatToInt(i32, @divFloor(screen_width, 24)) >= chnk.x and
+                        x + x_num - @floatToInt(i32, @divFloor(screen_width, 24)) < chnk.x + Chunk.size and
+                        y + y_num - @floatToInt(i32, @divFloor(screen_height, 24)) >= chnk.y and
+                        y + y_num - @floatToInt(i32, @divFloor(screen_height, 24)) < chnk.y + Chunk.size)
                     {
                         var raised: bool = false;
                         if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size * Chunk.size and
                             chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] != 0)
                         {
                             raised = true;
-                        }
-                        if (!raised) {
+                        } else {
                             continue;
                         }
 
@@ -549,22 +531,22 @@ pub fn main() !void {
 
         x = -1;
         y = -3;
-        while (y * Tile.size <= @floatToInt(i32, screenHeight)) : (y += 1) {
+        while (y * Tile.size <= @floatToInt(i32, screen_height)) : (y += 1) {
             x = -1;
-            while (x * Tile.size <= @floatToInt(i32, screenWidth) + Tile.size) : (x += 1) {
+            while (x * Tile.size <= @floatToInt(i32, screen_width) + Tile.size) : (x += 1) {
                 for (chunks) |chnk| {
                     const scale_i: i32 = @floatToInt(i32, scale);
                     const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
-                    //            print("collision {d}\n", .{y_pos});
-
-                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screenWidth, 24)), Chunk.size);
-                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screenHeight, 24)) - chnk.y) * Chunk.size;
+                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screen_width, 24)), Chunk.size);
+                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screen_height, 24)) - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) >= chnk.x and x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) >= chnk.y and y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) < chnk.y + Chunk.size * 2)
+                    if (x + x_num - @floatToInt(i32, @divFloor(screen_width, 24)) >= chnk.x and
+                        x + x_num - @floatToInt(i32, @divFloor(screen_width, 24)) < chnk.x + Chunk.size and
+                        y + y_num - @floatToInt(i32, @divFloor(screen_height, 24)) >= chnk.y and
+                        y + y_num - @floatToInt(i32, @divFloor(screen_height, 24)) < chnk.y + Chunk.size)
                     {
 
                         // Only loop through the first half of chunk tiles (floor level)
@@ -573,8 +555,48 @@ pub fn main() !void {
                             if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] == 0) {
                                 rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos }, 0, 1, rl.LIGHTGRAY);
                             } else {
-                                // Shadow
-                                //                                rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos -8, .y = y_pos - 8*@intToFloat(f32, scale) }, 0, 1, rl.GRAY);
+                                if (y_pos < screen_height * scale / 2) {
+                                    rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * scale }, 0, 1, rl.WHITE);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Shows what tiles the player is currently colliding with
+        if (menu.enabled) {
+            rl.DrawRectangleRec(player_collision, rl.RED);
+        }
+
+        // Draw player in the center of the screen
+        rl.DrawTexture(player.frame.*, @floatToInt(i32, scale * @divTrunc(screen_width, 2) - 6 * scale), @floatToInt(i32, scale * @divTrunc(screen_height, 2) - 12 * scale), rl.WHITE);
+
+        // Now draw all raised tiles that sit above the player in front to give
+        // an illusion of depth
+        x = -1;
+        y = -3;
+        while (y * Tile.size <= @floatToInt(i32, screen_height)) : (y += 1) {
+            x = -1;
+            while (x * Tile.size <= @floatToInt(i32, screen_width) + Tile.size) : (x += 1) {
+                for (chunks) |chnk| {
+                    const scale_i: i32 = @floatToInt(i32, scale);
+                    const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
+                    const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
+
+                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screen_width, 24)), Chunk.size);
+                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screen_height, 24)) - chnk.y) * Chunk.size;
+
+                    // Check if tile is on screen
+                    if (x + x_num - @floatToInt(i32, @divFloor(screen_width, 24)) >= chnk.x and
+                        x + x_num - @floatToInt(i32, @divFloor(screen_width, 24)) < chnk.x + Chunk.size and
+                        y + y_num - @floatToInt(i32, @divFloor(screen_height, 24)) >= chnk.y and
+                        y + y_num - @floatToInt(i32, @divFloor(screen_height, 24)) < chnk.y + Chunk.size)
+                    {
+                        // Only draw raised tiles
+                        if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] != 0) {
+                            if (y_pos >= screen_height * scale / 2) {
                                 rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * scale }, 0, 1, rl.WHITE);
                             }
                         }
@@ -583,25 +605,14 @@ pub fn main() !void {
             }
         }
 
-        // For debugging collision
-        if (menu.enabled) {
-            rl.DrawRectangleRec(player_collision, rl.RED);
-        }
-
-        // Draw player in the center of the screen
-        rl.DrawTexture(player.frame.*, @floatToInt(i32, scale * @divTrunc(screenWidth, 2) - 6 * scale), @floatToInt(i32, scale * @divTrunc(screenHeight, 2) - 12 * scale), rl.WHITE);
-
         // Draw hotbar
         var i: f32 = 0;
-        const mid = (scale * @divTrunc(screenWidth, 2) - 38 * scale);
+        const mid = (scale * @divTrunc(screen_width, 2) - 38 * scale);
         while (i < 6) {
-            rl.DrawTexture(hotbar_item_texture, @floatToInt(i32, mid + i * scale * 13), @floatToInt(i32, scale * screenHeight - 13 * scale), rl.WHITE);
+            rl.DrawTexture(hotbar_item_texture, @floatToInt(i32, mid + i * scale * 13), @floatToInt(i32, scale * screen_height - 13 * scale), rl.WHITE);
             //                                    ^average w       ^ bottom, one px space
             i += 1;
         }
-
-        // Settings menu
-        //rl.DrawTexture(menu_frame_texture, @divTrunc(screenWidth, 2) * scale - 64 * scale, @divTrunc(screenHeight, 2) * scale - 64 * scale, rl.WHITE);
 
         try menu.draw(&alloc);
 
