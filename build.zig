@@ -18,11 +18,10 @@ pub fn build(b: *Builder) void {
     raylib.math.addAsPackage("raylib-math", exe);
 
     exe.addPackagePath("perlin", "perlin-zig/lib.zig");
-    
+
     const run_cmd = exe.run();
     const run_step = b.step("run", "run YABG");
     run_step.dependOn(&run_cmd.step);
 
     exe.install();
 }
-
