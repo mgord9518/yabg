@@ -10,8 +10,10 @@ sed 's/addIncludeDir/addIncludePath/g' -i raylib-zig/raylib/src/build.zig
 zig build -Drelease-fast -Dtarget=x86_64-windows
 zig build -Drelease-fast
 
-strip -s zig-out/bin/*
+mv zig-out/bin/yabg* ./
+
+#strip -s zig-out/bin/*
 
 #TODO: create Linux AppImage and macOS DMG builds
-zip -9    yabg-x86_64-win.zip    zig-out/bin/yabg.exe resources/
-tar -cJvf yabg-x86_64-lin.tar.xz zig-out/bin/yabg     resources/
+zip -9    yabg-x86_64-win.zip    yabg.exe resources/
+tar -cJvf yabg-x86_64-lin.tar.xz yabg     resources/
