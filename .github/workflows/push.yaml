@@ -14,7 +14,7 @@ jobs:
       run: |
         sudo snap install zig --classic --edge
         sudo apt update
-        sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev
+        sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev zip
 
     - name: Build
       run: ./resources/build.sh
@@ -30,4 +30,5 @@ jobs:
           *.AppImage
           *.shImg
           *.zsync
-          *.exe
+          *.zip
+          *.tar.xz
