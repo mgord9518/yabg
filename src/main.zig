@@ -223,18 +223,34 @@ const DebugMenu = struct {
 };
 
 pub fn main() !void {
+    var allocator = std.heap.page_allocator;
+
+    const env_map = try allocator.create(std.process.EnvMap);
+    env_map.* = try std.process.getEnvMap(allocator);
+
     // Enable vsync and resizing
     rl.SetConfigFlags(.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
     rl.SetTraceLogLevel(7);
-    rl.InitWindow(@floatToInt(i32, screenWidth * scale), @floatToInt(i32, screenHeight * scale), title);
-
-    font = rl.LoadFont("resources/vanilla/vanilla/ui/fonts/4x8/full.fnt");
-
-    var allocator = std.heap.page_allocator;
 
     // Disable exit on keypress
     rl.SetExitKey(.KEY_NULL);
+
+    // Get enviornment variables and set window size to them if they exist
+    const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
+    const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
+    var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, screenWidth * scale);
+    var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, screenHeight * scale);
+
+    // This isn't currently working correctly
+    //    if (env_map.get("WINDOW_FULLSCREEN") != null) {
+    //        w = 0;
+    //        h = 0;
+    //        if (!rl.IsWindowFullscreen()) rl.ToggleFullscreen();
+    //    }
+
+    rl.InitWindow(w, h, title);
+    font = rl.LoadFont("resources/vanilla/vanilla/ui/fonts/4x8/full.fnt");
 
     var player = Player{};
     var menu = DebugMenu{ .player = &player };
