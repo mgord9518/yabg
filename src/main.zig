@@ -7,11 +7,6 @@ const fs = std.fs;
 const chunk = @import("Chunk.zig");
 const Chunk = chunk.Chunk;
 
-//const Player
-//var debugEnabled = false;
-//var debugMenuHeight: i32 = -96;
-
-const tileSize = 12;
 var scale: f32 = 6;
 // Set game ticks per second
 const tps = 30;
@@ -25,10 +20,9 @@ const title = "Yet Another Block Game (YABG)";
 const id = "io.github.mgord9518.yabg";
 var delta: f32 = 0;
 //var chunks_generated: i32 = 0;
-var tiles: [Chunk.size*Chunk.size]rl.Texture = undefined;
+var tiles: [256]rl.Texture = undefined;
 var pixel_snap: bool = false;
 var font: rl.Font = undefined;
-
 
 var chunks: [9]Chunk = undefined;
 
@@ -43,35 +37,17 @@ fn inputDirection(direction: Direction) bool {
     // const axis_threashold = 0.1;
 
     // TODO: get gamepad working
-    switch (direction) {
-        .Left => {
-            if (rl.IsKeyDown(.KEY_A) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_UNKNOWN)) {
-                return true;
-            }
-        },
-        .Right => {
-            if (rl.IsKeyDown(.KEY_D) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
-                return true;
-            }
-        },
-        .Up => {
-            if (rl.IsKeyDown(.KEY_W)) {
-                return true;
-            }
-        },
-        .Down => {
-            if (rl.IsKeyDown(.KEY_S)) {
-                return true;
-            }
-        },
-    }
-
-    //print("{d}\n", .{rl.GetGamepadAxisMovement(0, 1)});
-
-    return false;
+    return switch (direction) {
+        .Left => rl.IsKeyDown(.KEY_A) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_UNKNOWN),
+        .Right => rl.IsKeyDown(.KEY_D) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT),
+        .Up => rl.IsKeyDown(.KEY_W),
+        .Down => rl.IsKeyDown(.KEY_S),
+    };
 }
 
 const Tile = struct {
+    const size = 12;
+
     hardness: i32 = 0,
     texture: *rl.Texture = undefined,
 };
@@ -96,12 +72,11 @@ const Player = struct {
 
     frame: *rl.Texture = undefined,
     frames_idle: [1]rl.Texture = undefined,
-    frames_right: [8]rl.Texture = undefined,
-    frames_left: [8]rl.Texture = undefined,
-//    frames: [Direction]rl.Texture = undefined,
 
-    frame_num_idle: usize = 0,
-    frame_num_right: usize = 0,
+    // Top-level array is the animation, 2nd is the current frame
+    frames: [4][8]rl.Texture = undefined,
+
+    frame_num: usize = 0,
     frame_sub: f32 = 0,
 
     animation: Animation = .Idle,
@@ -110,42 +85,30 @@ const Player = struct {
         player: *Player,
         frame: Animation,
     ) void {
+        player.frame_sub += tps * 0.3 * delta;
+
+        if (player.frame_sub >= 1) {
+            player.frame_sub -= 1;
+            player.frame_num += 1;
+        }
+
+        if (player.frame_num >= 7) {
+            player.frame_num = 0;
+        }
+
         switch (frame) {
-            .Idle => {
-                player.frame = &player.frames_idle[player.frame_num_idle];
-            },
-            .WalkRight => {
+            .Idle => player.frame = &player.frames[0][0],
+            .WalkRight, .WalkLeft => {
                 // Given an FPS of 60, this means that the animation will
                 // update at 14 FPS
-                player.frame_sub += tps * 0.3 * delta;
 
-                if (player.frame_sub >= 1) {
-                    player.frame_sub -= 1;
-                    player.frame_num_right += 1;
-                }
+                var f: usize = 1;
+                if (inputDirection(.Right)) f = 2;
 
-                if (player.frame_num_right >= 7) {
-                    player.frame_num_right = 0;
-                }
-                player.frame = &player.frames_right[player.frame_num_right];
-            },
-            .WalkLeft => {
-                // Given an FPS of 60, this means that the animation will
-                // update at 14 FPS
-                player.frame_sub += tps * 0.3 * delta;
-
-                if (player.frame_sub >= 1) {
-                    player.frame_sub -= 1;
-                    player.frame_num_right += 1;
-                }
-
-                if (player.frame_num_right >= 7) {
-                    player.frame_num_right = 0;
-                }
-                player.frame = &player.frames_left[player.frame_num_right];
+                player.frame = &player.frames[f][player.frame_num];
             },
             .WalkUp => {},
-            .WalkDown => {},
+            .WalkDown => player.frame = &player.frames[3][player.frame_num],
         }
     }
 
@@ -153,12 +116,12 @@ const Player = struct {
     // then loads new chunks into their pointers
     // Not yet sure how robust this is
     fn reloadChunks(player: *Player) void {
-        var cx_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.x, tileSize), Chunk.size));
-        var cy_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.y, tileSize), Chunk.size));
+        var cx_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.x, Tile.size), Chunk.size));
+        var cy_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.y, Tile.size), Chunk.size));
 
         // Return if player chunk is unchanged to save from executing the for loop every frame
         if (cx_origin == player.cx and cy_origin == player.cy) {
-       //     return;
+            //     return;
         }
 
         if (player.x < 0) {
@@ -200,7 +163,6 @@ const DebugMenu = struct {
 
     fn draw(menu: *DebugMenu, allocator: *std.mem.Allocator) !void {
 
-
         // Draw debug menu
         if (menu.enabled or menu.y > menu.min_y) {
             if (menu.enabled and menu.y < 0) {
@@ -233,30 +195,30 @@ const DebugMenu = struct {
         }
 
         // Print debug menu
-            const string = try fmt.allocPrint(
-                allocator.*,
-                "FPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~",
-                .{
-                    try int2Dozenal(rl.GetFPS(), allocator),
-                    negX,
-                    try int2Dozenal(@divTrunc(px, tileSize), allocator),
-                    try int2Dozenal(@mod(px, tileSize), allocator),
-                    negY,
-                    try int2Dozenal(@divTrunc(py, tileSize), allocator),
-                    try int2Dozenal(@mod(py, tileSize), allocator),
-                },
-            );
+        const string = try fmt.allocPrint(
+            allocator.*,
+            "FPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~",
+            .{
+                try int2Dozenal(rl.GetFPS(), allocator),
+                negX,
+                try int2Dozenal(@divTrunc(px, Tile.size), allocator),
+                try int2Dozenal(@mod(px, Tile.size), allocator),
+                negY,
+                try int2Dozenal(@divTrunc(py, Tile.size), allocator),
+                try int2Dozenal(@mod(py, Tile.size), allocator),
+            },
+        );
 
-            var alpha: u8 = undefined;
-            if (menu.y < 0) {
-                alpha = @floatToInt(u8, 192 + menu.y);
-                // print("{d}\n", .{alpha});
-            }
+        var alpha: u8 = undefined;
+        if (menu.y < 0) {
+            alpha = @floatToInt(u8, 192 + menu.y);
+            // print("{d}\n", .{alpha});
+        }
 
-            // Draw debug menu and its shadow
-//            const menu_vec =
-            rl.DrawTextEx(font, string.ptr, rl.Vector2{ .x = scale * 2, .y = scale + menu.y * scale * 0.75 }, 6 * scale, scale, rl.Color{ .r = 0, .g = 0, .b = 0, .a = @divTrunc(alpha, 3) });
-            rl.DrawTextEx(font, string.ptr, rl.Vector2{ .x = scale, .y = menu.y * scale }, 6 * scale, scale, rl.Color{ .r = 192, .g = 192, .b = 192, .a = alpha });
+        // Draw debug menu and its shadow
+        //            const menu_vec =
+        rl.DrawTextEx(font, string.ptr, rl.Vector2{ .x = scale * 2, .y = scale + menu.y * scale * 0.75 }, 6 * scale, scale, rl.Color{ .r = 0, .g = 0, .b = 0, .a = @divTrunc(alpha, 3) });
+        rl.DrawTextEx(font, string.ptr, rl.Vector2{ .x = scale, .y = menu.y * scale }, 6 * scale, scale, rl.Color{ .r = 192, .g = 192, .b = 192, .a = alpha });
     }
 };
 
@@ -264,72 +226,59 @@ pub fn main() !void {
     // Enable vsync and resizing
     rl.SetConfigFlags(.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
+    rl.SetTraceLogLevel(7);
     rl.InitWindow(@floatToInt(i32, screenWidth * scale), @floatToInt(i32, screenHeight * scale), title);
 
     font = rl.LoadFont("resources/vanilla/vanilla/ui/fonts/4x8/full.fnt");
 
     var allocator = std.heap.page_allocator;
 
-
     // Disable exit on keypress
     rl.SetExitKey(.KEY_NULL);
-    // rl.SetTraceLogLevel(7);
 
     var player = Player{};
     var menu = DebugMenu{ .player = &player };
 
     var hotbar_item = rl.LoadImage("resources/vanilla/vanilla/ui/hotbar_item.png");
-    rl.ImageResizeNN(&hotbar_item, @floatToInt(i32, tileSize * scale), @floatToInt(i32, tileSize * scale));
+    rl.ImageResizeNN(&hotbar_item, @floatToInt(i32, Tile.size * scale), @floatToInt(i32, Tile.size * scale));
     var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
 
     //var menu_frame = rl.LoadImage("resources/vanilla/vanilla/ui/menu.png");
     //rl.ImageResizeNN(&menu_frame, 128 * scale, 128 * scale);
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
 
-    chunks[0] = try Chunk.init("DEVTEST", "vanilla0", -1, -1);
-    chunks[1] = try Chunk.init("DEVTEST", "vanilla0", -1,  0);
-    chunks[2] = try Chunk.init("DEVTEST", "vanilla0", -1,  1);
-    chunks[3] = try Chunk.init("DEVTEST", "vanilla0",  0, -1);
-    chunks[4] = try Chunk.init("DEVTEST", "vanilla0",  0,  0);
-    chunks[5] = try Chunk.init("DEVTEST", "vanilla0",  0,  1);
-    chunks[6] = try Chunk.init("DEVTEST", "vanilla0",  1, -1);
-    chunks[7] = try Chunk.init("DEVTEST", "vanilla0",  1,  0);
-    chunks[8] = try Chunk.init("DEVTEST", "vanilla0",  1,  1);
-
-    var n: usize = 1;
-
-    var player_image = rl.LoadImage("resources/vanilla/vanilla/entities/players/player_front.png");
-    rl.ImageResizeNN(&player_image, @floatToInt(i32, 12 * scale), @floatToInt(i32, 24 * scale));
-    player.frames_idle[0] = rl.LoadTextureFromImage(player_image);
-
-    // Load player frames
-    while (n < 8) {
-        // TODO: get this working with bufPrint or something more efficient
-
-        // TODO: Add enum array and iterate through to load frames
-        //inline for (.{
-        //    .{ "right" },
-        //    .{ "left" },
-        //    .{ "down" },
-        //    .{ "up" },
-        //}) | direction | {
-        var path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ "right", n }) catch unreachable;
-        var player_image1 = rl.LoadImage(path.ptr);
-        rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * scale), @floatToInt(i32, 24 * scale));
-        player.frames_right[n - 1] = rl.LoadTextureFromImage(player_image1);
-        //n = n+1;
-        //}
-
-        path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ "left", n }) catch unreachable;
-        var player_image2 = rl.LoadImage(path.ptr);
-        rl.ImageResizeNN(&player_image2, @floatToInt(i32, 12 * scale), @floatToInt(i32, 24 * scale));
-        player.frames_left[n - 1] = rl.LoadTextureFromImage(player_image2);
-        n = n + 1;
+    // Init chunk array
+    var it: usize = 0;
+    inline for (.{ -1, 0, 1 }) |row| {
+        inline for (.{ -1, 0, 1 }) |col| {
+            chunks[it] = try Chunk.init("DEVTEST", "vanilla0", row, col);
+            it += 1;
+        }
     }
 
-    //player_images = undefined;
+    var player_image = rl.LoadImage("resources/vanilla/vanilla/entities/players/player_down_0.png");
+    rl.ImageResizeNN(&player_image, @floatToInt(i32, 12 * scale), @floatToInt(i32, 24 * scale));
+    player.frames[0][0] = rl.LoadTextureFromImage(player_image);
 
-    player.frame = &player.frames_right[0];
+    // Load player frames
+    // TODO: get this working with bufPrint or something more efficient
+    inline for (.{
+        "left",
+        "right",
+        "down",
+        //        "up",
+    }) |direction, direction_enum| {
+        it = 0;
+        while (it < 7) {
+            it += 1;
+            var path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ direction, it }) catch unreachable;
+            var player_image1 = rl.LoadImage(path.ptr);
+            rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * scale), @floatToInt(i32, 24 * scale));
+            player.frames[direction_enum + 1][it - 1] = rl.LoadTextureFromImage(player_image1);
+        }
+    }
+
+    player.frame = &player.frames[1][0];
 
     //    rl.ImageResizeNN(&player_image1, 12*scale, 24*scale);
     //    rl.ImageResizeNN(&player_image2, 12*scale, 24*scale);
@@ -337,9 +286,9 @@ pub fn main() !void {
     // var fontImg = rl.LoadImage("resources/vanilla/vanilla/ui/fonts/6x12/0-7f.png");
 
     var grass = rl.LoadImage("resources/vanilla/vanilla/tiles/grass.png");
-    rl.ImageResizeNN(&grass, @floatToInt(i32, tileSize * scale), @floatToInt(i32, 20 * scale));
+    rl.ImageResizeNN(&grass, @floatToInt(i32, Tile.size * scale), @floatToInt(i32, 20 * scale));
     var sand = rl.LoadImage("resources/vanilla/vanilla/tiles/sand.png");
-    rl.ImageResizeNN(&sand, @floatToInt(i32, tileSize * scale), @floatToInt(i32, tileSize * scale));
+    rl.ImageResizeNN(&sand, @floatToInt(i32, Tile.size * scale), @floatToInt(i32, 20 * scale));
 
     tiles[1] = rl.LoadTextureFromImage(grass);
 
@@ -387,6 +336,7 @@ pub fn main() !void {
             player.y_speed = 0;
             player.x_speed = tps * -2 * delta;
         } else if (inputDirection(.Down)) {
+            player.animation = .WalkDown;
             player.y_speed = tps * 2 * delta;
             player.x_speed = 0;
         } else if (inputDirection(.Up)) {
@@ -406,7 +356,7 @@ pub fn main() !void {
         }
 
         if (rl.IsKeyPressed(.KEY_F11)) {
-            rl.ToggleFullscreen();
+            //            rl.ToggleFullscreen();
         }
 
         var player_mod_x: i32 = undefined;
@@ -417,33 +367,34 @@ pub fn main() !void {
         // Disabling pixel snap makes the motion look more fluid on >1x scaling
         // but isn't true to pixel
         if (pixel_snap) {
-            player_mod_y = @mod(@floatToInt(i32, player.y), tileSize) * @floatToInt(i32, scale);
-            player_mod_x = @mod(@floatToInt(i32, player.x), tileSize) * @floatToInt(i32, scale);
+            player_mod_y = @mod(@floatToInt(i32, player.y), Tile.size) * @floatToInt(i32, scale);
+            player_mod_x = @mod(@floatToInt(i32, player.x), Tile.size) * @floatToInt(i32, scale);
         } else {
-            player_mod_y = @mod(@floatToInt(i32, player.y * scale), tileSize * @floatToInt(i32, scale));
-            player_mod_x = @mod(@floatToInt(i32, player.x * scale), tileSize * @floatToInt(i32, scale));
+            player_mod_y = @mod(@floatToInt(i32, player.y * scale), Tile.size * @floatToInt(i32, scale));
+            player_mod_x = @mod(@floatToInt(i32, player.x * scale), Tile.size * @floatToInt(i32, scale));
         }
 
         if (player.y < 0 and player_mod_y == 0) {
             player_mod_y = 12 * @floatToInt(i32, scale);
         }
 
+        if (player.x < 0 and player_mod_x == 0) {
+            player_mod_x = 12 * @floatToInt(i32, scale);
+        }
+
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 16 eg:
         // active resizing
-        var screen_mod_x: i32 = @floatToInt(i32, @mod(@divTrunc(screenWidth, 2), tileSize)  * scale);
-        var screen_mod_y: i32 = @floatToInt(i32, @mod(@divTrunc(screenHeight, 2), tileSize) * scale);
-
+        var screen_mod_x: i32 = @floatToInt(i32, @mod(@divTrunc(screenWidth, 2), Tile.size) * scale);
+        var screen_mod_y: i32 = @floatToInt(i32, @mod(@divTrunc(screenHeight, 2), Tile.size) * scale);
 
         // Draw
-       // rl.ClearBackground(rl.BLACK);
+        // rl.ClearBackground(rl.BLACK);
 
         //   var w: i32 = rl.GetScreenWidth();
 
         // Draw grass tiles
         // Start at -16
-
-
 
         var x_num = @floatToInt(i32, @divFloor(player.x, 12));
         const y_num = @floatToInt(i32, @divFloor(player.y, 12));
@@ -452,7 +403,7 @@ pub fn main() !void {
         var y: i32 = 1;
 
         const player_rect = rl.Rectangle{
-            .x = @divTrunc(screenWidth  * scale, 2) - 6 * scale,
+            .x = @divTrunc(screenWidth * scale, 2) - 6 * scale,
             .y = @divTrunc(screenHeight * scale + 40 * scale, 2) - 12 * scale,
             .width = 12 * scale,
             .height = 6 * scale,
@@ -460,38 +411,38 @@ pub fn main() !void {
 
         // Player collision rectangle
         var player_collision = rl.Rectangle{
-            .x      = 0,
-            .y      = 0,
-            .width  = 0,
+            .x = 0,
+            .y = 0,
+            .width = 0,
             .height = 0,
         };
 
-     //   var x_off: f32 = 0;
+        //   var x_off: f32 = 0;
 
-        while (y * tileSize <= @floatToInt(i32, screenHeight)) : (y += 1) {
+        // Collision detection
+        while (y * Tile.size <= @floatToInt(i32, screenHeight)) : (y += 1) {
             x = 5;
-            while (x * tileSize <= @floatToInt(i32, screenWidth) + tileSize) : (x += 1) {
+            while (x * Tile.size <= @floatToInt(i32, screenWidth) + Tile.size) : (x += 1) {
                 for (chunks) |chnk| {
-
                     const scale_i: i32 = @floatToInt(i32, scale);
-                    const x_pos = @intToFloat(f32, x * tileSize * scale_i - player_mod_x + screen_mod_x);
-                    const y_pos = @intToFloat(f32, y * tileSize * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
+                    const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
+                    const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
-                //            print("collision {d}\n", .{y_pos});
+                    //            print("collision {d}\n", .{y_pos});
 
-
-                    // 24 because its tileSize*2
+                    // 24 because its Tile.size*2
                     var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screenWidth, 24)), Chunk.size);
                     var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screenHeight, 24)) - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24))  >= chnk.x and x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24))  < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) >= chnk.y and y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) < chnk.y + Chunk.size*2) {
-
+                    if (x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) >= chnk.x and x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) < chnk.x + Chunk.size and
+                        y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) >= chnk.y and y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) < chnk.y + Chunk.size * 2)
+                    {
                         var raised: bool = false;
-                        if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size*Chunk.size and
-                            chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size*Chunk.size] != 0) {
-                                raised = true;
+                        if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size * Chunk.size and
+                            chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] != 0)
+                        {
+                            raised = true;
                         }
                         if (!raised) {
                             continue;
@@ -537,62 +488,78 @@ pub fn main() !void {
             }
         }
 
-      //  if (x_off > 0) {
-    //        player_collision.x = x_off;
+        //  if (x_off > 0) {
+        //        player_collision.x = x_off;
         //}
-  //      rec = player_collision;
+        //      rec = player_collision;
 
-
-
-        // TODO: fix corner catching and right/down collision sticking
-        if (player_collision.height > player_collision.width/2) {
+        // TODO: fix phasing through top-left and bottom-right corners
+        if (player_collision.height > player_collision.width / 2) {
             if (player_collision.x == player_rect.x) {
                 player.x += @fabs(player.x_speed);
             } else {
                 player.x -= @fabs(player.x_speed);
             }
-        } else if (player_collision.height < player_collision.width/2) {
+        } else if (player_collision.height < player_collision.width / 2) {
             if (player_collision.y == player_rect.y) {
                 player.y += @fabs(player.y_speed);
             } else {
                 player.y -= @fabs(player.y_speed);
             }
-        } else if (player_collision.height == player_collision.width/2 and player_collision.height > 1 * scale) {
+        } else if (player_collision.height <= player_collision.width / 2 and player_collision.height > 1 * scale) {
+
+            //  print("HIT\n", .{});
             player.x -= player.x_speed;
             player.y -= player.y_speed;
         }
+
+        if (pixel_snap) {
+            player_mod_y = @mod(@floatToInt(i32, player.y), Tile.size) * @floatToInt(i32, scale);
+            player_mod_x = @mod(@floatToInt(i32, player.x), Tile.size) * @floatToInt(i32, scale);
+        } else {
+            player_mod_y = @mod(@floatToInt(i32, player.y * scale), Tile.size * @floatToInt(i32, scale));
+            player_mod_x = @mod(@floatToInt(i32, player.x * scale), Tile.size * @floatToInt(i32, scale));
+        }
+
+        if (player.y < 0 and player_mod_y == 0) {
+            player_mod_y = 12 * @floatToInt(i32, scale);
+        }
+
+        if (player.x < 0 and player_mod_x == 0) {
+            player_mod_x = 12 * @floatToInt(i32, scale);
+        }
+
         rl.BeginDrawing();
 
         x = -1;
         y = -3;
-        while (y * tileSize <= @floatToInt(i32, screenHeight)) : (y += 1) {
+        while (y * Tile.size <= @floatToInt(i32, screenHeight)) : (y += 1) {
             x = -1;
-            while (x * tileSize <= @floatToInt(i32, screenWidth) + tileSize) : (x += 1) {
+            while (x * Tile.size <= @floatToInt(i32, screenWidth) + Tile.size) : (x += 1) {
                 for (chunks) |chnk| {
-
                     const scale_i: i32 = @floatToInt(i32, scale);
-                    const x_pos = @intToFloat(f32, x * tileSize * scale_i - player_mod_x + screen_mod_x);
-                    const y_pos = @intToFloat(f32, y * tileSize * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
+                    const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
+                    const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
-                //            print("collision {d}\n", .{y_pos});
-
+                    //            print("collision {d}\n", .{y_pos});
 
                     var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(screenWidth, 24)), Chunk.size);
                     var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(screenHeight, 24)) - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24))  >= chnk.x and x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24))  < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) >= chnk.y and y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) < chnk.y + Chunk.size*2) {
+                    if (x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) >= chnk.x and x + x_num - @floatToInt(i32, @divFloor(screenWidth, 24)) < chnk.x + Chunk.size and
+                        y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) >= chnk.y and y + y_num - @floatToInt(i32, @divFloor(screenHeight, 24)) < chnk.y + Chunk.size * 2)
+                    {
 
                         // Only loop through the first half of chunk tiles (floor level)
-                        if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size*Chunk.size) {
+                        if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size * Chunk.size) {
                             // If wall level tile exists, draw it instead
-                            if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size*Chunk.size] == 0) {
+                            if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] == 0) {
                                 rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos }, 0, 1, rl.LIGHTGRAY);
                             } else {
                                 // Shadow
-//                                rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos -8, .y = y_pos - 8*@intToFloat(f32, scale) }, 0, 1, rl.GRAY);
-                                rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8*scale }, 0, 1, rl.WHITE);
+                                //                                rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos -8, .y = y_pos - 8*@intToFloat(f32, scale) }, 0, 1, rl.GRAY);
+                                rl.DrawTextureEx(tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * scale }, 0, 1, rl.WHITE);
                             }
                         }
                     }
@@ -601,15 +568,12 @@ pub fn main() !void {
         }
 
         // For debugging collision
-        rl.DrawRectangleRec(player_collision, rl.RED);
+        if (menu.enabled) {
+            rl.DrawRectangleRec(player_collision, rl.RED);
+        }
 
         // Draw player in the center of the screen
-        rl.DrawTexture(
-            player.frame.*,
-            @floatToInt(i32, scale * @divTrunc(screenWidth, 2) - 6 * scale),
-            @floatToInt(i32, scale * @divTrunc(screenHeight, 2) - 12 * scale),
-            rl.WHITE
-        );
+        rl.DrawTexture(player.frame.*, @floatToInt(i32, scale * @divTrunc(screenWidth, 2) - 6 * scale), @floatToInt(i32, scale * @divTrunc(screenHeight, 2) - 12 * scale), rl.WHITE);
 
         // Draw hotbar
         var i: f32 = 0;
@@ -638,8 +602,8 @@ fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]u8 {
     // If your font has trouble reading the last 2, they are "TURNED DIGIT 2" and
     // "TURNED DIGIT 3" from Unicode 8.
     const symbols = [_][]const u8{
-        "0", "1", "2", "3",
-        "4", "5", "6", "7",
+        "0", "1", "2",   "3",
+        "4", "5", "6",   "7",
         "8", "9", "↊", "↋",
     };
 

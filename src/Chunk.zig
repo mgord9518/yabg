@@ -70,18 +70,20 @@ pub const Chunk = struct {
             t_y = chunk.y + @intCast(i32, @divTrunc(idx, size));
 
             // TODO: Fix formatting on this
-            var val = @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
-            val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
-            val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.05, @intToFloat(f32, t_y)*0.05, 0))*127.5/4);
-            val += @floatToInt(u8, (1+perlin.noise3D(f64, @intToFloat(f32, t_x-100)*0.2, @intToFloat(f32, t_y)*0.2, 0))*127.5/4);
+            var val = (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.075, @intToFloat(f32, t_y)*0.075))/8;
+            val += (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.075, @intToFloat(f32, t_y)*0.075))/8;
+            val += (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.075, @intToFloat(f32, t_y)*0.075))/8;
+            val += (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.2, @intToFloat(f32, t_y)*0.2))/8;
 
-            if (val > 170) {
+//            std.debug.print("{d}\n", .{val});
+
+            if (val > 0x0.b) {
                 tile.* = 0x01;
                 chunk.tiles[idx + size*size] = 0x01;
-            } else if (val > 72) {
+            } else if (val > 0.282) {
                 tile.* = 0x01;
                 chunk.tiles[idx + size*size] = 0x00;
-            } else if (val > 48) {
+            } else if (val > 0.188) {
                 tile.* = 0x03;
                 chunk.tiles[idx + size*size] = 0x00;
             } else {

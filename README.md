@@ -27,9 +27,11 @@ The code will ALWAYS be completely open source, however, and I'll have portable
 downloads for Linux and Windows (and macOS if I can get the means to test it)
 here free to use.
 
-Dependencies:
+Dependencies (Ubuntu):
 ```
 zig
+libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
+libgl-dev
 ```
 
 Building and running:
