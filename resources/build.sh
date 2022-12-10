@@ -1,9 +1,10 @@
 #!/bin/sh
 
-git pull --recurse-submodules
+git clone https://github.com/Not-Nik/raylib-zig
+git clone https://github.com/mgord9518/perlin-zig
 
-zig build -Dtarget=x86_64-windows -Drelease-fast
-zig build -Dtarget=x86_64-linux   -Drelease-fast
+zig build -Drelease-fast -Dtarget=x86_64-windows
+zig build -Drelease-fast
 
-mv zig-out/yabg.exe ./
-mv zig-out/yabg     ./
+mv zig-out/bin/yabg.exe ./
+mv zig-out/bin/yabg     ./
