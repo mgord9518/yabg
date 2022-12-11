@@ -2,6 +2,7 @@
 
 git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
 git clone https://github.com/mgord9518/perlin-zig
+git clone https://github.com/aeronavery/zig-toml
 
 # Raylib hasn't yet been updated to latest Zig and `addIncludeDir` is now a
 # compile error
