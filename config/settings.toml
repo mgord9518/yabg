@@ -1,0 +1,11 @@
+# Settings configuration file (TOML)
+
+[general]
+up    = [ "w" ]
+down  = [ "s" ]
+left  = [ "a" ]
+right = [ "d" ]
+
+inventory = [ "e" ]
+menu      = [ "ESC" ]
+debug     = [ "F3" ]

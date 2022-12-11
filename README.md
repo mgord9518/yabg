@@ -34,7 +34,7 @@ libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
 libgl-dev
 ```
 
-Building and running:
+Building instructions:
 ```
 git clone --recurse-submodules https://github.com/mgord9518/yabg
 cd yabg

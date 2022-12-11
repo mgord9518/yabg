@@ -18,6 +18,7 @@ pub fn build(b: *Builder) void {
     raylib.math.addAsPackage("raylib-math", exe);
 
     exe.addPackagePath("perlin", "perlin-zig/lib.zig");
+    exe.addPackagePath("toml", "zig-toml/src/toml.zig");
 
     const run_cmd = exe.run();
     const run_step = b.step("run", "run YABG");

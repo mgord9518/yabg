@@ -7,18 +7,15 @@ left  = [ "a" ]
 right = [ "d" ]
 
 inventory = [ "e" ]
-menu =
+menu      = [ "ESC" ]
+debug     = [ "F3" ]
 
-
-[gamepad]
+[gamepad_0]
 up    = [ "-axis1", "2" ]
 down  = [ "+axis1", "1" ]
 left  = [ "-axis0", "3" ]
 right = [ "+axis0", "0" ]
 
-#Up    = 2
-#Down  = 0
-#Left  = 3
-#Right = 1
-
-inventory =
+inventory = [ "" ]
+menu      = [ "" ]
+debug     = [ "" ]

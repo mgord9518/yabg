@@ -3,14 +3,12 @@ const fmt = std.fmt;
 const fs = std.fs;
 const perlin = @import("perlin");
 
-
 pub const Chunk = struct {
     x: i32,
     y: i32,
     level: i32 = 0x80,
-    tiles: [size*size*2]u8 = undefined,
+    tiles: [size * size * 2]u8 = undefined,
     pub const size = 24;
-
 
     pub fn init(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
         var buf: [144]u8 = undefined;
@@ -51,8 +49,8 @@ pub const Chunk = struct {
             },
         );
 
-//        print("GENERATING CHUNK AT {x}, {x}\n", .{x, y});
-//        chunks_generated += 1;
+        //        print("GENERATING CHUNK AT {x}, {x}\n", .{x, y});
+        //        chunks_generated += 1;
 
         // TODO: Save bytes to disk
         var chunk = Chunk{ .x = x * size, .y = y * size };
@@ -62,33 +60,33 @@ pub const Chunk = struct {
         var t_y: i32 = undefined;
         // Use Perlin noise to generate the world
         for (chunk.tiles) |*tile, idx| {
-            if (idx >= size*size) {
+            if (idx >= size * size) {
                 break;
             }
 
-            t_x = chunk.x + @intCast(i32,      @mod(idx, size));
+            t_x = chunk.x + @intCast(i32, @mod(idx, size));
             t_y = chunk.y + @intCast(i32, @divTrunc(idx, size));
 
             // TODO: Fix formatting on this
-            var val = (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.075, @intToFloat(f32, t_y)*0.075))/8;
-            val += (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.075, @intToFloat(f32, t_y)*0.075))/8;
-            val += (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.075, @intToFloat(f32, t_y)*0.075))/8;
-            val += (1+perlin.noise2D(f64, @intToFloat(f32, t_x-100)*0.2, @intToFloat(f32, t_y)*0.2))/8;
+            var val = (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
+            val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
+            val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
+            val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.2, @intToFloat(f32, t_y) * 0.2)) / 8;
 
-//            std.debug.print("{d}\n", .{val});
+            //            std.debug.print("{d}\n", .{val});
 
             if (val > 0x0.b) {
                 tile.* = 0x01;
-                chunk.tiles[idx + size*size] = 0x01;
+                chunk.tiles[idx + size * size] = 0x01;
             } else if (val > 0.282) {
                 tile.* = 0x01;
-                chunk.tiles[idx + size*size] = 0x00;
+                chunk.tiles[idx + size * size] = 0x00;
             } else if (val > 0.188) {
                 tile.* = 0x03;
-                chunk.tiles[idx + size*size] = 0x00;
+                chunk.tiles[idx + size * size] = 0x00;
             } else {
                 tile.* = 0x00;
-                chunk.tiles[idx + size*size] = 0x00;
+                chunk.tiles[idx + size * size] = 0x00;
             }
         }
 
@@ -96,5 +94,4 @@ pub const Chunk = struct {
 
         return chunk;
     }
-
 };
