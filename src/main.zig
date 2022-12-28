@@ -1,6 +1,7 @@
 const rl = @import("raylib");
 const toml = @import("toml");
 const std = @import("std");
+const os = std.os;
 const fmt = std.fmt;
 const print = std.debug.print;
 const fs = std.fs;
@@ -124,6 +125,13 @@ pub fn main() !void {
     //var menu_frame = rl.LoadImage("resources/vanilla/vanilla/ui/menu.png");
     //rl.ImageResizeNN(&menu_frame, 128 * Game.scale, 128 * Game.scale);
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
+
+    const cwd = fs.cwd();
+    cwd.makeDir("saves/DEVTEST") catch |err| {
+        if (err != os.MakeDirError.PathAlreadyExists) {
+            print("Error creating save directory: {}", .{err});
+        }
+    };
 
     // Init chunk array
     // TODO: lower this number to 4 to so that less iterations have to be done
