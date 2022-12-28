@@ -27,6 +27,25 @@ The code will ALWAYS be completely open source, however, and I'll have portable
 downloads for Linux and Windows (and macOS if I can get the means to test it)
 here free to use.
 
+Play instructions:
+
+There are currently releases for Linux and Windows (x86_64) that can simply be
+downloaded and ran. As of now, the game has no real content, but it will be
+added once I consider the engine good-enough. A couple of enviornment variables
+can be set for testing purposes:
+```
+SCALE_FACTOR  # Must be set to an integer, this will change the scaling of the
+              # game (default=6)
+
+PLAYER_SPEED  # Changes the speed of the player per tick. Each game tick is
+              # 1/30th of a second, so if you want to move one pixel per frame,
+			  # the speed would be set to 2 (default). To move an entire tile
+			  # per frame, set this to 24.
+
+WINDOW_WIDTH  # Must be set to an integer, sets the window width in pixels
+WINDOW_HEIGHT # Same as WINDOW_WIDTH but for height
+```
+
 Dependencies (Ubuntu):
 ```
 zig

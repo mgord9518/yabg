@@ -7,6 +7,7 @@ pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(.{});
 
     const system_lib = b.option(bool, "system-raylib", "link to preinstalled raylib libraries") orelse false;
+    const no_pie = b.option(bool, "no-pie", "do not build as a PIE (position independent executable) on Linux systems") orelse false;
 
     const exe = b.addExecutable("yabg", "src/main.zig");
     exe.setBuildMode(mode);
@@ -19,6 +20,10 @@ pub fn build(b: *Builder) void {
 
     exe.addPackagePath("perlin", "perlin-zig/lib.zig");
     exe.addPackagePath("toml", "zig-toml/src/toml.zig");
+
+    if (exe.target.getOsTag() == .linux) {
+        exe.pie = !no_pie;
+    }
 
     const run_cmd = exe.run();
     const run_step = b.step("run", "run YABG");

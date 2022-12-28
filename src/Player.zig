@@ -7,8 +7,13 @@ const Animation = @import("enums.zig").Animation;
 const Game = @import("Game.zig").Game;
 
 pub const Player = struct {
+    // The max speed at which the player is allowed to walk
+    pub var walk_speed: f32 = 2;
+
     x: f32 = 0,
     y: f32 = 0,
+
+    // Current speeds
     x_speed: f32 = 0,
     y_speed: f32 = 0,
 
@@ -25,7 +30,7 @@ pub const Player = struct {
     frame_num: usize = 0,
     frame_sub: f32 = 0,
 
-    animation: Animation = .Idle,
+    animation: Animation = .idle,
 
     pub fn updatePlayerFrames(
         player: *Player,
@@ -43,18 +48,18 @@ pub const Player = struct {
         }
 
         switch (frame) {
-            .Idle => player.frame = &player.frames[0][0],
-            .WalkRight, .WalkLeft => {
+            .idle => player.frame = &player.frames[0][0],
+            .walk_right, .walk_left => {
                 // Given an FPS of 60, this means that the animation will
                 // update at 14 FPS
 
                 var f: usize = 1;
-                if (player.inputVector(.Right)) f = 2;
+                if (player.inputVector(.right)) f = 2;
 
                 player.frame = &player.frames[f][player.frame_num];
             },
-            .WalkUp => {},
-            .WalkDown => player.frame = &player.frames[3][player.frame_num],
+            .walk_up => {},
+            .walk_down => player.frame = &player.frames[3][player.frame_num],
         }
     }
 
@@ -107,10 +112,10 @@ pub const Player = struct {
 
         // TODO: get gamepad working
         return switch (direction) {
-            .Left => rl.IsKeyDown(.KEY_A) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_UNKNOWN),
-            .Right => rl.IsKeyDown(.KEY_D) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT),
-            .Up => rl.IsKeyDown(.KEY_W),
-            .Down => rl.IsKeyDown(.KEY_S),
+            .left => rl.IsKeyDown(.KEY_A) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_UNKNOWN),
+            .right => rl.IsKeyDown(.KEY_D) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT),
+            .up => rl.IsKeyDown(.KEY_W),
+            .down => rl.IsKeyDown(.KEY_S),
         };
     }
 };

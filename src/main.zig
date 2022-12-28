@@ -95,8 +95,14 @@ pub fn main() !void {
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
     const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
+    const scale_env: []const u8 = env_map.get("SCALE_FACTOR") orelse "";
+    const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, Game.screen_width * Game.scale);
     var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, Game.screen_height * Game.scale);
+
+    // Scale must be an int because fractionals cause tons of issues
+    Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
+    Player.walk_speed = fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
 
     // This isn't currently working correctly
     //    if (env_map.get("WINDOW_FULLSCREEN") != null) {
@@ -120,6 +126,7 @@ pub fn main() !void {
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
 
     // Init chunk array
+    // TODO: lower this number to 4 to so that less iterations have to be done
     var it: usize = 0;
     inline for (.{ -1, 0, 1 }) |row| {
         inline for (.{ -1, 0, 1 }) |col| {
@@ -157,14 +164,21 @@ pub fn main() !void {
 
     // var Game.fontImg = rl.LoadImage("resources/vanilla/vanilla/ui/Game.fonts/6x12/0-7f.png");
 
+    // TODO: automatically iterate and load textures
     var grass = rl.LoadImage("resources/vanilla/vanilla/tiles/grass.png");
     rl.ImageResizeNN(&grass, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
     var sand = rl.LoadImage("resources/vanilla/vanilla/tiles/sand.png");
     rl.ImageResizeNN(&sand, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
+    var stone = rl.LoadImage("resources/vanilla/vanilla/tiles/stone.png");
+    rl.ImageResizeNN(&stone, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
+    // TODO: animate water (maybe using Perlin noise?)
+    var water = rl.LoadImage("resources/vanilla/vanilla/tiles/water.png");
+    rl.ImageResizeNN(&water, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 13 * Game.scale));
 
     Game.tiles[1] = rl.LoadTextureFromImage(grass);
-
+    Game.tiles[2] = rl.LoadTextureFromImage(stone);
     Game.tiles[3] = rl.LoadTextureFromImage(sand);
+    Game.tiles[4] = rl.LoadTextureFromImage(water);
 
     // Main game loop
     while (!rl.WindowShouldClose()) { // Detect window close button or ESC key
@@ -181,40 +195,40 @@ pub fn main() !void {
         player.updatePlayerFrames(player.animation);
         player.reloadChunks();
 
-        // Update player coords based on keys pressed
-        if (player.inputVector(.Right) and player.inputVector(.Down)) {
-            player.animation = .WalkRight;
-            player.x_speed = Game.tps * 1.4 * Game.delta;
-            player.y_speed = Game.tps * 1.4 * Game.delta;
-        } else if (player.inputVector(.Left) and player.inputVector(.Down)) {
-            player.animation = .WalkLeft;
-            player.x_speed = Game.tps * -1.4 * Game.delta;
-            player.y_speed = Game.tps * 1.4 * Game.delta;
-        } else if (player.inputVector(.Right) and player.inputVector(.Up)) {
-            player.animation = .WalkRight;
-            player.x_speed = Game.tps * 1.4 * Game.delta;
-            player.y_speed = Game.tps * -1.4 * Game.delta;
-        } else if (player.inputVector(.Left) and player.inputVector(.Up)) {
-            player.animation = .WalkLeft;
-            player.x_speed = Game.tps * -1.4 * Game.delta;
-            player.y_speed = Game.tps * -1.4 * Game.delta;
-        } else if (player.inputVector(.Right)) {
-            player.animation = .WalkRight;
+        // update player coords based on keys pressed
+        if (player.inputVector(.right) and player.inputVector(.down)) {
+            player.animation = .walk_right;
+            player.x_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
+            player.y_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
+        } else if (player.inputVector(.left) and player.inputVector(.down)) {
+            player.animation = .walk_left;
+            player.x_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
+            player.y_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
+        } else if (player.inputVector(.right) and player.inputVector(.up)) {
+            player.animation = .walk_right;
+            player.x_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
+            player.y_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
+        } else if (player.inputVector(.left) and player.inputVector(.up)) {
+            player.animation = .walk_left;
+            player.x_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
+            player.y_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
+        } else if (player.inputVector(.right)) {
+            player.animation = .walk_right;
             player.y_speed = 0;
-            player.x_speed = Game.tps * 2 * Game.delta;
-        } else if (player.inputVector(.Left)) {
-            player.animation = .WalkLeft;
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta;
+        } else if (player.inputVector(.left)) {
+            player.animation = .walk_left;
             player.y_speed = 0;
-            player.x_speed = Game.tps * -2 * Game.delta;
-        } else if (player.inputVector(.Down)) {
-            player.animation = .WalkDown;
-            player.y_speed = Game.tps * 2 * Game.delta;
+            player.x_speed = Game.tps * -Player.walk_speed * Game.delta;
+        } else if (player.inputVector(.down)) {
+            player.animation = .walk_down;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta;
             player.x_speed = 0;
-        } else if (player.inputVector(.Up)) {
+        } else if (player.inputVector(.up)) {
             player.x_speed = 0;
-            player.y_speed = Game.tps * -2 * Game.delta;
+            player.y_speed = Game.tps * -Player.walk_speed * Game.delta;
         } else {
-            player.animation = .Idle;
+            player.animation = .idle;
             player.x_speed = 0;
             player.y_speed = 0;
         }
@@ -262,8 +276,8 @@ pub fn main() !void {
         const player_rect = rl.Rectangle{
             .x = @divTrunc(Game.screen_width * Game.scale, 2) - 6 * Game.scale,
             .y = @divTrunc(Game.screen_height * Game.scale + 40 * Game.scale, 2) - 12 * Game.scale,
-            .width = 12 * Game.scale,
-            .height = 6 * Game.scale,
+            .width = 11 * Game.scale,
+            .height = 5.5 * Game.scale,
         };
 
         // Player collision rectangle
@@ -347,27 +361,20 @@ pub fn main() !void {
             }
         }
 
-        //  if (x_off > 0) {
-        //        player_collision.x = x_off;
-        //}
-        //      rec = player_collision;
-
         // TODO: fix phasing through top-left and bottom-right corners
         if (player_collision.height > player_collision.width / 2) {
             if (player_collision.x == player_rect.x) {
-                player.x += @fabs(player.x_speed);
+                player.x += player_collision.width / Game.scale;
             } else {
-                player.x -= @fabs(player.x_speed);
+                player.x -= player_collision.width / Game.scale;
             }
         } else if (player_collision.height < player_collision.width / 2) {
             if (player_collision.y == player_rect.y) {
-                player.y += @fabs(player.y_speed);
+                player.y += player_collision.height / Game.scale;
             } else {
-                player.y -= @fabs(player.y_speed);
+                player.y -= player_collision.height / Game.scale;
             }
         } else if (player_collision.height <= player_collision.width / 2 and player_collision.height > 1 * Game.scale) {
-
-            //  print("HIT\n", .{});
             player.x -= player.x_speed;
             player.y -= player.y_speed;
         }
@@ -475,6 +482,7 @@ pub fn main() !void {
             i += 1;
         }
 
+        // Draw debug menu
         try menu.draw(&alloc);
 
         rl.EndDrawing();

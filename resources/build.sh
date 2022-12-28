@@ -15,5 +15,8 @@ strip -s zig-out/bin/*
 mv zig-out/bin/yabg* ./
 
 #TODO: create Linux AppImage and macOS DMG builds
-zip -r9   yabg-x86_64-win.zip    yabg.exe resources/
-tar -cJvf yabg-x86_64-lin.tar.xz yabg     resources/
+zip -r9   yabg-x86_64-win.zip    yabg.exe resources/ saves/
+tar -cJvf yabg-x86_64-lin.tar.xz yabg     resources/ saves/
+
+# Clean up
+rm yabg

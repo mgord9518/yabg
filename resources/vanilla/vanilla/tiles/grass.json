@@ -16,7 +16,6 @@
 
 	"texture": {
 		"front": "vanilla:grass.png",
-		"front_raised": "vanilla:grass_raised.png"
 	},
 
 	"random_direction": true,

@@ -1,5 +1,6 @@
 const std = @import("std");
 const fmt = std.fmt;
+const print = std.debug.print;
 const fs = std.fs;
 const perlin = @import("perlin");
 
@@ -49,8 +50,7 @@ pub const Chunk = struct {
             },
         );
 
-        //        print("GENERATING CHUNK AT {x}, {x}\n", .{x, y});
-        //        chunks_generated += 1;
+        print("GENERATING CHUNK AT {x}, {x}\n", .{ x, y });
 
         // TODO: Save bytes to disk
         var chunk = Chunk{ .x = x * size, .y = y * size };
@@ -67,25 +67,26 @@ pub const Chunk = struct {
             t_x = chunk.x + @intCast(i32, @mod(idx, size));
             t_y = chunk.y + @intCast(i32, @divTrunc(idx, size));
 
-            // TODO: Fix formatting on this
+            // TODO: Allow the world directory to control world gen
             var val = (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
             val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
             val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
             val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.2, @intToFloat(f32, t_y) * 0.2)) / 8;
 
-            //            std.debug.print("{d}\n", .{val});
-
-            if (val > 0x0.b) {
+            if (val > 0.75) {
+                tile.* = 0x02;
+                chunk.tiles[idx + size * size] = 0x02;
+            } else if (val > 0.65) {
                 tile.* = 0x01;
                 chunk.tiles[idx + size * size] = 0x01;
-            } else if (val > 0.282) {
+            } else if (val > 0.3) {
                 tile.* = 0x01;
                 chunk.tiles[idx + size * size] = 0x00;
-            } else if (val > 0.188) {
+            } else if (val > 0.23) {
                 tile.* = 0x03;
                 chunk.tiles[idx + size * size] = 0x00;
             } else {
-                tile.* = 0x00;
+                tile.* = 0x04;
                 chunk.tiles[idx + size * size] = 0x00;
             }
         }

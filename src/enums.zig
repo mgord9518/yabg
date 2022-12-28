@@ -1,14 +1,14 @@
 pub const Direction = enum {
-    Left,
-    Right,
-    Up,
-    Down,
+    left,
+    right,
+    up,
+    down,
 };
 
 pub const Animation = enum {
-    Idle,
-    WalkRight,
-    WalkLeft,
-    WalkDown,
-    WalkUp,
+    idle,
+    walk_right,
+    walk_left,
+    walk_down,
+    walk_up,
 };

@@ -1,26 +1,12 @@
 {
-	"nice_name": "Grass",
-	"tool": [
-		"hand",
-		"shovel",
-		"axe",
-		"adze",
-		"pickaxe"
-	],
+	"nice_name": "Air",
+	"tool": null,
 
-	"proper_tool": [
-		"shovel"
-	],
+	"proper_tool": null,
 
-	"drops": "vanilla:dirt",
+	"drops": null,
 
-	"texture": {
-		"left":  "vanilla:sand.png",
-		"right": "vanilla:sand.png",
-		"front": "vanilla:sand.png",
-		"back":  "vanilla:sand.png",
-		"front_raised": "vanilla:sand_raised.png"
-	},
+	"texture": null,
 
-	"hardness": 1
+	"hardness": 0
 }
