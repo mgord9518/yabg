@@ -153,7 +153,7 @@ pub fn main() !void {
         "left",
         "right",
         "down",
-        //        "up",
+        "up",
     }) |direction, direction_enum| {
         it = 0;
         while (it < 7) {
@@ -203,38 +203,46 @@ pub fn main() !void {
         player.updatePlayerFrames(player.animation);
         player.reloadChunks();
 
+        // Keyboard/gamepad inputs
+        const input_vec = player.inputVector();
+
         // update player coords based on keys pressed
-        if (player.inputVector(.right) and player.inputVector(.down)) {
+        // Down-right
+        if (input_vec.x > 0 and input_vec.y > 0) {
             player.animation = .walk_right;
-            player.x_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
-            player.y_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
-        } else if (player.inputVector(.left) and player.inputVector(.down)) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
+            // Down-left
+        } else if (input_vec.x < 0 and input_vec.y > 0) {
             player.animation = .walk_left;
-            player.x_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
-            player.y_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
-        } else if (player.inputVector(.right) and player.inputVector(.up)) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
+            // Up-right
+        } else if (input_vec.x > 0 and input_vec.y < 0) {
             player.animation = .walk_right;
-            player.x_speed = Game.tps * 0.7 * Player.walk_speed * Game.delta;
-            player.y_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
-        } else if (player.inputVector(.left) and player.inputVector(.up)) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
+            // Up-left
+        } else if (input_vec.x < 0 and input_vec.y < 0) {
             player.animation = .walk_left;
-            player.x_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
-            player.y_speed = Game.tps * -0.7 * Player.walk_speed * Game.delta;
-        } else if (player.inputVector(.right)) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
+        } else if (input_vec.x > 0) {
             player.animation = .walk_right;
             player.y_speed = 0;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta;
-        } else if (player.inputVector(.left)) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+        } else if (input_vec.x < 0) {
             player.animation = .walk_left;
             player.y_speed = 0;
-            player.x_speed = Game.tps * -Player.walk_speed * Game.delta;
-        } else if (player.inputVector(.down)) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+        } else if (input_vec.y > 0) {
             player.animation = .walk_down;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
             player.x_speed = 0;
-        } else if (player.inputVector(.up)) {
+        } else if (input_vec.y < 0) {
+            player.animation = .walk_up;
             player.x_speed = 0;
-            player.y_speed = Game.tps * -Player.walk_speed * Game.delta;
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
         } else {
             player.animation = .idle;
             player.x_speed = 0;
@@ -244,7 +252,7 @@ pub fn main() !void {
         player.x += player.x_speed;
         player.y += player.y_speed;
 
-        if (rl.IsKeyPressed(.KEY_F3)) {
+        if (rl.IsKeyPressed(.KEY_F3) or rl.IsGamepadButtonPressed(0, @intToEnum(rl.GamepadButton, 13))) {
             menu.enabled = !menu.enabled;
         }
 

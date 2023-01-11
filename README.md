@@ -1,6 +1,6 @@
 # YABG (Yet Another Block Game)
 
-<p align="center"><img src="resources/yabg.avif"/></p>
+<p align="center"><img src="resources/yabg.png"/></p>
 
 A fun project to give an excuse to slightly neglect my other projects.
 I originally wrote it in Go with Ebitengine, but I wanted to learn something

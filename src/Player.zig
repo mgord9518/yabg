@@ -25,7 +25,7 @@ pub const Player = struct {
     frames_idle: [1]rl.Texture = undefined,
 
     // Top-level array is the animation, 2nd is the current frame
-    frames: [4][8]rl.Texture = undefined,
+    frames: [5][8]rl.Texture = undefined,
 
     frame_num: usize = 0,
     frame_sub: f32 = 0,
@@ -36,7 +36,11 @@ pub const Player = struct {
         player: *Player,
         frame: Animation,
     ) void {
-        player.frame_sub += Game.tps * 0.3 * Game.delta;
+        if (@fabs(player.inputVector().x) > 0) {
+            player.frame_sub += Game.tps * 0.3 * Game.delta * @fabs(player.x_speed);
+        } else {
+            player.frame_sub += Game.tps * 0.3 * Game.delta * @fabs(player.y_speed);
+        }
 
         if (player.frame_sub >= 1) {
             player.frame_sub -= 1;
@@ -54,11 +58,11 @@ pub const Player = struct {
                 // update at 14 FPS
 
                 var f: usize = 1;
-                if (player.inputVector(.right)) f = 2;
+                if (player.inputVector().x > 0) f = 2;
 
                 player.frame = &player.frames[f][player.frame_num];
             },
-            .walk_up => {},
+            .walk_up => player.frame = &player.frames[4][player.frame_num],
             .walk_down => player.frame = &player.frames[3][player.frame_num],
         }
     }
@@ -106,16 +110,40 @@ pub const Player = struct {
     // This will allow analog speed from a gamepad
     // This will also be changed to be specific per-player when multiplayer is
     // eventually implemented
-    pub fn inputVector(player: *Player, direction: Direction) bool {
+    pub fn inputVector(player: *Player) rl.Vector2 {
         // const axis_threashold = 0.1;
         _ = player;
 
-        // TODO: get gamepad working
-        return switch (direction) {
-            .left => rl.IsKeyDown(.KEY_A) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_UNKNOWN),
-            .right => rl.IsKeyDown(.KEY_D) or rl.IsGamepadButtonDown(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT),
-            .up => rl.IsKeyDown(.KEY_W),
-            .down => rl.IsKeyDown(.KEY_S),
-        };
+        var vec: rl.Vector2 = undefined;
+
+        if (rl.IsKeyDown(.KEY_A) and rl.IsKeyDown(.KEY_S)) {
+            vec.x = -0.8;
+            vec.y = -0.8;
+        } else if (rl.IsKeyDown(.KEY_A) and rl.IsKeyDown(.KEY_W)) {
+            vec.x = -0.8;
+            vec.y = 0.8;
+        } else if (rl.IsKeyDown(.KEY_D) and rl.IsKeyDown(.KEY_S)) {
+            vec.x = 0.8;
+            vec.y = -0.8;
+        } else if (rl.IsKeyDown(.KEY_D) and rl.IsKeyDown(.KEY_W)) {
+            vec.x = 0.8;
+            vec.y = 0.8;
+        } else if (rl.IsKeyDown(.KEY_A)) {
+            vec.x = -1;
+        } else if (rl.IsKeyDown(.KEY_D)) {
+            vec.x = 1;
+        } else {
+            vec.x = rl.GetGamepadAxisMovement(0, @enumToInt(rl.GamepadAxis.GAMEPAD_AXIS_LEFT_X));
+        }
+
+        if (rl.IsKeyDown(.KEY_W)) {
+            vec.y = -1;
+        } else if (rl.IsKeyDown(.KEY_S)) {
+            vec.y = 1;
+        } else {
+            vec.y = rl.GetGamepadAxisMovement(0, @enumToInt(rl.GamepadAxis.GAMEPAD_AXIS_LEFT_Y));
+        }
+
+        return vec;
     }
 };
