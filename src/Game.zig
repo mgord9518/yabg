@@ -12,7 +12,7 @@ pub const Game = struct {
     pub const title = "Yet Another Block Game (YABG)";
     pub const id = "io.github.mgord9518.yabg";
     pub var tiles: [256]rl.Texture = undefined;
-    pub var pixel_snap: bool = false;
     pub var font: rl.Font = undefined;
     pub var chunks: [9]Chunk = undefined;
+    pub var sounds: [256]rl.Sound = undefined;
 };

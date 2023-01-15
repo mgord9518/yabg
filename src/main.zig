@@ -88,10 +88,15 @@ pub fn main() !void {
     // Enable vsync and resizing
     rl.SetConfigFlags(.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
-    rl.SetTraceLogLevel(7);
+    //    rl.SetTraceLogLevel(7);
 
     // Disable exit on keypress
     rl.SetExitKey(.KEY_NULL);
+
+    rl.InitAudioDevice();
+
+    // Load sounds
+    Game.sounds[0] = rl.LoadSound("resources/vanilla/vanilla/audio/grass.ogg");
 
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
@@ -145,10 +150,12 @@ pub fn main() !void {
 
     var player_image = rl.LoadImage("resources/vanilla/vanilla/entities/players/player_down_0.png");
     rl.ImageResizeNN(&player_image, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
+
     player.frames[0][0] = rl.LoadTextureFromImage(player_image);
+    player.frame = &player.frames[0][0];
 
     // Load player frames
-    // TODO: get this working with bufPrint or something more efficient
+    // TODO: implement as spritesheets
     inline for (.{
         "left",
         "right",
@@ -156,16 +163,14 @@ pub fn main() !void {
         "up",
     }) |direction, direction_enum| {
         it = 0;
-        while (it < 7) {
-            it += 1;
+        while (it <= 7) {
             var path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ direction, it }) catch unreachable;
             var player_image1 = rl.LoadImage(path.ptr);
             rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
-            player.frames[direction_enum + 1][it - 1] = rl.LoadTextureFromImage(player_image1);
+            player.frames[direction_enum + 1][it] = rl.LoadTextureFromImage(player_image1);
+            it += 1;
         }
     }
-
-    player.frame = &player.frames[1][0];
 
     //    rl.ImageResizeNN(&player_image1, 12*Game.scale, 24*Game.scale);
     //    rl.ImageResizeNN(&player_image2, 12*Game.scale, 24*Game.scale);
@@ -207,47 +212,21 @@ pub fn main() !void {
         const input_vec = player.inputVector();
 
         // update player coords based on keys pressed
-        // Down-right
-        if (input_vec.x > 0 and input_vec.y > 0) {
+        if (input_vec.x > 0) {
             player.animation = .walk_right;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-            // Down-left
-        } else if (input_vec.x < 0 and input_vec.y > 0) {
-            player.animation = .walk_left;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-            // Up-right
-        } else if (input_vec.x > 0 and input_vec.y < 0) {
-            player.animation = .walk_right;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-            // Up-left
-        } else if (input_vec.x < 0 and input_vec.y < 0) {
-            player.animation = .walk_left;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-        } else if (input_vec.x > 0) {
-            player.animation = .walk_right;
-            player.y_speed = 0;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
         } else if (input_vec.x < 0) {
             player.animation = .walk_left;
-            player.y_speed = 0;
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
         } else if (input_vec.y > 0) {
             player.animation = .walk_down;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-            player.x_speed = 0;
         } else if (input_vec.y < 0) {
             player.animation = .walk_up;
-            player.x_speed = 0;
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
         } else {
             player.animation = .idle;
-            player.x_speed = 0;
-            player.y_speed = 0;
         }
+
+        // Update player speed based on control input
+        player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
+        player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
 
         player.x += player.x_speed;
         player.y += player.y_speed;
@@ -256,24 +235,15 @@ pub fn main() !void {
             menu.enabled = !menu.enabled;
         }
 
-        if (rl.IsKeyPressed(.KEY_F11)) {
-            //rl.ToggleFullscreen();
-        }
+        //if (rl.IsKeyPressed(.KEY_F11)) {
+        //rl.ToggleFullscreen();
+        //}
 
         var player_mod_x: i32 = undefined;
         var player_mod_y: i32 = undefined;
 
-        // Player modulo is to draw tiles at their correct locations relative
-        // to player coords.
-        // Disabling pixel snap makes the motion look more fluid on >1x scaling
-        // but isn't true to pixel
-        if (Game.pixel_snap) {
-            player_mod_y = @mod(@floatToInt(i32, player.y), Tile.size) * @floatToInt(i32, Game.scale);
-            player_mod_x = @mod(@floatToInt(i32, player.x), Tile.size) * @floatToInt(i32, Game.scale);
-        } else {
-            player_mod_y = @mod(@floatToInt(i32, player.y * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
-            player_mod_x = @mod(@floatToInt(i32, player.x * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
-        }
+        player_mod_y = @mod(@floatToInt(i32, player.y * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
+        player_mod_x = @mod(@floatToInt(i32, player.x * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
 
         if (player.y < 0 and player_mod_y == 0) {
             player_mod_y = 12 * @floatToInt(i32, Game.scale);
@@ -395,13 +365,8 @@ pub fn main() !void {
             player.y -= player.y_speed;
         }
 
-        if (Game.pixel_snap) {
-            player_mod_y = @mod(@floatToInt(i32, player.y), Tile.size) * @floatToInt(i32, Game.scale);
-            player_mod_x = @mod(@floatToInt(i32, player.x), Tile.size) * @floatToInt(i32, Game.scale);
-        } else {
-            player_mod_y = @mod(@floatToInt(i32, player.y * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
-            player_mod_x = @mod(@floatToInt(i32, player.x * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
-        }
+        player_mod_y = @mod(@floatToInt(i32, player.y * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
+        player_mod_x = @mod(@floatToInt(i32, player.x * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
 
         if (player.y < 0 and player_mod_y == 0) {
             player_mod_y = 12 * @floatToInt(i32, Game.scale);
@@ -455,7 +420,7 @@ pub fn main() !void {
         }
 
         // Draw player in the center of the screen
-        rl.DrawTexture(player.frame.*, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 6 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
+        rl.DrawTexture(player.frame.*, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
 
         // Now draw all raised Game.tiles that sit above the player in front to give
         // an illusion of depth
@@ -507,8 +472,8 @@ pub fn main() !void {
     rl.CloseWindow();
 }
 
-fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]u8 {
-    var n = i;
+fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]const u8 {
+    if (i == 0) return "0";
 
     // Symbols to extend the arabic number set
     // If your font has trouble reading the last 2, they are "TURNED DIGIT 2" and
@@ -519,11 +484,13 @@ fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]u8 {
         "8", "9", "↊", "↋",
     };
 
-    if (n == 0) return try fmt.allocPrint(alloc.*, "0", .{});
     var num: []u8 = "";
 
+    var n = i;
     while (n > 0) {
         var rem = @intCast(usize, @mod(n, 12));
+
+        // Prepend to the existing string
         num = try fmt.allocPrint(alloc.*, "{s}{s}", .{ symbols[rem], num });
         n = @divFloor(n, 12);
     }

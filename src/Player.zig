@@ -1,4 +1,5 @@
 const rl = @import("raylib");
+const std = @import("std");
 
 const Chunk = @import("Chunk.zig").Chunk;
 const Tile = @import("Tile.zig").Tile;
@@ -36,18 +37,27 @@ pub const Player = struct {
         player: *Player,
         frame: Animation,
     ) void {
-        if (@fabs(player.inputVector().x) > 0) {
-            player.frame_sub += Game.tps * 0.3 * Game.delta * @fabs(player.x_speed);
+        var speed: f32 = undefined;
+
+        if (player.x_speed != 0 and player.y_speed != 0) {
+            // Not really sure why this number works but it does
+            speed = std.math.sqrt((player.x_speed * player.x_speed) + (player.y_speed * player.y_speed)) * 0.8;
         } else {
-            player.frame_sub += Game.tps * 0.3 * Game.delta * @fabs(player.y_speed);
+            speed = std.math.sqrt((player.x_speed * player.x_speed) + (player.y_speed * player.y_speed));
         }
+
+        player.frame_sub += Game.tps * 0.4 * Game.delta * @fabs(speed);
 
         if (player.frame_sub >= 1) {
             player.frame_sub -= 1;
             player.frame_num += 1;
+
+            if (player.frame_num == 2 or player.frame_num == 6) {
+                rl.PlaySound(Game.sounds[0]);
+            }
         }
 
-        if (player.frame_num >= 7) {
+        if (player.frame_num > 7) {
             player.frame_num = 0;
         }
 
@@ -106,28 +116,25 @@ pub const Player = struct {
         }
     }
 
-    // Once I revamp this it'll return a 2D vector of the player's direction
-    // This will allow analog speed from a gamepad
-    // This will also be changed to be specific per-player when multiplayer is
-    // eventually implemented
+    // TODO: limit to 8 directions and 2 (or maybe 3? speeds)
+    // I'll probably end up doing a `sneak`, `walk` and `run`
     pub fn inputVector(player: *Player) rl.Vector2 {
-        // const axis_threashold = 0.1;
         _ = player;
 
         var vec: rl.Vector2 = undefined;
 
         if (rl.IsKeyDown(.KEY_A) and rl.IsKeyDown(.KEY_S)) {
-            vec.x = -0.8;
-            vec.y = -0.8;
+            vec.x = -0.7;
+            vec.y = -0.7;
         } else if (rl.IsKeyDown(.KEY_A) and rl.IsKeyDown(.KEY_W)) {
-            vec.x = -0.8;
-            vec.y = 0.8;
+            vec.x = -0.7;
+            vec.y = 0.7;
         } else if (rl.IsKeyDown(.KEY_D) and rl.IsKeyDown(.KEY_S)) {
-            vec.x = 0.8;
-            vec.y = -0.8;
+            vec.x = 0.7;
+            vec.y = -0.7;
         } else if (rl.IsKeyDown(.KEY_D) and rl.IsKeyDown(.KEY_W)) {
-            vec.x = 0.8;
-            vec.y = 0.8;
+            vec.x = 0.7;
+            vec.y = 0.7;
         } else if (rl.IsKeyDown(.KEY_A)) {
             vec.x = -1;
         } else if (rl.IsKeyDown(.KEY_D)) {
