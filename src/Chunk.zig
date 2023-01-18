@@ -3,21 +3,23 @@ const fmt = std.fmt;
 const print = std.debug.print;
 const fs = std.fs;
 const perlin = @import("perlin");
+const builtin = @import("builtin");
 
 pub const Chunk = struct {
     x: i32,
     y: i32,
     level: i32 = 0x80,
     tiles: [size * size * 2]u8 = undefined,
+
     pub const size = 24;
 
-    pub fn init(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+    pub fn init(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
         var buf: [144]u8 = undefined;
         const string = try fmt.bufPrint(
             &buf,
-            "saves/{s}/{d}_{d}.{s}",
+            "{s}/{x}_{x}.{s}",
             .{
-                save_name,
+                save_path,
                 x,
                 y,
                 mod_pack,
@@ -30,20 +32,20 @@ pub const Chunk = struct {
         };
 
         // Generate chunk if unable to find file
-        var f = fs.cwd().openFile(string, .{}) catch return genChunk(save_name, mod_pack, x, y);
+        var f = fs.cwd().openFile(string, .{}) catch return genChunk(save_path, mod_pack, x, y);
         defer f.close();
 
         _ = try f.read(chunk.tiles[0..]);
         return chunk;
     }
 
-    fn genChunk(save_name: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+    fn genChunk(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
         var buf: [144]u8 = undefined;
         const path = try fmt.bufPrint(
             &buf,
-            "saves/{s}/{d}_{d}.{s}",
+            "{s}/{x}_{x}.{s}",
             .{
-                save_name,
+                save_path,
                 x,
                 y,
                 mod_pack,

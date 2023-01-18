@@ -14,6 +14,11 @@ pub fn build(b: *Builder) void {
     exe.setTarget(target);
     exe.linkLibC();
 
+    // Just gonna use this until I (or someone else) makes a good XDG library
+    // in Zig
+    exe.addIncludePath("libXDGdirs/src");
+    exe.addCSourceFile("libXDGdirs/src/xdgdirs.c", &[_][]const u8{});
+
     raylib.link(exe, system_lib);
     raylib.addAsPackage("raylib", exe);
     raylib.math.addAsPackage("raylib-math", exe);

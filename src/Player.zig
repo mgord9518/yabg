@@ -33,6 +33,12 @@ pub const Player = struct {
 
     animation: Animation = .idle,
 
+    save_path: []const u8,
+
+    pub fn init(save_path: []const u8) Player {
+        return Player{ .save_path = save_path };
+    }
+
     pub fn updatePlayerFrames(
         player: *Player,
         frame: Animation,
@@ -105,13 +111,13 @@ pub const Player = struct {
             const cy = @divTrunc(chnk.y, Chunk.size);
 
             if (@divTrunc(chnk.x, Chunk.size) > cx_origin + 1) {
-                chnk.* = Chunk.init("DEVTEST", "vanilla0", cx_origin - 1, cy) catch unreachable;
+                chnk.* = Chunk.init(player.save_path, "vanilla0", cx_origin - 1, cy) catch unreachable;
             } else if (@divTrunc(chnk.x, Chunk.size) < cx_origin - 1) {
-                chnk.* = Chunk.init("DEVTEST", "vanilla0", cx_origin + 1, cy) catch unreachable;
+                chnk.* = Chunk.init(player.save_path, "vanilla0", cx_origin + 1, cy) catch unreachable;
             } else if (@divTrunc(chnk.y, Chunk.size) > cy_origin + 1) {
-                chnk.* = Chunk.init("DEVTEST", "vanilla0", cx, cy_origin - 1) catch unreachable;
+                chnk.* = Chunk.init(player.save_path, "vanilla0", cx, cy_origin - 1) catch unreachable;
             } else if (@divTrunc(chnk.y, Chunk.size) < cy_origin - 1) {
-                chnk.* = Chunk.init("DEVTEST", "vanilla0", cx, cy_origin + 1) catch unreachable;
+                chnk.* = Chunk.init(player.save_path, "vanilla0", cx, cy_origin + 1) catch unreachable;
             }
         }
     }

@@ -4,12 +4,18 @@ const std = @import("std");
 const os = std.os;
 const fmt = std.fmt;
 const print = std.debug.print;
+const builtin = @import("builtin");
 const fs = std.fs;
+const ChildProcess = std.ChildProcess;
 
 const Chunk = @import("Chunk.zig").Chunk;
 const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig").Player;
 const Game = @import("Game.zig").Game;
+
+const c = @cImport({
+    @cInclude("xdgdirs.h");
+});
 
 const DebugMenu = struct {
     enabled: bool = false,
@@ -106,9 +112,21 @@ pub fn main() !void {
     var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, Game.screen_width * Game.scale);
     var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, Game.screen_height * Game.scale);
 
+    //    var save_dir: []const u8 = undefined;
+
+    // TODO: properly fall back for *nix OSes
+    const data_dir = switch (builtin.os.tag) {
+        .windows => env_map.get("APPDATA") orelse "",
+        else => std.mem.span(c.xdgDataHome()),
+    };
+
+    const save_dir = try fmt.allocPrint(allocator, "{s}{c}{s}{c}saves{c}DEVTEST", .{ data_dir, fs.path.sep, Game.id, fs.path.sep, fs.path.sep });
+
     // Scale must be an int because fractionals cause tons of issues
     Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
     Player.walk_speed = fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
+
+    std.debug.print("{s}", .{save_dir});
 
     // This isn't currently working correctly
     //    if (env_map.get("WINDOW_FULLSCREEN") != null) {
@@ -120,7 +138,7 @@ pub fn main() !void {
     rl.InitWindow(w, h, Game.title);
     Game.font = rl.LoadFont("resources/vanilla/vanilla/ui/fonts/4x8/full.fnt");
 
-    var player = Player{};
+    var player = Player.init(save_dir);
     var menu = DebugMenu{ .player = &player };
 
     var hotbar_item = rl.LoadImage("resources/vanilla/vanilla/ui/hotbar_item.png");
@@ -131,19 +149,25 @@ pub fn main() !void {
     //rl.ImageResizeNN(&menu_frame, 128 * Game.scale, 128 * Game.scale);
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
 
-    const cwd = fs.cwd();
-    cwd.makeDir("saves/DEVTEST") catch |err| {
-        if (err != os.MakeDirError.PathAlreadyExists) {
-            print("Error creating save directory: {}", .{err});
-        }
-    };
+    //    const cwd = fs.cwd();
+    //    cwd.makeDir(save_dir) catch |err| {
+    //        if (err != os.MakeDirError.PathAlreadyExists) {
+    //            print("Error creating save directory: {}", .{err});
+    //        }
+    //    };
+
+    // Forgive me lord, I will fix this soon but I'm lazy
+    switch (builtin.os.tag) {
+        .windows => _ = try ChildProcess.exec(.{ .allocator = allocator, .argv = &[_][]const u8{ "mkdir", save_dir } }),
+        else => _ = try ChildProcess.exec(.{ .allocator = allocator, .argv = &[_][]const u8{ "mkdir", "-p", save_dir } }),
+    }
 
     // Init chunk array
     // TODO: lower this number to 4 to so that less iterations have to be done
     var it: usize = 0;
     inline for (.{ -1, 0, 1 }) |row| {
         inline for (.{ -1, 0, 1 }) |col| {
-            Game.chunks[it] = try Chunk.init("DEVTEST", "vanilla0", row, col);
+            Game.chunks[it] = try Chunk.init(save_dir, "vanilla0", row, col);
             it += 1;
         }
     }
@@ -289,8 +313,14 @@ pub fn main() !void {
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
                     // 24 because its Tile.size * 2
-                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(Game.screen_width, 24)), Chunk.size);
-                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(Game.screen_height, 24)) - chnk.y) * Chunk.size;
+                    const tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(Game.screen_width, 24)), Chunk.size);
+                    const tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(Game.screen_height, 24)) - chnk.y) * Chunk.size;
+
+                    if (tile_x + tile_y < 0) {
+                        continue;
+                    }
+
+                    const tile_idx = @intCast(usize, tile_x + tile_y);
 
                     // Check if tile is on screen
                     if (x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) >= chnk.x and
@@ -298,12 +328,9 @@ pub fn main() !void {
                         y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) >= chnk.y and
                         y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) < chnk.y + Chunk.size)
                     {
-                        var raised: bool = false;
-                        if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size * Chunk.size and
-                            chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] != 0)
+                        if (tile_idx >= Chunk.size * Chunk.size or
+                            chnk.tiles[tile_idx + Chunk.size * Chunk.size] == 0 and chnk.tiles[tile_idx] != 4)
                         {
-                            raised = true;
-                        } else {
                             continue;
                         }
 
@@ -315,7 +342,7 @@ pub fn main() !void {
                         };
 
                         var collision: rl.Rectangle = undefined;
-                        if (rl.CheckCollisionRecs(player_rect, tile_rect) and raised) {
+                        if (rl.CheckCollisionRecs(player_rect, tile_rect)) {
                             collision = rl.GetCollisionRec(player_rect, tile_rect);
 
                             if (player_collision.x == 0) {
