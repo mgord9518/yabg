@@ -3,8 +3,8 @@
 # Build AppImage
 # Variables
 [ -z "$TMPDIR" ] && TMPDIR='/tmp'
+[ -z "$ARCH" ]   && ARCH=$(uname -m)
 
-ARCH=$(uname -m)
 version=0.0.1
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
@@ -35,7 +35,7 @@ mv zig-out/bin/yabg* ./
 zip -r9   "$formatted_name-win.zip"    yabg.exe resources/ saves/
 
 rm yabg.exe yabg.pdb
-
+mv yabg "$temp_dir/AppDir/usr/bin"
 
 # Define what should be in the desktop entry
 entry="[Desktop Entry]
@@ -146,7 +146,6 @@ mv "$formatted_name"* "$start_dir"
 ls
 
 # Clean up
-mv yabg "$temp_dir/AppDir/usr/bin"
 rm -r "$temp_dir"
 
 exit 0
