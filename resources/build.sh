@@ -26,17 +26,19 @@ git clone https://github.com/aeronavery/zig-toml
 sed 's/addIncludeDir/addIncludePath/g' -i raylib-zig/raylib/src/build.zig
 
 echo 'building for Windows'
-#zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
+zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
 echo 'building for Linux'
 zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
 
 strip -s zig-out/bin/*
 mv zig-out/bin/yabg* ./
 
-ls
-
 #TODO: create Linux AppImage and macOS DMG builds
 zip -r9   "$formatted_name-win.zip"    yabg.exe resources/ saves/
+
+# Create and move to working directory
+mkdir -p "$temp_dir/AppDir/usr/bin" \
+         "$temp_dir/AppDir/usr/share/icons/hicolor/scalable/apps"
 
 rm yabg.exe yabg.pdb
 mv yabg "$temp_dir/AppDir/usr/bin"
@@ -85,10 +87,6 @@ printErr() {
 	rm "$temp_dir/out.log"
 	exit 1
 }
-
-# Create and move to working directory
-mkdir -p "$temp_dir/AppDir/usr/bin" \
-         "$temp_dir/AppDir/usr/share/icons/hicolor/scalable/apps"
 
 if [ ! $? = 0  ]; then
 	printErr 'Failed to create temporary directory.'
