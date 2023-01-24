@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# Build AppImage
+# Variables
+[ -z "$TMPDIR" ] && TMPDIR='/tmp'
+
 ARCH=$(uname -m)
 version=0.0.1
 app_id='io.github.mgord9518.yabg'
@@ -32,9 +36,6 @@ zip -r9   "$formatted_name-win.zip"    yabg.exe resources/ saves/
 
 rm yabg.exe yabg.pdb
 
-# Build AppImage
-# Variables
-[ -z "$TMPDIR" ] && TMPDIR='/tmp'
 
 # Define what should be in the desktop entry
 entry="[Desktop Entry]
