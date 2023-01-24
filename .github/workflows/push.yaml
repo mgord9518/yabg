@@ -31,4 +31,3 @@ jobs:
           *.shImg
           *.zsync
           *.zip
-          *.tar.xz

@@ -56,7 +56,7 @@ pub const Chunk = struct {
 
         // TODO: Save bytes to disk
         var chunk = Chunk{ .x = x * size, .y = y * size };
-        var f = fs.cwd().createFile(path, .{ .read = true }) catch unreachable;
+        var f = try fs.cwd().createFile(path, .{ .read = true });
 
         var t_x: i32 = undefined;
         var t_y: i32 = undefined;

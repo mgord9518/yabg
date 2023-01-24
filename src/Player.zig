@@ -67,16 +67,15 @@ pub const Player = struct {
             player.frame_num = 0;
         }
 
+        // Given an FPS of 60, this means that the animation will
+        // update at 14 FPS
         switch (frame) {
             .idle => player.frame = &player.frames[0][0],
-            .walk_right, .walk_left => {
-                // Given an FPS of 60, this means that the animation will
-                // update at 14 FPS
-
-                var f: usize = 1;
-                if (player.inputVector().x > 0) f = 2;
-
-                player.frame = &player.frames[f][player.frame_num];
+            .walk_left => {
+                player.frame = &player.frames[1][player.frame_num];
+            },
+            .walk_right => {
+                player.frame = &player.frames[2][player.frame_num];
             },
             .walk_up => player.frame = &player.frames[4][player.frame_num],
             .walk_down => player.frame = &player.frames[3][player.frame_num],

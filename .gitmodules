@@ -7,6 +7,6 @@
 [submodule "zig-toml"]
 	path = zig-toml
 	url = https://github.com/aeronavery/zig-toml
-[submodule "libXDGdirs"]
-	path = libXDGdirs
-	url = https://github.com/Jorengarenar/libXDGdirs
+[submodule "basedirs-zig"]
+	path = basedirs-zig
+	url = https://github.com/mgord9518/basedirs-zig

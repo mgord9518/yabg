@@ -7,15 +7,12 @@ const print = std.debug.print;
 const builtin = @import("builtin");
 const fs = std.fs;
 const ChildProcess = std.ChildProcess;
+const BaseDirs = @import("basedirs").BaseDirs;
 
 const Chunk = @import("Chunk.zig").Chunk;
 const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig").Player;
 const Game = @import("Game.zig").Game;
-
-const c = @cImport({
-    @cInclude("xdgdirs.h");
-});
 
 const DebugMenu = struct {
     enabled: bool = false,
@@ -114,13 +111,10 @@ pub fn main() !void {
 
     //    var save_dir: []const u8 = undefined;
 
-    // TODO: properly fall back for *nix OSes
-    const data_dir = switch (builtin.os.tag) {
-        .windows => env_map.get("APPDATA") orelse "",
-        else => std.mem.span(c.xdgDataHome()),
-    };
+    const base_dirs = try BaseDirs.init(allocator, .user);
 
-    const save_dir = try fmt.allocPrint(allocator, "{s}{c}{s}{c}saves{c}DEVTEST", .{ data_dir, fs.path.sep, Game.id, fs.path.sep, fs.path.sep });
+    //const save_dir = try fmt.allocPrint(allocator, "{s}{c}{s}{c}saves{c}DEVTEST", .{ data_dir, fs.path.sep, Game.id, fs.path.sep, fs.path.sep });
+    const save_dir = try fmt.allocPrint(allocator, "{s}{c}{s}{c}saves{c}DEVTEST", .{ base_dirs.data, fs.path.sep, Game.id, fs.path.sep, fs.path.sep });
 
     // Scale must be an int because fractionals cause tons of issues
     Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
@@ -157,6 +151,7 @@ pub fn main() !void {
     //    };
 
     // Forgive me lord, I will fix this soon but I'm lazy
+    std.debug.print("{s}\n\n", .{save_dir});
     switch (builtin.os.tag) {
         .windows => _ = try ChildProcess.exec(.{ .allocator = allocator, .argv = &[_][]const u8{ "mkdir", save_dir } }),
         else => _ = try ChildProcess.exec(.{ .allocator = allocator, .argv = &[_][]const u8{ "mkdir", "-p", save_dir } }),
@@ -188,7 +183,10 @@ pub fn main() !void {
     }) |direction, direction_enum| {
         it = 0;
         while (it <= 7) {
-            var path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ direction, it }) catch unreachable;
+            var path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ direction, it }) catch {
+                std.debug.print("err\n\n\n\n", .{});
+                return;
+            };
             var player_image1 = rl.LoadImage(path.ptr);
             rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
             player.frames[direction_enum + 1][it] = rl.LoadTextureFromImage(player_image1);
@@ -245,7 +243,8 @@ pub fn main() !void {
         } else if (input_vec.y < 0) {
             player.animation = .walk_up;
         } else {
-            player.animation = .idle;
+            //            player.animation = .idle;
+            player.frame_num = 0;
         }
 
         // Update player speed based on control input

@@ -16,8 +16,8 @@ pub fn build(b: *Builder) void {
 
     // Just gonna use this until I (or someone else) makes a good XDG library
     // in Zig
-    exe.addIncludePath("libXDGdirs/src");
-    exe.addCSourceFile("libXDGdirs/src/xdgdirs.c", &[_][]const u8{});
+    //    exe.addIncludePath("libXDGdirs/src");
+    //    exe.addCSourceFile("libXDGdirs/src/xdgdirs.c", &[_][]const u8{});
 
     raylib.link(exe, system_lib);
     raylib.addAsPackage("raylib", exe);
@@ -25,6 +25,7 @@ pub fn build(b: *Builder) void {
 
     exe.addPackagePath("perlin", "perlin-zig/lib.zig");
     exe.addPackagePath("toml", "zig-toml/src/toml.zig");
+    exe.addPackagePath("basedirs", "basedirs-zig/lib.zig");
 
     if (exe.target.getOsTag() == .linux) {
         exe.pie = !no_pie;
