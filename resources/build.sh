@@ -30,6 +30,8 @@ echo 'building for Windows'
 echo 'building for Linux'
 zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
 
+ls
+
 strip -s zig-out/bin/*
 mv zig-out/bin/yabg* ./
 
