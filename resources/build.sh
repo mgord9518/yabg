@@ -17,7 +17,7 @@ icon_url='https://go.dev/images/go-logo-blue.svg'
 
 # currently using this because Ubuntu 18.04's squashfs tools doesn't support
 # ZSTD. Might switch to ZSTD once 18.04 is fully deprecated on GH actions.
-compression='gzip'
+compression='lz4'
 
 git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
 git clone https://github.com/mgord9518/perlin-zig
@@ -125,8 +125,8 @@ export VERSION="$version"
 # Only build standard AppImage under x86_64 for now as for some reason the aarch64 chroot
 # cannot execute the aarch64 version of mkappimage
 if [ "$ARCH" = "x86_64" ]; then
-	ai_tool --comp="$compression" -u \
-		"gh-releases-zsync|mgord9518|go.AppImage|continuous|go-*$ARCH.AppImage.zsync" \
+	ai_tool --comp="zstd" -u \
+		"gh-releases-zsync|mgord9518|yabg|continuous|yabg-*$ARCH.AppImage.zsync" \
 		'AppDir/'
 
 	if [ ! $? = 0 ]; then
@@ -134,7 +134,8 @@ if [ "$ARCH" = "x86_64" ]; then
 	fi
 fi
 
-mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xcompression-level 19 -nopad
+#mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xcompression-level 19 -nopad
+mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xhc -nopad
 wget "https://github.com/mgord9518/shappimage/releases/download/continuous/runtime-$compression-static-$ARCH" -O runtime
 
 [ $? -ne 0 ] && exit $?
