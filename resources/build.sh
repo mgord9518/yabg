@@ -26,7 +26,7 @@ git clone https://github.com/aeronavery/zig-toml
 sed 's/addIncludeDir/addIncludePath/g' -i raylib-zig/raylib/src/build.zig
 
 echo 'building for Windows'
-zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
+#zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
 echo 'building for Linux'
 zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
 
