@@ -14,7 +14,10 @@ temp_dir="$TMPDIR/.buildApp_$formatted_name.$RANDOM"
 start_dir="$PWD"
 #TODO: create icon for YABG
 icon_url='https://go.dev/images/go-logo-blue.svg'
-compression='zstd'
+
+# currently using this because Ubuntu 18.04's squashfs tools doesn't support
+# ZSTD. Might switch to ZSTD once 18.04 is fully deprecated on GH actions.
+compression='lz4'
 
 git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
 git clone https://github.com/mgord9518/perlin-zig
@@ -26,6 +29,9 @@ git clone https://github.com/aeronavery/zig-toml
 sed 's/addIncludeDir/addIncludePath/g' -i raylib-zig/raylib/src/build.zig
 
 echo 'building for Windows'
+# currently isn't building for Windows on GH actions for some reason.
+# It builds fine on my Ubuntu 22.04 machine though, might need some more
+# investigation. Built fine on GH actions just a few days ago
 zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
 echo 'building for Linux'
 zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
@@ -133,14 +139,13 @@ wget "https://github.com/mgord9518/shappimage/releases/download/continuous/runti
 
 [ $? -ne 0 ] && exit $?
 
-shimg_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH.shImg"
-cat runtime sfs > "$shimg_name"
-chmod +x "$shimg_name"
+cat runtime sfs > "$formatted_name.shImg"
+chmod +x "$formatted_name.shImg"
 
 # Append desktop integration info
 wget 'https://raw.githubusercontent.com/mgord9518/shappimage/main/add_integration.sh'
 [ $? -ne 0 ] && exit $?
-sh add_integration.sh "./$shimg_name" "AppDir" "gh-releases-zsync|mgord9518|yabg|continuous|yabg-*-$ARCH.shImg.zsync"
+sh add_integration.sh "./$formatted_name.shImg" "AppDir" "gh-releases-zsync|mgord9518|yabg|continuous|yabg-*-$ARCH.shImg.zsync"
 
 # Move completed AppImage and zsync file to start directory
 mv "$formatted_name"* "$start_dir"
