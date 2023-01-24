@@ -17,7 +17,7 @@ icon_url='https://go.dev/images/go-logo-blue.svg'
 
 # currently using this because Ubuntu 18.04's squashfs tools doesn't support
 # ZSTD. Might switch to ZSTD once 18.04 is fully deprecated on GH actions.
-compression='lz4'
+compression='gzip'
 
 git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
 git clone https://github.com/mgord9518/perlin-zig
