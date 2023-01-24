@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
+    - uses: goto-bus-stop/setup-zig@v2
 
     - name: Install deps
       run: |
-        sudo snap install zig --classic --beta
         sudo apt update
         sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev zip
 
