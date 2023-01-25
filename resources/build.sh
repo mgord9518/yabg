@@ -40,7 +40,7 @@ strip -s zig-out/bin/*
 mv zig-out/bin/yabg* ./
 
 #TODO: create Linux AppImage and macOS DMG builds
-zip -r9   "$formatted_name-win.zip"    yabg.exe resources/ saves/
+zip -r9   "$formatted_name-win.zip"    yabg.exe resources/
 
 # Create and move to working directory
 mkdir -p "$temp_dir/AppDir/usr/bin" \

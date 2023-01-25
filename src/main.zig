@@ -205,12 +205,12 @@ pub fn main() !void {
     // TODO: automatically iterate and load textures
     var grass = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/grass.png" }));
     rl.ImageResizeNN(&grass, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    var sand = rl.LoadImage("usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/sand.png");
+    var sand = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/sand.png" }));
     rl.ImageResizeNN(&sand, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    var stone = rl.LoadImage("usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/stone.png");
+    var stone = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/stone.png" }));
     rl.ImageResizeNN(&stone, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
     // TODO: animate water (maybe using Perlin noise?)
-    var water = rl.LoadImage("usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/water.png");
+    var water = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/water.png" }));
     rl.ImageResizeNN(&water, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 13 * Game.scale));
 
     Game.tiles[1] = rl.LoadTextureFromImage(grass);
