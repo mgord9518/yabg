@@ -6,6 +6,7 @@ const fmt = std.fmt;
 const print = std.debug.print;
 const builtin = @import("builtin");
 const fs = std.fs;
+const path = fs.path;
 const ChildProcess = std.ChildProcess;
 const BaseDirs = @import("basedirs").BaseDirs;
 
@@ -85,21 +86,42 @@ const DebugMenu = struct {
 pub fn main() !void {
     var allocator = std.heap.page_allocator;
 
-    const env_map = try allocator.create(std.process.EnvMap);
-    env_map.* = try std.process.getEnvMap(allocator);
+    const env_map = try std.process.getEnvMap(allocator);
 
-    // Enable vsync and resizing
+    // Enable vsync, resizing and init audio devices
     rl.SetConfigFlags(.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
-    //    rl.SetTraceLogLevel(7);
+    rl.SetTraceLogLevel(7);
+    rl.InitAudioDevice();
 
     // Disable exit on keypress
     rl.SetExitKey(.KEY_NULL);
 
-    rl.InitAudioDevice();
+    // Determine executable directory
+    // TODO: either implement for other OSes or use a library like <https://github.com/gpakosz/whereami/>
+    var app_dir: []const u8 = undefined;
+    switch (builtin.os.tag) {
+        .linux => {
+            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+
+            const exepath = try os.readlink("/proc/self/exe", &buf);
+            const dirname = path.dirname(exepath) orelse "/";
+
+            app_dir = try path.join(allocator, &[_][]const u8{ dirname, "../.." });
+        },
+        .netbsd => {
+            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+
+            const exepath = try os.readlink("/proc/curproc/exe", &buf);
+            const dirname = path.dirname(exepath) orelse "/";
+
+            app_dir = try path.join(allocator, &[_][]const u8{ dirname, "../.." });
+        },
+        else => {},
+    }
 
     // Load sounds
-    Game.sounds[0] = rl.LoadSound("resources/vanilla/vanilla/audio/grass.ogg");
+    Game.sounds[0] = rl.LoadSound(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/audio/grass.ogg" }));
 
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
@@ -109,18 +131,13 @@ pub fn main() !void {
     var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, Game.screen_width * Game.scale);
     var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, Game.screen_height * Game.scale);
 
-    //    var save_dir: []const u8 = undefined;
-
     const base_dirs = try BaseDirs.init(allocator, .user);
 
-    //const save_dir = try fmt.allocPrint(allocator, "{s}{c}{s}{c}saves{c}DEVTEST", .{ data_dir, fs.path.sep, Game.id, fs.path.sep, fs.path.sep });
-    const save_dir = try fmt.allocPrint(allocator, "{s}{c}{s}{c}saves{c}DEVTEST", .{ base_dirs.data, fs.path.sep, Game.id, fs.path.sep, fs.path.sep });
+    const save_dir = try path.join(allocator, &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" });
 
     // Scale must be an int because fractionals cause tons of issues
     Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
     Player.walk_speed = fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
-
-    std.debug.print("{s}", .{save_dir});
 
     // This isn't currently working correctly
     //    if (env_map.get("WINDOW_FULLSCREEN") != null) {
@@ -130,32 +147,26 @@ pub fn main() !void {
     //    }
 
     rl.InitWindow(w, h, Game.title);
-    Game.font = rl.LoadFont("resources/vanilla/vanilla/ui/fonts/4x8/full.fnt");
+    Game.font = rl.LoadFont(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/ui/fonts/4x8/full.fn" }));
 
     var player = Player.init(save_dir);
     var menu = DebugMenu{ .player = &player };
 
-    var hotbar_item = rl.LoadImage("resources/vanilla/vanilla/ui/hotbar_item.png");
+    var hotbar_item = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/ui/hotbar_item.png" }));
     rl.ImageResizeNN(&hotbar_item, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, Tile.size * Game.scale));
     var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
 
-    //var menu_frame = rl.LoadImage("resources/vanilla/vanilla/ui/menu.png");
+    //var menu_frame = rl.LoadImage("share/io.github.mgord9518.yabg/vanilla/vanilla/ui/menu.png");
     //rl.ImageResizeNN(&menu_frame, 128 * Game.scale, 128 * Game.scale);
     //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
 
-    //    const cwd = fs.cwd();
-    //    cwd.makeDir(save_dir) catch |err| {
-    //        if (err != os.MakeDirError.PathAlreadyExists) {
-    //            print("Error creating save directory: {}", .{err});
-    //        }
-    //    };
-
-    // Forgive me lord, I will fix this soon but I'm lazy
-    std.debug.print("{s}\n\n", .{save_dir});
-    switch (builtin.os.tag) {
-        .windows => _ = try ChildProcess.exec(.{ .allocator = allocator, .argv = &[_][]const u8{ "mkdir", save_dir } }),
-        else => _ = try ChildProcess.exec(.{ .allocator = allocator, .argv = &[_][]const u8{ "mkdir", "-p", save_dir } }),
-    }
+    // Create save directory if it doesn't already exist
+    const cwd = fs.cwd();
+    cwd.makePath(save_dir) catch |err| {
+        if (err != os.MakeDirError.PathAlreadyExists) {
+            print("Error creating save directory: {}", .{err});
+        }
+    };
 
     // Init chunk array
     // TODO: lower this number to 4 to so that less iterations have to be done
@@ -167,7 +178,7 @@ pub fn main() !void {
         }
     }
 
-    var player_image = rl.LoadImage("resources/vanilla/vanilla/entities/players/player_down_0.png");
+    var player_image = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_down_0.png" }));
     rl.ImageResizeNN(&player_image, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
 
     player.frames[0][0] = rl.LoadTextureFromImage(player_image);
@@ -183,31 +194,23 @@ pub fn main() !void {
     }) |direction, direction_enum| {
         it = 0;
         while (it <= 7) {
-            var path = fmt.allocPrint(allocator, "resources/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ direction, it }) catch {
-                std.debug.print("err\n\n\n\n", .{});
-                return;
-            };
-            var player_image1 = rl.LoadImage(path.ptr);
+            var img_path = try fmt.allocPrint(allocator, "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ app_dir, direction, it });
+            var player_image1 = rl.LoadImage(img_path.ptr);
             rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
             player.frames[direction_enum + 1][it] = rl.LoadTextureFromImage(player_image1);
             it += 1;
         }
     }
 
-    //    rl.ImageResizeNN(&player_image1, 12*Game.scale, 24*Game.scale);
-    //    rl.ImageResizeNN(&player_image2, 12*Game.scale, 24*Game.scale);
-
-    // var Game.fontImg = rl.LoadImage("resources/vanilla/vanilla/ui/Game.fonts/6x12/0-7f.png");
-
     // TODO: automatically iterate and load textures
-    var grass = rl.LoadImage("resources/vanilla/vanilla/tiles/grass.png");
+    var grass = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/grass.png" }));
     rl.ImageResizeNN(&grass, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    var sand = rl.LoadImage("resources/vanilla/vanilla/tiles/sand.png");
+    var sand = rl.LoadImage("usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/sand.png");
     rl.ImageResizeNN(&sand, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    var stone = rl.LoadImage("resources/vanilla/vanilla/tiles/stone.png");
+    var stone = rl.LoadImage("usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/stone.png");
     rl.ImageResizeNN(&stone, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
     // TODO: animate water (maybe using Perlin noise?)
-    var water = rl.LoadImage("resources/vanilla/vanilla/tiles/water.png");
+    var water = rl.LoadImage("usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/water.png");
     rl.ImageResizeNN(&water, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 13 * Game.scale));
 
     Game.tiles[1] = rl.LoadTextureFromImage(grass);

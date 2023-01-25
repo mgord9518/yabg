@@ -46,6 +46,8 @@ zip -r9   "$formatted_name-win.zip"    yabg.exe resources/ saves/
 mkdir -p "$temp_dir/AppDir/usr/bin" \
          "$temp_dir/AppDir/usr/share/icons/hicolor/scalable/apps"
 
+cp -r 'usr/share/io.github.mgord9518.yabg' "$temp_dir/AppDir/usr/share"
+
 rm yabg.exe yabg.pdb
 mv yabg "$temp_dir/AppDir/usr/bin"
 
