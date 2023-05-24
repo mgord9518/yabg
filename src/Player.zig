@@ -110,13 +110,13 @@ pub const Player = struct {
             const cy = @divTrunc(chnk.y, Chunk.size);
 
             if (@divTrunc(chnk.x, Chunk.size) > cx_origin + 1) {
-                chnk.* = Chunk.init(player.save_path, "vanilla0", cx_origin - 1, cy) catch unreachable;
+                chnk.* = Chunk.load(player.save_path, "vanilla0", cx_origin - 1, cy) catch unreachable;
             } else if (@divTrunc(chnk.x, Chunk.size) < cx_origin - 1) {
-                chnk.* = Chunk.init(player.save_path, "vanilla0", cx_origin + 1, cy) catch unreachable;
+                chnk.* = Chunk.load(player.save_path, "vanilla0", cx_origin + 1, cy) catch unreachable;
             } else if (@divTrunc(chnk.y, Chunk.size) > cy_origin + 1) {
-                chnk.* = Chunk.init(player.save_path, "vanilla0", cx, cy_origin - 1) catch unreachable;
+                chnk.* = Chunk.load(player.save_path, "vanilla0", cx, cy_origin - 1) catch unreachable;
             } else if (@divTrunc(chnk.y, Chunk.size) < cy_origin - 1) {
-                chnk.* = Chunk.init(player.save_path, "vanilla0", cx, cy_origin + 1) catch unreachable;
+                chnk.* = Chunk.load(player.save_path, "vanilla0", cx, cy_origin + 1) catch unreachable;
             }
         }
     }

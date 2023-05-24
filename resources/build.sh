@@ -5,19 +5,18 @@
 [ -z "$TMPDIR" ] && TMPDIR='/tmp'
 [ -z "$ARCH" ]   && ARCH=$(uname -m)
 
-version=0.0.1
+version=0.1.0
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
 formatted_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH"
 app_exec="yabg"
 temp_dir="$TMPDIR/.buildApp_$formatted_name.$RANDOM"
 start_dir="$PWD"
+
 #TODO: create icon for YABG
 icon_url='https://go.dev/images/go-logo-blue.svg'
 
-# currently using this because Ubuntu 18.04's squashfs tools doesn't support
-# ZSTD. Might switch to ZSTD once 18.04 is fully deprecated on GH actions.
-compression='lz4'
+compression='zstd'
 
 git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
 git clone https://github.com/mgord9518/perlin-zig
@@ -29,9 +28,6 @@ git clone https://github.com/aeronavery/zig-toml
 sed 's/addIncludeDir/addIncludePath/g' -i raylib-zig/raylib/src/build.zig
 
 echo 'building for Windows'
-# currently isn't building for Windows on GH actions for some reason.
-# It builds fine on my Ubuntu 22.04 machine though, might need some more
-# investigation. Built fine on GH actions just a few days ago
 #zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
 zig build -Dtarget="$ARCH"-windows # Windows x86_64
 echo 'building for Linux'
@@ -79,7 +75,7 @@ appstream='<?xml version="1.0" encoding="UTF-8"?>
   <project_license>MIT</project_license>
   <description>
     <p>
-An open source building and survival game
+	An open source building and survival game (WIP)
     </p>
   </description>
   <categories>
@@ -138,8 +134,8 @@ if [ "$ARCH" = "x86_64" ]; then
 	fi
 fi
 
-#mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xcompression-level 19 -nopad
-mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xhc -nopad
+mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xcompression-level 19 -nopad
+#mksquashfs AppDir sfs -root-owned -no-exports -noI -b 1M -comp "$compression" -Xhc -nopad
 wget "https://github.com/mgord9518/shappimage/releases/download/continuous/runtime-$compression-static-$ARCH" -O runtime
 
 [ $? -ne 0 ] && exit $?
@@ -154,8 +150,6 @@ sh add_integration.sh "./$formatted_name.shImg" "AppDir" "gh-releases-zsync|mgor
 
 # Move completed AppImage and zsync file to start directory
 mv "$formatted_name"* "$start_dir"
-
-ls
 
 # Clean up
 rm -r "$temp_dir"

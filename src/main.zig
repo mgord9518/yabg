@@ -102,8 +102,12 @@ const DebugMenu = struct {
         // Print debug menu
         const string = try fmt.allocPrint(
             allocator,
-            "FPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~",
+            "YABG {s} {d}.{d}.{d}\n\nFPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ▀▁▂▃▄▅▆▇█▉",
             .{
+                Game.version.prefix,
+                Game.version.major,
+                Game.version.minor,
+                Game.version.patch,
                 try int2Dozenal(rl.GetFPS(), allocator),
                 negX,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
@@ -182,7 +186,7 @@ pub fn main() !void {
     // Enable vsync, resizing and init audio devices
     rl.SetConfigFlags(.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
-    //rl.SetTraceLogLevel(7);
+    rl.SetTraceLogLevel(7);
     rl.InitAudioDevice();
 
 
@@ -237,7 +241,6 @@ pub fn main() !void {
     rl.SetExitKey(.KEY_NULL);
 
     // Load sounds
-    //Game.sounds[0] = rl.LoadSound((try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/audio/grass.ogg" })).ptr);
     Game.sounds[0] = rl.LoadSound(vanilla.join("audio/grass.ogg").ptr);
 
     // For some reason this segfaults on release builds, so current publish is
@@ -248,7 +251,9 @@ pub fn main() !void {
     var menu = DebugMenu{ .player = &player };
 
     var hotbar_item = rl.LoadImage(vanilla.join("ui/hotbar_item.png").ptr);
-    rl.ImageResizeNN(&hotbar_item, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, Tile.size * Game.scale));
+    const hotbar_item_height = hotbar_item.height * @floatToInt(i32, Game.scale);
+    const hotbar_item_width = hotbar_item.width * @floatToInt(i32, Game.scale);
+    rl.ImageResizeNN(&hotbar_item, hotbar_item_height, hotbar_item_width);
     var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
 
     var menu_frame = rl.LoadImage(vanilla.join("ui/menu.png").ptr);
@@ -270,12 +275,10 @@ pub fn main() !void {
     var it: usize = 0;
     inline for (.{ -1, 0, 1 }) |row| {
         inline for (.{ -1, 0, 1 }) |col| {
-            Game.chunks[it] = try Chunk.init(save_dir, "vanilla0", row, col);
+            Game.chunks[it] = try Chunk.load(save_dir, "vanilla0", row, col);
             it += 1;
         }
     }
-
-//    printChunk(&Game.chunks[0]);
 
 
     var player_image = rl.LoadImage(vanilla.join("entities/players/player_down_0.png").ptr);
@@ -303,9 +306,6 @@ pub fn main() !void {
     }
 
     // TODO: automatically iterate and load textures
-    //var grass = rl.LoadImage(vanilla.join("tiles/grass.png").ptr);
-    //var sand = rl.LoadImage(vanilla.join("tiles/sand.png").ptr);
-
     var grass = loadTextureFallback(vanilla.join("tiles/grass.png"));
     var dirt = loadTextureFallback(vanilla.join("tiles/dirt.png"));
     var sand = loadTextureFallback(vanilla.join("tiles/sand.png"));
@@ -323,8 +323,6 @@ pub fn main() !void {
     // Main game loop
     while (!rl.WindowShouldClose()) {
         Game.delta = rl.GetFrameTime();
-
-//        rl.ClearBackground(rl.MAGENTA);
 
         Game.screen_width = @divTrunc(@intToFloat(f32, rl.GetScreenWidth()), Game.scale);
         Game.screen_height = @divTrunc(@intToFloat(f32, rl.GetScreenHeight()), Game.scale);
@@ -488,11 +486,13 @@ pub fn main() !void {
                         // TODO: refactor
                         if (rl.CheckCollisionPointRec(mouse_pos, player_range_rect)) {
                             if (rl.CheckCollisionPointRec(mouse_pos, tile_rect)) {
-                                if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_LEFT)) {
-                                    chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
-                                } else if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_RIGHT)) {
+                                if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_RIGHT)) {
+                                    if (wall_tile.id == .air) {
+                                        chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
+                                    }
+                                } else if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_LEFT)) {
                                     chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
-                                    if (chnk.tiles[tile_idx].id == .grass) {
+                                    if (floor_tile.id == .grass and wall_tile.id != .air) {
                                         chnk.tiles[tile_idx].id = .dirt;
                                     }
                                 }

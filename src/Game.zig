@@ -13,9 +13,25 @@ pub const Game = struct {
     pub const title = "Yet Another Block Game (YABG)";
     pub const id = "io.github.mgord9518.yabg";
 
+    pub const version = Version{
+        .prefix = "pre-alpha",
+
+        .major = 0,
+        .minor = 1,
+        .patch = 0,
+    };
+
     pub var font: rl.Font = undefined;
     pub var chunks: [9]Chunk = undefined;
     pub var sounds: [256]rl.Sound = undefined;
+
+    pub const Version = struct {
+        prefix: []const u8,
+
+        major: u8,
+        minor: u8,
+        patch: u8,
+    };
 
     pub var tiles: [256]rl.Texture = undefined;
 
