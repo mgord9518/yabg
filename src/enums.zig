@@ -1,8 +1,8 @@
-pub const Direction = enum {
-    left,
+pub const Direction = enum(u2) {
+    down,
     right,
     up,
-    down,
+    left,
 };
 
 pub const Animation = enum {

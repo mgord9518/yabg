@@ -32,15 +32,17 @@ echo 'building for Windows'
 # currently isn't building for Windows on GH actions for some reason.
 # It builds fine on my Ubuntu 22.04 machine though, might need some more
 # investigation. Built fine on GH actions just a few days ago
-zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
+#zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
+zig build -Dtarget="$ARCH"-windows # Windows x86_64
 echo 'building for Linux'
-zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
+#zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
+zig build -Dcpu="$ARCH"            # Linux x86_64
 
 strip -s zig-out/bin/*
 mv zig-out/bin/yabg* ./
 
-#TODO: create Linux AppImage and macOS DMG builds
-zip -r9   "$formatted_name-win.zip"    yabg.exe resources/
+#TODO: create macOS DMG builds
+zip -r9 "$formatted_name-win.zip" yabg.exe resources/
 
 # Create and move to working directory
 mkdir -p "$temp_dir/AppDir/usr/bin" \
@@ -64,7 +66,7 @@ Categories=Development;Building;
 X-AppImage-Version=
 [X-App Permissions]
 Level=2
-Sockets=x11
+Sockets=x11;network
 Devices=dri
 "
 

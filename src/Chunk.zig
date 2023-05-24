@@ -4,43 +4,22 @@ const print = std.debug.print;
 const fs = std.fs;
 const perlin = @import("perlin");
 const builtin = @import("builtin");
+const Tile = @import("Tile.zig").Tile;
 
 pub const Chunk = struct {
     x: i32,
     y: i32,
-    level: i32 = 0x80,
-    tiles: [size * size * 2]u8 = undefined,
 
+    level: i32 = 0x80,
+    tiles: [size * size * 2]Tile,
+
+    version: u8,
+
+    /// Width / height of chunk measured in tiles
     pub const size = 24;
 
-    pub fn init(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
-        var buf: [144]u8 = undefined;
-        const string = try fmt.bufPrint(
-            &buf,
-            "{s}/{x}_{x}.{s}",
-            .{
-                save_path,
-                x,
-                y,
-                mod_pack,
-            },
-        );
-
-        var chunk = Chunk{
-            .x = x * size,
-            .y = y * size,
-        };
-
-        // Generate chunk if unable to find file
-        var f = fs.cwd().openFile(string, .{}) catch return genChunk(save_path, mod_pack, x, y);
-        defer f.close();
-
-        _ = try f.read(chunk.tiles[0..]);
-        return chunk;
-    }
-
-    fn genChunk(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
-        var buf: [144]u8 = undefined;
+    pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !void {
+        var buf: [256]u8 = undefined;
         const path = try fmt.bufPrint(
             &buf,
             "{s}/{x}_{x}.{s}",
@@ -52,15 +31,68 @@ pub const Chunk = struct {
             },
         );
 
-        print("GENERATING CHUNK AT {x}, {x}\n", .{ x, y });
+        _ = path;
+        //_ = self;
 
-        // TODO: Save bytes to disk
-        var chunk = Chunk{ .x = x * size, .y = y * size };
-        var f = try fs.cwd().createFile(path, .{ .read = true });
+        var save_buf: [6 + size * size * 2]u8 = undefined;
+        std.mem.copy(save_buf, "YABGc");
+        save_buf[5] = 0;
 
+
+        //const chunk = try Chunk.generate(save_path, mod_pack, x, y);
+
+        std.mem.copy(save_buf, @ptrCast([]u8, self.tiles));
+
+        //fmt.bufPrint(&safe_buf)
+    }
+
+    pub fn init(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
+        var buf: [256]u8 = undefined;
+        const path = try fmt.bufPrint(
+            &buf,
+            "{s}/{x}_{x}.{s}",
+            .{
+                save_path,
+                x,
+                y,
+                mod_pack,
+            },
+        );
+
+        _ = path;
+
+        // Ensure magic number is valid
+//        if (!std.mem.eql(u8, data[0..5], "YABGc")) {
+//            print(data[0..5]);
+//            unreachable;
+//        }
+
+        const max_supported_version = 0;
+
+        // Chunk version is an 8 bit int at offset 5
+        const version = 0;
+
+        // Ensure version number is valid
+        if (version > max_supported_version) unreachable;
+
+//        var chunk = Chunk{ 
+        var chunk = Chunk{
+            .tiles = undefined,
+
+            .x = x * size,
+            .y = y * size,
+
+            .version = version,
+        };
+        
         var t_x: i32 = undefined;
         var t_y: i32 = undefined;
-        // Use Perlin noise to generate the world
+
+        // Set the upper layer of the chunk to byte 0x00, which is air blocks.
+        // As an overwhelming majority of the upper layer will be air on generation,
+        // this keeps from needing to iterate through all those bytes
+        @memset(@ptrCast([*]u8, chunk.tiles[size * size..]), 0, size * size * 2);
+
         for (chunk.tiles) |*tile, idx| {
             if (idx >= size * size) {
                 break;
@@ -70,30 +102,33 @@ pub const Chunk = struct {
             t_y = chunk.y + @intCast(i32, @divTrunc(idx, size));
 
             // TODO: Allow the world directory to control world gen
-            var val = (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
-            val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
-            val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.075, @intToFloat(f32, t_y) * 0.075)) / 8;
-            val += (1 + perlin.noise2D(f64, @intToFloat(f32, t_x - 100) * 0.2, @intToFloat(f32, t_y) * 0.2)) / 8;
+            const s = 1.5;
+            var val = perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.02 * s, @intToFloat(f32, t_y) * 0.02 * s);
+            val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.05 * s, @intToFloat(f32, t_y) * 0.05 * s);
+            val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.10 * s, @intToFloat(f32, t_y) * 0.10 * s) / 2;
 
-            if (val > 0.75) {
-                tile.* = 0x02;
-                chunk.tiles[idx + size * size] = 0x02;
-            } else if (val > 0.65) {
-                tile.* = 0x01;
-                chunk.tiles[idx + size * size] = 0x01;
+            //var val = perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.03, @intToFloat(f32, t_y) * 0.03);
+            //val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.25, @intToFloat(f32, t_y) * 0.25);
+            //val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.060, @intToFloat(f32, t_y) * 0.060);
+
+            // Inside of mountains
+            if (val > 0.60) {
+                tile.id = .stone;
+                chunk.tiles[idx + size * size].id = .stone;
             } else if (val > 0.3) {
-                tile.* = 0x01;
-                chunk.tiles[idx + size * size] = 0x00;
-            } else if (val > 0.23) {
-                tile.* = 0x03;
-                chunk.tiles[idx + size * size] = 0x00;
+                tile.id = .dirt;
+                chunk.tiles[idx + size * size].id = .grass;
+            } else if (val > -0.6) {
+                tile.id = .grass;
+               // chunk.tiles[idx + size * size].id = .air;
+            } else if (val > -0.90) {
+                tile.id = .sand;
+             //   chunk.tiles[idx + size * size].id = .air;
             } else {
-                tile.* = 0x04;
-                chunk.tiles[idx + size * size] = 0x00;
+                tile.id = .water;
+              //  chunk.tiles[idx + size * size].id = .air;
             }
         }
-
-        _ = try f.write(&chunk.tiles);
 
         return chunk;
     }

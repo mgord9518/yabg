@@ -15,6 +15,48 @@ const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig").Player;
 const Game = @import("Game.zig").Game;
 
+const Menu = struct {
+    enabled: bool = false,
+    min_y: f32 = -160,
+
+    x: f32 = 0,
+    y: f32 = -160,
+    player: *Player,
+    texture: rl.Texture,
+
+    fn draw(menu: *Menu, allocator: std.mem.Allocator) !void {
+        _ = allocator;
+        // Draw debug menu
+        if (menu.enabled or menu.y > menu.min_y) {
+            if (menu.enabled and menu.y < 0) {
+                menu.y += 8 * Game.tps * Game.delta;
+            }
+            if (menu.y > 0) {
+                menu.y = 0;
+            }
+        }
+
+        if (!menu.enabled and menu.y > menu.min_y) {
+            menu.y -= 8 * Game.tps * Game.delta;
+        }
+
+        //        rl.DrawTexture(menu.texture, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
+
+        //var alpha: u8 = undefined;
+        //if (menu.y < 0) alpha = @floatToInt(u8, 192 + menu.y);
+
+        // Draw debug menu and its shadow
+        //        rl.DrawTextEx(Game.font, string.ptr, rl.Vector2{ .x = Game.scale * 2, .y = Game.scale + menu.y * Game.scale * 0.75 }, 6 * Game.scale, Game.scale, rl.Color{ .r = 0, .g = 0, .b = 0, .a = @divTrunc(alpha, 3) });
+        //        rl.DrawTextEx(Game.font, string.ptr, rl.Vector2{ .x = Game.scale, .y = menu.y * Game.scale }, 6 * Game.scale, Game.scale, rl.Color{ .r = 192, .g = 192, .b = 192, .a = alpha });
+        const pos = rl.Vector2{
+            .x = Game.scale * @divTrunc(Game.screen_width, 2) - 64 * Game.scale,
+            .y = Game.scale * @divTrunc(Game.screen_height, 2) - 64 * Game.scale + menu.y * Game.scale,
+        };
+
+        rl.DrawTextureV(menu.texture, pos, rl.WHITE);
+    }
+};
+
 const DebugMenu = struct {
     enabled: bool = false,
     min_y: f32 = -96,
@@ -24,7 +66,7 @@ const DebugMenu = struct {
     player: *Player,
     //  text:    []u8,
 
-    fn draw(menu: *DebugMenu, allocator: *std.mem.Allocator) !void {
+    fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
 
         // Draw debug menu
         if (menu.enabled or menu.y > menu.min_y) {
@@ -59,7 +101,7 @@ const DebugMenu = struct {
 
         // Print debug menu
         const string = try fmt.allocPrint(
-            allocator.*,
+            allocator,
             "FPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ᚠᚢᚦᚫᚱᚲ®ÝƒÄ{{}}~",
             .{
                 try int2Dozenal(rl.GetFPS(), allocator),
@@ -83,6 +125,55 @@ const DebugMenu = struct {
     }
 };
 
+const PathBuilder = struct {
+    allocator: std.mem.Allocator,
+    base: [:0]const u8,
+
+    pub fn init(allocator: std.mem.Allocator, base: [:0]const u8) PathBuilder {
+        return PathBuilder{ .allocator = allocator, .base = base };
+    }
+
+    pub fn join(self: *const PathBuilder, p: [:0]const u8) [:0]const u8 {
+        return path.joinZ(self.allocator, &[_][]const u8{ self.base, p}) catch unreachable;
+    }
+};
+
+fn printChunk(chunk: *const Chunk) void {
+    for (chunk.tiles) |tile, idx| {
+        if (idx % Chunk.size == 0) {
+            std.debug.print("\n", .{});
+        }
+
+        std.debug.print("{s}", .{switch (tile.id) {
+            .dirt  => "**",
+            .sand  => "::",
+            .air   => "  ",
+            .grass => "..",
+            .water => "~~",
+            .stone => "##",
+            else   => "??",
+        }});
+
+
+    }
+}
+
+fn loadTextureFallback(img_path: []const u8) rl.Texture {
+    const placeholder_data = @embedFile("embedded_files/placeholder.png");
+    var placeholder = rl.LoadImageFromMemory(".png", placeholder_data, placeholder_data.len);
+
+    rl.ImageResizeNN(&placeholder, @floatToInt(i32, Game.scale) * placeholder.width, @floatToInt(i32, Game.scale) * placeholder.height);
+
+    var img = rl.LoadImage(img_path.ptr);
+    if (img.data == null) {
+        return rl.LoadTextureFromImage(placeholder);
+    }
+
+    rl.ImageResizeNN(&img, @floatToInt(i32, Game.scale) * img.width, @floatToInt(i32, Game.scale) * img.height);
+
+    return rl.LoadTextureFromImage(img);
+}
+
 pub fn main() !void {
     var allocator = std.heap.page_allocator;
 
@@ -91,15 +182,13 @@ pub fn main() !void {
     // Enable vsync, resizing and init audio devices
     rl.SetConfigFlags(.FLAG_VSYNC_HINT);
     rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
-    rl.SetTraceLogLevel(7);
+    //rl.SetTraceLogLevel(7);
     rl.InitAudioDevice();
 
-    // Disable exit on keypress
-    rl.SetExitKey(.KEY_NULL);
 
     // Determine executable directory
     // TODO: either implement for other OSes or use a library like <https://github.com/gpakosz/whereami/>
-    var app_dir: []const u8 = undefined;
+    var app_dir: [:0]const u8 = undefined;
     switch (builtin.os.tag) {
         .linux => {
             var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
@@ -107,7 +196,7 @@ pub fn main() !void {
             const exepath = try os.readlink("/proc/self/exe", &buf);
             const dirname = path.dirname(exepath) orelse "/";
 
-            app_dir = try path.join(allocator, &[_][]const u8{ dirname, "../.." });
+            app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
         },
         .netbsd => {
             var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
@@ -115,13 +204,11 @@ pub fn main() !void {
             const exepath = try os.readlink("/proc/curproc/exe", &buf);
             const dirname = path.dirname(exepath) orelse "/";
 
-            app_dir = try path.join(allocator, &[_][]const u8{ dirname, "../.." });
+            app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
         },
         else => {},
     }
 
-    // Load sounds
-    Game.sounds[0] = rl.LoadSound(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/audio/grass.ogg" }));
 
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
@@ -133,32 +220,42 @@ pub fn main() !void {
 
     const base_dirs = try BaseDirs.init(allocator, .user);
 
-    const save_dir = try path.join(allocator, &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" });
+    const save_dir = try path.joinZ(allocator, &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" });
+    const vanilla_dir = try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla" });
+
+    var vanilla = PathBuilder.init(allocator, vanilla_dir);
+
+    //const save_dir = config.join("saves/DEVTEST");
 
     // Scale must be an int because fractionals cause tons of issues
     Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
     Player.walk_speed = fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
 
-    // This isn't currently working correctly
-    //    if (env_map.get("WINDOW_FULLSCREEN") != null) {
-    //        w = 0;
-    //        h = 0;
-    //        if (!rl.IsWindowFullscreen()) rl.ToggleFullscreen();
-    //    }
-
     rl.InitWindow(w, h, Game.title);
-    Game.font = rl.LoadFont(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/ui/fonts/4x8/full.fn" }));
+
+    // Disable exit on keypress
+    rl.SetExitKey(.KEY_NULL);
+
+    // Load sounds
+    //Game.sounds[0] = rl.LoadSound((try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/audio/grass.ogg" })).ptr);
+    Game.sounds[0] = rl.LoadSound(vanilla.join("audio/grass.ogg").ptr);
+
+    // For some reason this segfaults on release builds, so current publish is
+    // a debug build
+    Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
 
     var player = Player.init(save_dir);
     var menu = DebugMenu{ .player = &player };
 
-    var hotbar_item = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/ui/hotbar_item.png" }));
+    var hotbar_item = rl.LoadImage(vanilla.join("ui/hotbar_item.png").ptr);
     rl.ImageResizeNN(&hotbar_item, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, Tile.size * Game.scale));
     var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
 
-    //var menu_frame = rl.LoadImage("share/io.github.mgord9518.yabg/vanilla/vanilla/ui/menu.png");
-    //rl.ImageResizeNN(&menu_frame, 128 * Game.scale, 128 * Game.scale);
-    //var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
+    var menu_frame = rl.LoadImage(vanilla.join("ui/menu.png").ptr);
+    rl.ImageResizeNN(&menu_frame, @floatToInt(i32, 128 * Game.scale), @floatToInt(i32, 128 * Game.scale));
+    var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
+
+    var settings = Menu{ .player = &player, .texture = menu_frame_texture };
 
     // Create save directory if it doesn't already exist
     const cwd = fs.cwd();
@@ -178,7 +275,10 @@ pub fn main() !void {
         }
     }
 
-    var player_image = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_down_0.png" }));
+//    printChunk(&Game.chunks[0]);
+
+
+    var player_image = rl.LoadImage(vanilla.join("entities/players/player_down_0.png").ptr);
     rl.ImageResizeNN(&player_image, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
 
     player.frames[0][0] = rl.LoadTextureFromImage(player_image);
@@ -203,32 +303,36 @@ pub fn main() !void {
     }
 
     // TODO: automatically iterate and load textures
-    var grass = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/grass.png" }));
-    rl.ImageResizeNN(&grass, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    var sand = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/sand.png" }));
-    rl.ImageResizeNN(&sand, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    var stone = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/stone.png" }));
-    rl.ImageResizeNN(&stone, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 20 * Game.scale));
-    // TODO: animate water (maybe using Perlin noise?)
-    var water = rl.LoadImage(try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla/tiles/water.png" }));
-    rl.ImageResizeNN(&water, @floatToInt(i32, Tile.size * Game.scale), @floatToInt(i32, 13 * Game.scale));
+    //var grass = rl.LoadImage(vanilla.join("tiles/grass.png").ptr);
+    //var sand = rl.LoadImage(vanilla.join("tiles/sand.png").ptr);
 
-    Game.tiles[1] = rl.LoadTextureFromImage(grass);
-    Game.tiles[2] = rl.LoadTextureFromImage(stone);
-    Game.tiles[3] = rl.LoadTextureFromImage(sand);
-    Game.tiles[4] = rl.LoadTextureFromImage(water);
+    var grass = loadTextureFallback(vanilla.join("tiles/grass.png"));
+    var dirt = loadTextureFallback(vanilla.join("tiles/dirt.png"));
+    var sand = loadTextureFallback(vanilla.join("tiles/sand.png"));
+    var stone = loadTextureFallback(vanilla.join("tiles/stone.png"));
+    var water = loadTextureFallback(vanilla.join("tiles/water.png"));
+    var placeholder = loadTextureFallback("");
+
+    Game.setTileTexture(.grass, grass);
+    Game.setTileTexture(.stone, stone);
+    Game.setTileTexture(.dirt, dirt);
+    Game.setTileTexture(.sand, sand);
+    Game.setTileTexture(.water, water);
+    Game.setTileTexture(.placeholder, placeholder);
 
     // Main game loop
-    while (!rl.WindowShouldClose()) { // Detect window close button or ESC key
+    while (!rl.WindowShouldClose()) {
         Game.delta = rl.GetFrameTime();
+
+//        rl.ClearBackground(rl.MAGENTA);
 
         Game.screen_width = @divTrunc(@intToFloat(f32, rl.GetScreenWidth()), Game.scale);
         Game.screen_height = @divTrunc(@intToFloat(f32, rl.GetScreenHeight()), Game.scale);
 
         // Define our allocator,
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
-        var alloc = arena.allocator();
+        var arena_allocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena_allocator.deinit();
+        var arena = arena_allocator.allocator();
 
         player.updatePlayerFrames(player.animation);
         player.reloadChunks();
@@ -261,6 +365,10 @@ pub fn main() !void {
             menu.enabled = !menu.enabled;
         }
 
+        if (rl.IsKeyPressed(.KEY_ESCAPE)) { // or rl.IsGamepadButtonPressed(0, @intToEnum(rl.GamepadButton, 13))) {
+            settings.enabled = !settings.enabled;
+        }
+
         //if (rl.IsKeyPressed(.KEY_F11)) {
         //rl.ToggleFullscreen();
         //}
@@ -287,9 +395,9 @@ pub fn main() !void {
 
         const player_rect = rl.Rectangle{
             .x = @divTrunc(Game.screen_width * Game.scale, 2) - 6 * Game.scale,
-            .y = @divTrunc(Game.screen_height * Game.scale + 40 * Game.scale, 2) - 12 * Game.scale,
+            .y = @divTrunc(Game.screen_height * Game.scale, 2) + 6 * Game.scale,
             .width = 11 * Game.scale,
-            .height = 5.5 * Game.scale,
+            .height = 11 * Game.scale,
         };
 
         // Player collision rectangle
@@ -300,23 +408,30 @@ pub fn main() !void {
             .height = 0,
         };
 
+
         // Collision detection
         const x_num = @floatToInt(i32, @divFloor(player.x, 12));
         const y_num = @floatToInt(i32, @divFloor(player.y, 12));
 
-        var x = @floatToInt(i32, Game.screen_width / Tile.size / 2) - 1;
-        var y = @floatToInt(i32, Game.screen_height / Tile.size / 2) - 1;
+        var x = @floatToInt(i32, Game.screen_width / Tile.size / 2) - 2;
+        var y = @floatToInt(i32, Game.screen_height / Tile.size / 2) - 2;
         while (y * Tile.size <= @floatToInt(i32, Game.screen_height)) : (y += 1) {
-            x = @floatToInt(i32, Game.screen_width / Tile.size / 2) - 1;
+            //if (y > @floatToInt(i32, Game.screen_height / Tile.size / 2) + 3) {
+           //     break;
+            //}
+            x = @floatToInt(i32, Game.screen_width / Tile.size / 2) - 2;
             while (x * Tile.size <= @floatToInt(i32, Game.screen_width) + Tile.size) : (x += 1) {
-                for (Game.chunks) |chnk| {
+                for (Game.chunks) |*chnk| {
                     const scale_i: i32 = @floatToInt(i32, Game.scale);
                     const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
+                    const screen_width_in_tiles = @floatToInt(i32, @divFloor(Game.screen_width, Tile.size * 2));
+                    const screen_height_in_tiles = @floatToInt(i32, @divFloor(Game.screen_height, Tile.size * 2));
+
                     // 24 because its Tile.size * 2
-                    const tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(Game.screen_width, 24)), Chunk.size);
-                    const tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(Game.screen_height, 24)) - chnk.y) * Chunk.size;
+                    var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
+                    var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
                     if (tile_x + tile_y < 0) {
                         continue;
@@ -325,16 +440,24 @@ pub fn main() !void {
                     const tile_idx = @intCast(usize, tile_x + tile_y);
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) >= chnk.x and
-                        x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) >= chnk.y and
-                        y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) < chnk.y + Chunk.size)
+                    if (x + x_num - screen_width_in_tiles >= chnk.x and
+                        x + x_num - screen_width_in_tiles < chnk.x + Chunk.size and
+                        y + y_num - screen_height_in_tiles >= chnk.y and
+                        y + y_num - screen_height_in_tiles < chnk.y + Chunk.size)
                     {
-                        if (tile_idx >= Chunk.size * Chunk.size or
-                            chnk.tiles[tile_idx + Chunk.size * Chunk.size] == 0 and chnk.tiles[tile_idx] != 4)
-                        {
-                            continue;
-                        }
+                        const floor_tile = chnk.tiles[tile_idx];
+                        const wall_tile = chnk.tiles[tile_idx + Chunk.size * Chunk.size];
+
+                        const player_reach_range = 24;
+
+                        // The reaching distance of the player
+                        const player_range_rect = rl.Rectangle{
+                            .x = @divTrunc(Game.screen_width * Game.scale, 2) - player_reach_range * Game.scale,
+                            .y = @divTrunc(Game.screen_height * Game.scale + player_reach_range * Game.scale, 2) - player_reach_range * Game.scale,
+                            .width = player_reach_range * 2 * Game.scale,
+                            .height = player_reach_range * 2 * Game.scale,
+                        };
+
 
                         const tile_rect = rl.Rectangle{
                             .x = x_pos,
@@ -342,6 +465,45 @@ pub fn main() !void {
                             .width = 12 * Game.scale,
                             .height = 12 * Game.scale,
                         };
+
+                        const tile_front_rect = switch (chnk.tiles[tile_idx + Chunk.size * Chunk.size].id) {
+                            .air => rl.Rectangle{
+                                .x = 0,
+                                .y = 0,
+                                .width = 0,
+                                .height = 0,
+                            },
+                            else => rl.Rectangle{
+                                .x = x_pos,
+                                .y = y_pos - 8 * Game.scale,
+                                .width = 12 * Game.scale,
+                                .height = 20 * Game.scale,
+                            },
+                        };
+
+                        const mouse_pos = rl.GetMousePosition();
+
+                        _ = tile_front_rect;
+
+                        // TODO: refactor
+                        if (rl.CheckCollisionPointRec(mouse_pos, player_range_rect)) {
+                            if (rl.CheckCollisionPointRec(mouse_pos, tile_rect)) {
+                                if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_LEFT)) {
+                                    chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
+                                } else if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_RIGHT)) {
+                                    chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
+                                    if (chnk.tiles[tile_idx].id == .grass) {
+                                        chnk.tiles[tile_idx].id = .dirt;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (tile_idx >= Chunk.size * Chunk.size or
+                            wall_tile.id == .air and floor_tile.id != .water)
+                        {
+                            continue;
+                        }
 
                         var collision: rl.Rectangle = undefined;
                         if (rl.CheckCollisionRecs(player_rect, tile_rect)) {
@@ -377,19 +539,19 @@ pub fn main() !void {
         }
 
         // TODO: fix phasing through top-left and bottom-right corners
-        if (player_collision.height > player_collision.width / 2) {
+        if (player_collision.height > player_collision.width) {
             if (player_collision.x == player_rect.x) {
                 player.x += player_collision.width / Game.scale;
             } else {
                 player.x -= player_collision.width / Game.scale;
             }
-        } else if (player_collision.height < player_collision.width / 2) {
+        } else if (player_collision.height < player_collision.width) {
             if (player_collision.y == player_rect.y) {
                 player.y += player_collision.height / Game.scale;
             } else {
                 player.y -= player_collision.height / Game.scale;
             }
-        } else if (player_collision.height <= player_collision.width / 2 and player_collision.height > 1 * Game.scale) {
+        } else if (player_collision.height == player_collision.width and player_collision.width > Game.scale) {
             player.x -= player.x_speed;
             player.y -= player.y_speed;
         }
@@ -417,24 +579,30 @@ pub fn main() !void {
                     const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
-                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(Game.screen_width, 24)), Chunk.size);
-                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(Game.screen_height, 24)) - chnk.y) * Chunk.size;
+                    const screen_width_in_tiles = @floatToInt(i32, @divFloor(Game.screen_width, Tile.size * 2));
+                    const screen_height_in_tiles = @floatToInt(i32, @divFloor(Game.screen_height, Tile.size * 2));
+
+                    var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
+                    var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
+
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) >= chnk.x and
-                        x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) >= chnk.y and
-                        y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) < chnk.y + Chunk.size)
+                    if (x + x_num - screen_width_in_tiles >= chnk.x and
+                        x + x_num - screen_width_in_tiles < chnk.x + Chunk.size and
+                        y + y_num - screen_height_in_tiles >= chnk.y and
+                        y + y_num - screen_height_in_tiles < chnk.y + Chunk.size)
                     {
-
                         // Only loop through the first half of chunk Game.tiles (floor level)
                         if (tile_x + tile_y >= 0 and tile_x + tile_y < Chunk.size * Chunk.size) {
                             // If wall level tile exists, draw it instead
-                            if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] == 0) {
-                                rl.DrawTextureEx(Game.tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos }, 0, 1, rl.LIGHTGRAY);
+                            if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size].id == .air) {
+                                const tile = chnk.tiles[@intCast(usize, tile_x + tile_y)];
+                                rl.DrawTextureEx(Game.tileTexture(tile.id), rl.Vector2{ .x = x_pos, .y = y_pos }, 0, 1, rl.LIGHTGRAY);
                             } else {
                                 if (y_pos < Game.screen_height * Game.scale / 2) {
-                                    rl.DrawTextureEx(Game.tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
+                                    //rl.DrawTextureEx(Game.tiles[@enumToInt(chnk.tiles[@intCast(usize, tile_x + tile_y)].id)], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
+                                    const tile = chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size];
+                                    rl.DrawTextureEx(Game.tileTexture(tile.id), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
                                 }
                             }
                         }
@@ -443,9 +611,9 @@ pub fn main() !void {
             }
         }
 
-        // Shows what Game.tiles the player is currently colliding with
+        // Draws a red rectangle at the player's collision rect
         if (menu.enabled) {
-            rl.DrawRectangleRec(player_collision, rl.RED);
+            rl.DrawRectangleRec(player_collision, rl.Color{.r = 255, .g = 0, .b = 0, .a = 0x60});
         }
 
         // Draw player in the center of the screen
@@ -463,19 +631,23 @@ pub fn main() !void {
                     const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
-                    var tile_x = @mod(x_num + x - @floatToInt(i32, @divFloor(Game.screen_width, 24)), Chunk.size);
-                    var tile_y = ((y_num + y) - @floatToInt(i32, @divFloor(Game.screen_height, 24)) - chnk.y) * Chunk.size;
+                    const screen_width_in_tiles = @floatToInt(i32, @divFloor(Game.screen_width, Tile.size * 2));
+                    const screen_height_in_tiles = @floatToInt(i32, @divFloor(Game.screen_height, Tile.size * 2));
+
+                    var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
+                    var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
-                    if (x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) >= chnk.x and
-                        x + x_num - @floatToInt(i32, @divFloor(Game.screen_width, 24)) < chnk.x + Chunk.size and
-                        y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) >= chnk.y and
-                        y + y_num - @floatToInt(i32, @divFloor(Game.screen_height, 24)) < chnk.y + Chunk.size)
+                    if (x + x_num - screen_width_in_tiles >= chnk.x and
+                        x + x_num - screen_width_in_tiles < chnk.x + Chunk.size and
+                        y + y_num - screen_height_in_tiles >= chnk.y and
+                        y + y_num - screen_height_in_tiles < chnk.y + Chunk.size)
                     {
                         // Only draw raised Game.tiles
-                        if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size] != 0) {
+                        if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size].id != .air) {
                             if (y_pos >= Game.screen_height * Game.scale / 2) {
-                                rl.DrawTextureEx(Game.tiles[chnk.tiles[@intCast(usize, tile_x + tile_y)]], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
+                                const tile = chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size];
+                                rl.DrawTextureEx(Game.tileTexture(tile.id), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
                             }
                         }
                     }
@@ -493,7 +665,11 @@ pub fn main() !void {
         }
 
         // Draw debug menu
-        try menu.draw(&alloc);
+        try menu.draw(arena);
+
+        if (settings.enabled or settings.y > settings.min_y) {
+            try settings.draw(arena);
+        }
 
         rl.EndDrawing();
     }
@@ -501,7 +677,7 @@ pub fn main() !void {
     rl.CloseWindow();
 }
 
-fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]const u8 {
+fn int2Dozenal(i: i32, allocator: std.mem.Allocator) ![]const u8 {
     if (i == 0) return "0";
 
     // Symbols to extend the arabic number set
@@ -520,7 +696,7 @@ fn int2Dozenal(i: i32, alloc: *std.mem.Allocator) ![]const u8 {
         var rem = @intCast(usize, @mod(n, 12));
 
         // Prepend to the existing string
-        num = try fmt.allocPrint(alloc.*, "{s}{s}", .{ symbols[rem], num });
+        num = try fmt.allocPrint(allocator, "{s}{s}", .{ symbols[rem], num });
         n = @divFloor(n, 12);
     }
 

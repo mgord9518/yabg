@@ -46,11 +46,16 @@ WINDOW_WIDTH  # Must be set to an integer, sets the window width in pixels
 WINDOW_HEIGHT # Same as WINDOW_WIDTH but for height
 ```
 
-Dependencies (Ubuntu):
+Dependencies:
 ```
+# Ubuntu/Debian:
 zig
 libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
 libgl-dev
+
+# Alpine:
+libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
+mesa-gl mesa-dev libc-dev pipewire
 ```
 
 Building instructions:
