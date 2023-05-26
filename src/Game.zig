@@ -18,7 +18,7 @@ pub const Game = struct {
 
         .major = 0,
         .minor = 1,
-        .patch = 0,
+        .patch = 1,
     };
 
     pub var font: rl.Font = undefined;
@@ -33,13 +33,6 @@ pub const Game = struct {
         patch: u8,
     };
 
-    pub var tiles: [256]rl.Texture = undefined;
-
-    pub fn tileTexture(tile_id: Tile.Id) rl.Texture {
-        return tiles[@enumToInt(tile_id)];
-    }
-
-    pub fn setTileTexture(tile_id: Tile.Id, texture: rl.Texture) void {
-        tiles[@enumToInt(tile_id)] = texture;
-    }
+    pub var tileTextures: [256]rl.Texture = undefined;
+    pub var tileSounds: [256]rl.Sound = undefined;
 };

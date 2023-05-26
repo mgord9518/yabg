@@ -1,5 +1,7 @@
+const rl = @import("raylib");
 const enums = @import("enums.zig");
 const Direction = enums.Direction;
+const Game = @import("Game.zig").Game;
 
 pub const Tile = packed struct {
     pub const size = 12;
@@ -27,6 +29,40 @@ pub const Tile = packed struct {
     // (4 different possibilities)
     direction: Direction,
 
+    pub const Options = struct {
+        id: Id,
+        naturally_generated: bool = false,
+        grade: u2 = 0,
+        damage: u3 = 0,
+        direction: Direction = .down,
+    };
+
+    pub fn init(opts: Options) Tile {
+        return Tile{
+            .id = opts.id,
+            .naturally_generated = opts.naturally_generated,
+            .grade = opts.grade,
+            .damage = opts.damage,
+            .direction = opts.direction,
+        };
+    }
+
+    pub fn texture(self: *const Tile) rl.Texture {
+        return Game.tileTextures[@enumToInt(self.id)];
+    }
+
+    pub fn setTexture(id: Id, tex: rl.Texture) void {
+        Game.tileTextures[@enumToInt(id)] = tex;
+    }
+
+    pub fn sound(self: *const Tile) rl.Sound {
+        return Game.tileSounds[@enumToInt(self.id)];
+    }
+
+    pub fn setSound(id: Id, snd: rl.Sound) void {
+        Game.tileSounds[@enumToInt(id)] = snd;
+    }
+
     /// Categories should denote the basic qualities of a specific tile.
     /// While different submaterials (eg: grass and sand or cobblestone and brick)
     /// may have different hardnesses and sound, they're still collected with the
@@ -38,10 +74,6 @@ pub const Tile = packed struct {
         dirt = 8,
         grass,
         sand,
-        // Variants:
-        //  0 = soil
-        // 16 = sand
-        // 32 = gravel
 
         // Logs, planks, bamboo
         wood = 16,
@@ -55,10 +87,6 @@ pub const Tile = packed struct {
         electronic = 64,
 
         water = 80,
-        // Variants:
-        //  0 = water
-        // 16 = crude oil
-        // 32 = melten stone
 
         misc = 240,
 

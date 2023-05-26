@@ -1,3 +1,0 @@
-In this directory fonts are stored as PNG images, stored under a subdirectory of their size in pixels.
-The fonts are named the unicode range of their characters in hexadecimal, eg: `0-7f` of the default font
-supports the first 127 unicode chars, which is also the standard 7-bit ASCII character set.

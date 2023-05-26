@@ -59,7 +59,8 @@ pub const Player = struct {
             player.frame_num += 1;
 
             if (player.frame_num == 2 or player.frame_num == 6) {
-                rl.PlaySound(Game.sounds[0]);
+                // Dummy tile
+                rl.PlaySound(Tile.init(.{ .id = .grass }).sound());
             }
         }
 

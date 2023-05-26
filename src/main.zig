@@ -81,19 +81,14 @@ const DebugMenu = struct {
             menu.y -= 4 * Game.tps * Game.delta;
         }
 
-        var negX = " ";
-        if (menu.player.x < 0) {
-            negX = "-";
-        }
-        var negY = " ";
-        if (menu.player.y < 0) {
-            negY = "-";
-        }
+        const neg_x = if (menu.player.x < 0) "-" else " ";
+        const neg_y = if (menu.player.y < 0) "-" else " ";
 
         var px = @floatToInt(i32, menu.player.x);
         if (px < 0) {
             px *= -1;
         }
+
         var py = @floatToInt(i32, menu.player.y);
         if (py < 0) {
             py *= -1;
@@ -102,19 +97,21 @@ const DebugMenu = struct {
         // Print debug menu
         const string = try fmt.allocPrint(
             allocator,
-            "YABG {s} {d}.{d}.{d}\n\nFPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\n\nUTF8: ▀▁▂▃▄▅▆▇█▉",
+            "YABG {s} {d}.{d}.{d}\n\nFPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\nchunk:{s}:{s};",
             .{
                 Game.version.prefix,
                 Game.version.major,
                 Game.version.minor,
                 Game.version.patch,
                 try int2Dozenal(rl.GetFPS(), allocator),
-                negX,
+                neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
                 try int2Dozenal(@mod(px, Tile.size), allocator),
-                negY,
+                neg_y,
                 try int2Dozenal(@divTrunc(py, Tile.size), allocator),
                 try int2Dozenal(@mod(py, Tile.size), allocator),
+                try int2Dozenal(menu.player.cx, allocator),
+                try int2Dozenal(menu.player.cy, allocator),
             },
         );
 
@@ -222,10 +219,16 @@ pub fn main() !void {
     var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, Game.screen_width * Game.scale);
     var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, Game.screen_height * Game.scale);
 
+
     const base_dirs = try BaseDirs.init(allocator, .user);
 
     const save_dir = try path.joinZ(allocator, &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" });
     const vanilla_dir = try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla" });
+
+    var player = Player.init(save_dir);
+    var menu = DebugMenu{ .player = &player };
+
+    menu.enabled = env_map.get("DEBUG_MODE") != null;
 
     var vanilla = PathBuilder.init(allocator, vanilla_dir);
 
@@ -241,14 +244,12 @@ pub fn main() !void {
     rl.SetExitKey(.KEY_NULL);
 
     // Load sounds
-    Game.sounds[0] = rl.LoadSound(vanilla.join("audio/grass.ogg").ptr);
+    Tile.setSound(.grass, rl.LoadSound(vanilla.join("audio/grass.wav").ptr));
+    Tile.setSound(.stone, rl.LoadSound(vanilla.join("audio/stone.wav").ptr));
 
     // For some reason this segfaults on release builds, so current publish is
     // a debug build
     Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
-
-    var player = Player.init(save_dir);
-    var menu = DebugMenu{ .player = &player };
 
     var hotbar_item = rl.LoadImage(vanilla.join("ui/hotbar_item.png").ptr);
     const hotbar_item_height = hotbar_item.height * @floatToInt(i32, Game.scale);
@@ -313,12 +314,12 @@ pub fn main() !void {
     var water = loadTextureFallback(vanilla.join("tiles/water.png"));
     var placeholder = loadTextureFallback("");
 
-    Game.setTileTexture(.grass, grass);
-    Game.setTileTexture(.stone, stone);
-    Game.setTileTexture(.dirt, dirt);
-    Game.setTileTexture(.sand, sand);
-    Game.setTileTexture(.water, water);
-    Game.setTileTexture(.placeholder, placeholder);
+    Tile.setTexture(.grass, grass);
+    Tile.setTexture(.stone, stone);
+    Tile.setTexture(.dirt, dirt);
+    Tile.setTexture(.sand, sand);
+    Tile.setTexture(.water, water);
+    Tile.setTexture(.placeholder, placeholder);
 
     // Main game loop
     while (!rl.WindowShouldClose()) {
@@ -406,7 +407,6 @@ pub fn main() !void {
             .height = 0,
         };
 
-
         // Collision detection
         const x_num = @floatToInt(i32, @divFloor(player.x, 12));
         const y_num = @floatToInt(i32, @divFloor(player.y, 12));
@@ -486,14 +486,18 @@ pub fn main() !void {
                         // TODO: refactor
                         if (rl.CheckCollisionPointRec(mouse_pos, player_range_rect)) {
                             if (rl.CheckCollisionPointRec(mouse_pos, tile_rect)) {
-                                if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_RIGHT)) {
-                                    if (wall_tile.id == .air) {
-                                        chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
-                                    }
-                                } else if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_LEFT)) {
+                                // Left click breaks tile, right click places
+                                if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_LEFT)) {
+                                    rl.PlaySound(wall_tile.sound());
                                     chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
                                     if (floor_tile.id == .grass and wall_tile.id != .air) {
                                         chnk.tiles[tile_idx].id = .dirt;
+                                    }
+                                } else if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_RIGHT)) {
+                                    const stone_dummy = Tile.init(.{ .id = .stone });
+                                    rl.PlaySound(stone_dummy.sound());
+                                    if (wall_tile.id == .air) {
+                                        chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
                                     }
                                 }
                             }
@@ -597,12 +601,12 @@ pub fn main() !void {
                             // If wall level tile exists, draw it instead
                             if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size].id == .air) {
                                 const tile = chnk.tiles[@intCast(usize, tile_x + tile_y)];
-                                rl.DrawTextureEx(Game.tileTexture(tile.id), rl.Vector2{ .x = x_pos, .y = y_pos }, 0, 1, rl.LIGHTGRAY);
+                                rl.DrawTextureEx(tile.texture(), rl.Vector2{ .x = x_pos, .y = y_pos }, 0, 1, rl.LIGHTGRAY);
                             } else {
                                 if (y_pos < Game.screen_height * Game.scale / 2) {
                                     //rl.DrawTextureEx(Game.tiles[@enumToInt(chnk.tiles[@intCast(usize, tile_x + tile_y)].id)], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
                                     const tile = chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size];
-                                    rl.DrawTextureEx(Game.tileTexture(tile.id), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
+                                    rl.DrawTextureEx(tile.texture(), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
                                 }
                             }
                         }
@@ -647,7 +651,7 @@ pub fn main() !void {
                         if (chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size].id != .air) {
                             if (y_pos >= Game.screen_height * Game.scale / 2) {
                                 const tile = chnk.tiles[@intCast(usize, tile_x + tile_y) + Chunk.size * Chunk.size];
-                                rl.DrawTextureEx(Game.tileTexture(tile.id), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
+                                rl.DrawTextureEx(tile.texture(), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
                             }
                         }
                     }
@@ -657,10 +661,11 @@ pub fn main() !void {
 
         // Draw hotbar
         var i: f32 = 0;
-        const mid = (Game.scale * @divTrunc(Game.screen_width, 2) - 38 * Game.scale);
+        const mid = (Game.scale * @divTrunc(Game.screen_width, 2) - 35 * Game.scale);
+        const hotbar_y = @floatToInt(i32, Game.scale * Game.screen_height - 13 * Game.scale);
         while (i < 6) {
-            rl.DrawTexture(hotbar_item_texture, @floatToInt(i32, mid + i * Game.scale * 13), @floatToInt(i32, Game.scale * Game.screen_height - 13 * Game.scale), rl.WHITE);
-            //                                    ^average w       ^ bottom, one px space
+            const hotbar_x = @floatToInt(i32, mid + i * Game.scale * 12);
+            rl.DrawTexture(hotbar_item_texture, hotbar_x, hotbar_y, rl.WHITE);
             i += 1;
         }
 
@@ -677,28 +682,40 @@ pub fn main() !void {
     rl.CloseWindow();
 }
 
-fn int2Dozenal(i: i32, allocator: std.mem.Allocator) ![]const u8 {
+fn int2Dozenal(i: isize, allocator: std.mem.Allocator) ![]const u8 {
     if (i == 0) return "0";
 
-    // Symbols to extend the arabic number set
-    // If your font has trouble reading the last 2, they are "TURNED DIGIT 2" and
-    // "TURNED DIGIT 3" from Unicode 8.
-    const symbols = [_][]const u8{
+    // Digits to extend the arabic number set
+    // If your font has trouble reading the last 2, they are "TURNED DIGIT 2"
+    // and "TURNED DIGIT 3" from Unicode 8.
+    const digits = [_][]const u8{
         "0", "1", "2",   "3",
         "4", "5", "6",   "7",
         "8", "9", "↊", "↋",
     };
 
-    var num: []u8 = "";
+    var buf = try allocator.alloc(u8, 32);
 
-    var n = i;
+    var n = try std.math.absInt(i);
+
+    var idx: usize = buf.len;
     while (n > 0) {
         var rem = @intCast(usize, @mod(n, 12));
+        const digit = digits[rem];
 
-        // Prepend to the existing string
-        num = try fmt.allocPrint(allocator, "{s}{s}", .{ symbols[rem], num });
+        // As UTF8 has variable codepoint length, some digits may be longer
+        // than one byte, which is the case in dozenal.
+        idx -= digit.len;
+
+        std.mem.copy(u8, buf[idx..], digit);
         n = @divFloor(n, 12);
     }
 
-    return num;
+    // Finally, prepend a minus symbol if the number is negative
+    if (i < 0) {
+        idx -= 1;
+        buf[idx] = '-';
+    }
+
+    return buf[idx..];
 }
