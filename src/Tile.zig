@@ -47,11 +47,11 @@ pub const Tile = packed struct {
         };
     }
 
-    pub fn texture(self: *const Tile) rl.Texture {
+    pub fn texture(self: *const Tile) rl.Texture2D {
         return Game.tileTextures[@enumToInt(self.id)];
     }
 
-    pub fn setTexture(id: Id, tex: rl.Texture) void {
+    pub fn setTexture(id: Id, tex: rl.Texture2D) void {
         Game.tileTextures[@enumToInt(id)] = tex;
     }
 

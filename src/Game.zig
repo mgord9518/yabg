@@ -33,6 +33,6 @@ pub const Game = struct {
         patch: u8,
     };
 
-    pub var tileTextures: [256]rl.Texture = undefined;
+    pub var tileTextures: [256]rl.Texture2D = undefined;
     pub var tileSounds: [256]rl.Sound = undefined;
 };

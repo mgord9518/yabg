@@ -88,10 +88,10 @@ pub const Chunk = struct {
 
     pub fn init(x: i32, y: i32) !Chunk {
         // Ensure magic number is valid
-//        if (!std.mem.eql(u8, data[0..5], "YABGc")) {
-//            print(data[0..5]);
-//            unreachable;
-//        }
+        //        if (!std.mem.eql(u8, data[0..5], "YABGc")) {
+        //            print(data[0..5]);
+        //            unreachable;
+        //        }
 
         const max_supported_version = 0;
 
@@ -109,16 +109,18 @@ pub const Chunk = struct {
 
             .version = version,
         };
-        
+
         var t_x: i32 = undefined;
         var t_y: i32 = undefined;
 
         // Set the upper layer of the chunk to byte 0x00, which is air tiles.
         // As an overwhelming majority of the upper layer will be air on generation,
         // this keeps from needing to iterate through all those bytes
-        @memset(@ptrCast([*]u8, chunk.tiles[size * size..]), 0, size * size * 2);
+        //        @memset(@ptrCast([*]u8, chunk.tiles[size * size..]), 0, size * size * 2);
 
-        for (chunk.tiles) |*tile, idx| {
+        @memset(@ptrCast([*]u8, chunk.tiles[size * size ..])[0 .. size * size * 2], 0);
+
+        for (&chunk.tiles, 0..) |*tile, idx| {
             if (idx >= size * size) {
                 break;
             }
@@ -128,9 +130,9 @@ pub const Chunk = struct {
 
             // TODO: Allow the world directory to control world gen
             const s = 1.5;
-            var val = perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.02 * s, @intToFloat(f32, t_y) * 0.02 * s);
-            val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.05 * s, @intToFloat(f32, t_y) * 0.05 * s);
-            val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.10 * s, @intToFloat(f32, t_y) * 0.10 * s) / 2;
+            var val = perlin.noise2D(f64, @intToFloat(f32, t_x) * 0.02 * s, @intToFloat(f32, t_y) * 0.02 * s);
+            val += perlin.noise2D(f64, @intToFloat(f32, t_x) * 0.05 * s, @intToFloat(f32, t_y) * 0.05 * s);
+            val += perlin.noise2D(f64, @intToFloat(f32, t_x) * 0.10 * s, @intToFloat(f32, t_y) * 0.10 * s) / 2;
 
             //var val = perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.03, @intToFloat(f32, t_y) * 0.03);
             //val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.25, @intToFloat(f32, t_y) * 0.25);
@@ -145,13 +147,13 @@ pub const Chunk = struct {
                 chunk.tiles[idx + size * size].id = .grass;
             } else if (val > -0.6) {
                 tile.id = .grass;
-               // chunk.tiles[idx + size * size].id = .air;
+                // chunk.tiles[idx + size * size].id = .air;
             } else if (val > -0.90) {
                 tile.id = .sand;
-             //   chunk.tiles[idx + size * size].id = .air;
+                //   chunk.tiles[idx + size * size].id = .air;
             } else {
                 tile.id = .water;
-              //  chunk.tiles[idx + size * size].id = .air;
+                //  chunk.tiles[idx + size * size].id = .air;
             }
         }
 

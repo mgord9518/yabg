@@ -22,7 +22,7 @@ const Menu = struct {
     x: f32 = 0,
     y: f32 = -160,
     player: *Player,
-    texture: rl.Texture,
+    texture: rl.Texture2D,
 
     fn draw(menu: *Menu, allocator: std.mem.Allocator) !void {
         _ = allocator;
@@ -95,7 +95,7 @@ const DebugMenu = struct {
         }
 
         // Print debug menu
-        const string = try fmt.allocPrint(
+        const string = try fmt.allocPrintZ(
             allocator,
             "YABG {s} {d}.{d}.{d}\n\nFPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\nchunk:{s}:{s};",
             .{
@@ -135,38 +135,36 @@ const PathBuilder = struct {
     }
 
     pub fn join(self: *const PathBuilder, p: [:0]const u8) [:0]const u8 {
-        return path.joinZ(self.allocator, &[_][]const u8{ self.base, p}) catch unreachable;
+        return path.joinZ(self.allocator, &[_][]const u8{ self.base, p }) catch unreachable;
     }
 };
 
 fn printChunk(chunk: *const Chunk) void {
-    for (chunk.tiles) |tile, idx| {
+    for (chunk.tiles, 0..) |tile, idx| {
         if (idx % Chunk.size == 0) {
             std.debug.print("\n", .{});
         }
 
         std.debug.print("{s}", .{switch (tile.id) {
-            .dirt  => "**",
-            .sand  => "::",
-            .air   => "  ",
+            .dirt => "**",
+            .sand => "::",
+            .air => "  ",
             .grass => "..",
             .water => "~~",
             .stone => "##",
-            else   => "??",
+            else => "??",
         }});
-
-
     }
 }
 
-fn loadTextureFallback(img_path: []const u8) rl.Texture {
+fn loadTextureFallback(img_path: [:0]const u8) rl.Texture2D {
     const placeholder_data = @embedFile("embedded_files/placeholder.png");
     var placeholder = rl.LoadImageFromMemory(".png", placeholder_data, placeholder_data.len);
 
     rl.ImageResizeNN(&placeholder, @floatToInt(i32, Game.scale) * placeholder.width, @floatToInt(i32, Game.scale) * placeholder.height);
 
     var img = rl.LoadImage(img_path.ptr);
-    if (img.data == null) {
+    if (@ptrCast(?*anyopaque, img.data) == null) {
         return rl.LoadTextureFromImage(placeholder);
     }
 
@@ -181,11 +179,13 @@ pub fn main() !void {
     const env_map = try std.process.getEnvMap(allocator);
 
     // Enable vsync, resizing and init audio devices
-    rl.SetConfigFlags(.FLAG_VSYNC_HINT);
-    rl.SetConfigFlags(.FLAG_WINDOW_RESIZABLE);
+    rl.SetConfigFlags(.{
+        .FLAG_VSYNC_HINT = true,
+        .FLAG_WINDOW_RESIZABLE = true,
+    });
+
     rl.SetTraceLogLevel(7);
     rl.InitAudioDevice();
-
 
     // Determine executable directory
     // TODO: either implement for other OSes or use a library like <https://github.com/gpakosz/whereami/>
@@ -210,7 +210,6 @@ pub fn main() !void {
         else => {},
     }
 
-
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
     const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
@@ -218,7 +217,6 @@ pub fn main() !void {
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     var w = fmt.parseInt(i32, w_env, 10) catch @floatToInt(i32, Game.screen_width * Game.scale);
     var h = fmt.parseInt(i32, h_env, 10) catch @floatToInt(i32, Game.screen_height * Game.scale);
-
 
     const base_dirs = try BaseDirs.init(allocator, .user);
 
@@ -247,8 +245,6 @@ pub fn main() !void {
     Tile.setSound(.grass, rl.LoadSound(vanilla.join("audio/grass.wav").ptr));
     Tile.setSound(.stone, rl.LoadSound(vanilla.join("audio/stone.wav").ptr));
 
-    // For some reason this segfaults on release builds, so current publish is
-    // a debug build
     Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
 
     var hotbar_item = rl.LoadImage(vanilla.join("ui/hotbar_item.png").ptr);
@@ -281,7 +277,6 @@ pub fn main() !void {
         }
     }
 
-
     var player_image = rl.LoadImage(vanilla.join("entities/players/player_down_0.png").ptr);
     rl.ImageResizeNN(&player_image, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
 
@@ -295,10 +290,10 @@ pub fn main() !void {
         "right",
         "down",
         "up",
-    }) |direction, direction_enum| {
+    }, 0..) |direction, direction_enum| {
         it = 0;
         while (it <= 7) {
-            var img_path = try fmt.allocPrint(allocator, "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ app_dir, direction, it });
+            var img_path = try fmt.allocPrintZ(allocator, "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ app_dir, direction, it });
             var player_image1 = rl.LoadImage(img_path.ptr);
             rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
             player.frames[direction_enum + 1][it] = rl.LoadTextureFromImage(player_image1);
@@ -415,11 +410,11 @@ pub fn main() !void {
         var y = @floatToInt(i32, Game.screen_height / Tile.size / 2) - 2;
         while (y * Tile.size <= @floatToInt(i32, Game.screen_height)) : (y += 1) {
             //if (y > @floatToInt(i32, Game.screen_height / Tile.size / 2) + 3) {
-           //     break;
+            //     break;
             //}
             x = @floatToInt(i32, Game.screen_width / Tile.size / 2) - 2;
             while (x * Tile.size <= @floatToInt(i32, Game.screen_width) + Tile.size) : (x += 1) {
-                for (Game.chunks) |*chnk| {
+                for (&Game.chunks) |*chnk| {
                     const scale_i: i32 = @floatToInt(i32, Game.scale);
                     const x_pos = @intToFloat(f32, x * Tile.size * scale_i - player_mod_x + screen_mod_x);
                     const y_pos = @intToFloat(f32, y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
@@ -455,7 +450,6 @@ pub fn main() !void {
                             .width = player_reach_range * 2 * Game.scale,
                             .height = player_reach_range * 2 * Game.scale,
                         };
-
 
                         const tile_rect = rl.Rectangle{
                             .x = x_pos,
@@ -589,7 +583,6 @@ pub fn main() !void {
                     var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
                     var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
-
                     // Check if tile is on screen
                     if (x + x_num - screen_width_in_tiles >= chnk.x and
                         x + x_num - screen_width_in_tiles < chnk.x + Chunk.size and
@@ -617,7 +610,7 @@ pub fn main() !void {
 
         // Draws a red rectangle at the player's collision rect
         if (menu.enabled) {
-            rl.DrawRectangleRec(player_collision, rl.Color{.r = 255, .g = 0, .b = 0, .a = 0x60});
+            rl.DrawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
         }
 
         // Draw player in the center of the screen

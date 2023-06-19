@@ -10,3 +10,6 @@
 [submodule "basedirs-zig"]
 	path = basedirs-zig
 	url = https://github.com/mgord9518/basedirs-zig
+[submodule "raylib.zig"]
+	path = raylib.zig
+	url = https://github.com/ryupold/raylib.zig

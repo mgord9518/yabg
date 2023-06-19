@@ -22,11 +22,11 @@ pub const Player = struct {
     cx: i32 = 0,
     cy: i32 = 0,
 
-    frame: *rl.Texture = undefined,
-    frames_idle: [1]rl.Texture = undefined,
+    frame: *rl.Texture2D = undefined,
+    frames_idle: [1]rl.Texture2D = undefined,
 
     // Top-level array is the animation, 2nd is the current frame
-    frames: [5][8]rl.Texture = undefined,
+    frames: [5][8]rl.Texture2D = undefined,
 
     frame_num: usize = 0,
     frame_sub: f32 = 0,
@@ -106,7 +106,7 @@ pub const Player = struct {
         player.cx = cx_origin;
         player.cy = cy_origin;
 
-        for (Game.chunks) |*chnk| {
+        for (&Game.chunks) |*chnk| {
             const cx = @divTrunc(chnk.x, Chunk.size);
             const cy = @divTrunc(chnk.y, Chunk.size);
 
@@ -146,7 +146,7 @@ pub const Player = struct {
         } else if (rl.IsKeyDown(.KEY_D)) {
             vec.x = 1;
         } else {
-            vec.x = rl.GetGamepadAxisMovement(0, @enumToInt(rl.GamepadAxis.GAMEPAD_AXIS_LEFT_X));
+            vec.x = rl.GetGamepadAxisMovement(0, .GAMEPAD_AXIS_LEFT_X);
         }
 
         if (rl.IsKeyDown(.KEY_W)) {
@@ -154,7 +154,7 @@ pub const Player = struct {
         } else if (rl.IsKeyDown(.KEY_S)) {
             vec.y = 1;
         } else {
-            vec.y = rl.GetGamepadAxisMovement(0, @enumToInt(rl.GamepadAxis.GAMEPAD_AXIS_LEFT_Y));
+            vec.y = rl.GetGamepadAxisMovement(0, .GAMEPAD_AXIS_LEFT_Y);
         }
 
         return vec;
