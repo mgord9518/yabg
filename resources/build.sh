@@ -42,13 +42,13 @@ mkdir -p "$temp_dir/AppDir/usr/bin" \
 
 cp -r 'usr/share/io.github.mgord9518.yabg' "$temp_dir/AppDir/usr/share"
 
-mv yabg.exe "$temp_dir/AppDir/usr/bin"
+mv zig-out/bin/yabg.exe "$temp_dir/AppDir/usr/bin"
 
 #TODO: create macOS DMG builds
 zip -r9 "$formatted_name-win.zip" "$temp_dir/AppDir"*
 
-rm yabg.exe yabg.pdb
-mv yabg "$temp_dir/AppDir/usr/bin"
+rm "$temp_dir/AppDir/usr/bin/yabg.exe"
+mv zig-out/bin/yabg "$temp_dir/AppDir/usr/bin"
 
 # Define what should be in the desktop entry
 entry="[Desktop Entry]
