@@ -35,16 +35,17 @@ echo 'building for Linux'
 zig build -Dcpu="$ARCH"            # Linux x86_64
 
 strip -s zig-out/bin/*
-mv zig-out/bin/yabg* ./
-
-#TODO: create macOS DMG builds
-zip -r9 "$formatted_name-win.zip" yabg.exe resources/
 
 # Create and move to working directory
 mkdir -p "$temp_dir/AppDir/usr/bin" \
          "$temp_dir/AppDir/usr/share/icons/hicolor/scalable/apps"
 
 cp -r 'usr/share/io.github.mgord9518.yabg' "$temp_dir/AppDir/usr/share"
+
+mv yabg.exe "$temp_dir/AppDir/usr/bin"
+
+#TODO: create macOS DMG builds
+zip -r9 "$formatted_name-win.zip" "$temp_dir/AppDir"*
 
 rm yabg.exe yabg.pdb
 mv yabg "$temp_dir/AppDir/usr/bin"
