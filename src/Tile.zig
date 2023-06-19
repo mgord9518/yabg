@@ -1,7 +1,7 @@
 const rl = @import("raylib");
 const enums = @import("enums.zig");
 const Direction = enums.Direction;
-const Game = @import("Game.zig").Game;
+const Game = @import("Game.zig");
 
 pub const Tile = packed struct {
     pub const size = 12;

@@ -5,7 +5,7 @@
 [ -z "$TMPDIR" ] && TMPDIR='/tmp'
 [ -z "$ARCH" ]   && ARCH=$(uname -m)
 
-version=0.1.1
+version=0.1.2
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
 formatted_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH"
@@ -18,7 +18,7 @@ icon_url='https://go.dev/images/go-logo-blue.svg'
 
 compression='zstd'
 
-git clone https://github.com/Not-Nik/raylib-zig --recurse-submodules
+git clone https://github.com/ryupold/raylib.zig --recursive
 git clone https://github.com/mgord9518/perlin-zig
 git clone https://github.com/mgord9518/basedirs-zig
 git clone https://github.com/aeronavery/zig-toml

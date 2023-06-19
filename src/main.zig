@@ -12,8 +12,8 @@ const BaseDirs = @import("basedirs").BaseDirs;
 
 const Chunk = @import("Chunk.zig").Chunk;
 const Tile = @import("Tile.zig").Tile;
-const Player = @import("Player.zig").Player;
-const Game = @import("Game.zig").Game;
+const Player = @import("Player.zig");
+const Game = @import("Game.zig");
 
 const Menu = struct {
     enabled: bool = false,
@@ -207,6 +207,29 @@ pub fn main() !void {
 
             app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
         },
+        .windows => {
+            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+            var buf_w: [fs.MAX_PATH_BYTES / 2]u16 = undefined;
+
+            const exepath_w = try os.windows.GetModuleFileNameW(
+                null,
+                &buf_w,
+                buf.len,
+            );
+
+            // Windows system calls are formatted UTF-16, so convert to UTF-8
+            var it = std.unicode.Utf16LeIterator.init(exepath_w);
+            var idx: usize = 0;
+            while (try it.nextCodepoint()) |codepoint| {
+                const len = try std.unicode.utf8Encode(codepoint, buf[idx..]);
+                idx += len;
+            }
+
+            const exepath = buf[0..idx];
+            const dirname = path.dirname(exepath) orelse "/";
+
+            app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
+        },
         else => {},
     }
 
@@ -230,8 +253,6 @@ pub fn main() !void {
 
     var vanilla = PathBuilder.init(allocator, vanilla_dir);
 
-    //const save_dir = config.join("saves/DEVTEST");
-
     // Scale must be an int because fractionals cause tons of issues
     Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
     Player.walk_speed = fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
@@ -244,6 +265,7 @@ pub fn main() !void {
     // Load sounds
     Tile.setSound(.grass, rl.LoadSound(vanilla.join("audio/grass.wav").ptr));
     Tile.setSound(.stone, rl.LoadSound(vanilla.join("audio/stone.wav").ptr));
+    Tile.setSound(.sand, rl.LoadSound(vanilla.join("audio/sand.wav").ptr));
 
     Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
 
@@ -286,17 +308,17 @@ pub fn main() !void {
     // Load player frames
     // TODO: implement as spritesheets
     inline for (.{
-        "left",
-        "right",
         "down",
+        "left",
         "up",
-    }, 0..) |direction, direction_enum| {
+        "right",
+    }, 1..) |direction, direction_enum| {
         it = 0;
         while (it <= 7) {
             var img_path = try fmt.allocPrintZ(allocator, "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png", .{ app_dir, direction, it });
             var player_image1 = rl.LoadImage(img_path.ptr);
             rl.ImageResizeNN(&player_image1, @floatToInt(i32, 12 * Game.scale), @floatToInt(i32, 24 * Game.scale));
-            player.frames[direction_enum + 1][it] = rl.LoadTextureFromImage(player_image1);
+            player.frames[direction_enum][it] = rl.LoadTextureFromImage(player_image1);
             it += 1;
         }
     }
@@ -344,7 +366,6 @@ pub fn main() !void {
         } else if (input_vec.y < 0) {
             player.animation = .walk_up;
         } else {
-            //            player.animation = .idle;
             player.frame_num = 0;
         }
 
