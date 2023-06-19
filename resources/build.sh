@@ -14,7 +14,7 @@ temp_dir="$TMPDIR/.buildApp_$formatted_name.$RANDOM"
 start_dir="$PWD"
 
 #TODO: create icon for YABG
-icon_url='https://go.dev/images/go-logo-blue.svg'
+icon_url='https://raw.githubusercontent.com/AppImage/AppImageKit/master/resources/appimagetool.svg'
 
 compression='zstd'
 
@@ -22,10 +22,6 @@ git clone https://github.com/ryupold/raylib.zig --recursive
 git clone https://github.com/mgord9518/perlin-zig
 git clone https://github.com/mgord9518/basedirs-zig
 git clone https://github.com/aeronavery/zig-toml
-
-# Raylib hasn't yet been updated to latest Zig and `addIncludeDir` is now a
-# compile error
-sed 's/addIncludeDir/addIncludePath/g' -i raylib-zig/raylib/src/build.zig
 
 echo 'building for Windows'
 #zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
@@ -36,6 +32,8 @@ zig build -Dcpu="$ARCH"            # Linux x86_64
 
 strip -s zig-out/bin/*
 
+#TODO: create macOS DMG builds
+
 # Create and move to working directory
 mkdir -p "$temp_dir/AppDir/usr/bin" \
          "$temp_dir/AppDir/usr/share/icons/hicolor/scalable/apps"
@@ -44,8 +42,11 @@ cp -r 'usr/share/io.github.mgord9518.yabg' "$temp_dir/AppDir/usr/share"
 
 mv zig-out/bin/yabg.exe "$temp_dir/AppDir/usr/bin"
 
-#TODO: create macOS DMG builds
-zip -r9 "$formatted_name-win.zip" "$temp_dir/AppDir"*
+cd "$temp_dir/AppDir"
+
+zip -r9 "$start_dir/$formatted_name-win.zip" "./"*
+
+cd -
 
 rm "$temp_dir/AppDir/usr/bin/yabg.exe"
 mv zig-out/bin/yabg "$temp_dir/AppDir/usr/bin"
