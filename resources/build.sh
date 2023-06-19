@@ -14,7 +14,7 @@ temp_dir="$TMPDIR/.buildApp_$formatted_name.$RANDOM"
 start_dir="$PWD"
 
 #TODO: create icon for YABG
-icon_url='https://raw.githubusercontent.com/AppImage/AppImageKit/master/resources/appimagetool.svg'
+icon_url='https://raw.githubusercontent.com/AppImage/AppImageKit/master/resources/appimagetool.png'
 
 compression='zstd'
 
