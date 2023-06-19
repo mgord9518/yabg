@@ -5,7 +5,7 @@
 [ -z "$TMPDIR" ] && TMPDIR='/tmp'
 [ -z "$ARCH" ]   && ARCH=$(uname -m)
 
-version=0.1.2
+version=0.1.3
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
 formatted_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH"
