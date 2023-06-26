@@ -1,8 +1,9 @@
 // This file exists to share variables over all areas of the game
 
 const rl = @import("raylib");
-const Chunk = @import("Chunk.zig").Chunk;
+const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
+const Player = @import("Player.zig");
 
 pub var delta: f32 = 0;
 pub var screen_width: f32 = 0;

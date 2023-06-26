@@ -8,9 +8,10 @@ const builtin = @import("builtin");
 const fs = std.fs;
 const path = fs.path;
 const ChildProcess = std.ChildProcess;
-const BaseDirs = @import("basedirs").BaseDirs;
+const basedirs = @import("basedirs");
+const BaseDirs = basedirs.BaseDirs;
 
-const Chunk = @import("Chunk.zig").Chunk;
+const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
 const Game = @import("Game.zig");
@@ -20,25 +21,22 @@ const Menu = struct {
     min_y: f32 = -160,
 
     x: f32 = 0,
-    y: f32 = -160,
+    y: f32 = 0,
     player: *Player,
     texture: rl.Texture2D,
 
     fn draw(menu: *Menu, allocator: std.mem.Allocator) !void {
         _ = allocator;
         // Draw debug menu
-        if (menu.enabled or menu.y > menu.min_y) {
-            if (menu.enabled and menu.y < 0) {
-                menu.y += 8 * Game.tps * Game.delta;
-            }
-            if (menu.y > 0) {
-                menu.y = 0;
-            }
-        }
-
-        if (!menu.enabled and menu.y > menu.min_y) {
-            menu.y -= 8 * Game.tps * Game.delta;
-        }
+        //        if (menu.enabled or menu.y > menu.min_y) {
+        //            if (menu.enabled and menu.y < 0) {
+        //                menu.y += 8 * Game.tps * Game.delta;
+        //            }
+        //            if (menu.y > 0) {
+        //                menu.y = 0;
+        //            }
+        //        }
+        menu.y = 0;
 
         //        rl.DrawTexture(menu.texture, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
 
@@ -189,49 +187,11 @@ pub fn main() !void {
 
     // Determine executable directory
     // TODO: either implement for other OSes or use a library like <https://github.com/gpakosz/whereami/>
-    var app_dir: [:0]const u8 = undefined;
-    switch (builtin.os.tag) {
-        .linux => {
-            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+    var exe_path_buf: [std.os.PATH_MAX]u8 = undefined;
+    const exe_path = try basedirs.exePath(&exe_path_buf);
 
-            const exepath = try os.readlink("/proc/self/exe", &buf);
-            const dirname = path.dirname(exepath) orelse "/";
-
-            app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
-        },
-        .netbsd => {
-            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-
-            const exepath = try os.readlink("/proc/curproc/exe", &buf);
-            const dirname = path.dirname(exepath) orelse "/";
-
-            app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
-        },
-        .windows => {
-            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-            var buf_w: [fs.MAX_PATH_BYTES / 2]u16 = undefined;
-
-            const exepath_w = try os.windows.GetModuleFileNameW(
-                null,
-                &buf_w,
-                buf.len,
-            );
-
-            // Windows system calls are formatted UTF-16, so convert to UTF-8
-            var it = std.unicode.Utf16LeIterator.init(exepath_w);
-            var idx: usize = 0;
-            while (try it.nextCodepoint()) |codepoint| {
-                const len = try std.unicode.utf8Encode(codepoint, buf[idx..]);
-                idx += len;
-            }
-
-            const exepath = buf[0..idx];
-            const dirname = path.dirname(exepath) orelse "/";
-
-            app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
-        },
-        else => {},
-    }
+    const dirname = path.dirname(exe_path) orelse "/";
+    const app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
 
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
@@ -243,10 +203,10 @@ pub fn main() !void {
 
     const base_dirs = try BaseDirs.init(allocator, .user);
 
-    const save_dir = try path.joinZ(allocator, &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" });
+    const save_path = try path.joinZ(allocator, &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" });
     const vanilla_dir = try path.joinZ(allocator, &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla" });
 
-    var player = Player.init(save_dir);
+    var player = Player.init(save_path);
     var menu = DebugMenu{ .player = &player };
 
     menu.enabled = env_map.get("DEBUG_MODE") != null;
@@ -283,7 +243,7 @@ pub fn main() !void {
 
     // Create save directory if it doesn't already exist
     const cwd = fs.cwd();
-    cwd.makePath(save_dir) catch |err| {
+    cwd.makePath(save_path) catch |err| {
         if (err != os.MakeDirError.PathAlreadyExists) {
             print("Error creating save directory: {}", .{err});
         }
@@ -294,7 +254,7 @@ pub fn main() !void {
     var it: usize = 0;
     inline for (.{ -1, 0, 1 }) |row| {
         inline for (.{ -1, 0, 1 }) |col| {
-            Game.chunks[it] = try Chunk.load(save_dir, "vanilla0", row, col);
+            Game.chunks[it] = try Chunk.load(save_path, "vanilla0", row, col);
             it += 1;
         }
     }
@@ -366,6 +326,7 @@ pub fn main() !void {
         } else if (input_vec.y < 0) {
             player.animation = .walk_up;
         } else {
+            // If not moving, reset animation to the start
             player.frame_num = 0;
         }
 
@@ -478,6 +439,9 @@ pub fn main() !void {
                             .width = 12 * Game.scale,
                             .height = 12 * Game.scale,
                         };
+                        const arr = @bitCast([2]u8, chnk.tiles[tile_idx + Chunk.size * Chunk.size]);
+                        std.debug.print("{d} {d}\n", .{ chnk.x, chnk.y });
+                        std.debug.print("{d} {d}\n", .{ arr[0], arr[1] });
 
                         const tile_front_rect = switch (chnk.tiles[tile_idx + Chunk.size * Chunk.size].id) {
                             .air => rl.Rectangle{
@@ -557,7 +521,6 @@ pub fn main() !void {
             }
         }
 
-        // TODO: fix phasing through top-left and bottom-right corners
         if (player_collision.height > player_collision.width) {
             if (player_collision.x == player_rect.x) {
                 player.x += player_collision.width / Game.scale;
@@ -570,9 +533,6 @@ pub fn main() !void {
             } else {
                 player.y -= player_collision.height / Game.scale;
             }
-        } else if (player_collision.height == player_collision.width and player_collision.width > Game.scale) {
-            player.x -= player.x_speed;
-            player.y -= player.y_speed;
         }
 
         player_mod_y = @mod(@floatToInt(i32, player.y * Game.scale), Tile.size * @floatToInt(i32, Game.scale));
@@ -629,11 +589,6 @@ pub fn main() !void {
             }
         }
 
-        // Draws a red rectangle at the player's collision rect
-        if (menu.enabled) {
-            rl.DrawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
-        }
-
         // Draw player in the center of the screen
         rl.DrawTexture(player.frame.*, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
 
@@ -684,13 +639,21 @@ pub fn main() !void {
         }
 
         // Draw debug menu
-        try menu.draw(arena);
+        if (menu.enabled) {
+            // Draws a red rectangle at the player's collision rect
+            rl.DrawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
+            try menu.draw(arena);
+        }
 
-        if (settings.enabled or settings.y > settings.min_y) {
+        if (settings.enabled) {
             try settings.draw(arena);
         }
 
         rl.EndDrawing();
+    }
+
+    for (Game.chunks) |chunk| {
+        try chunk.save(player.save_path, "vanilla0");
     }
 
     rl.CloseWindow();

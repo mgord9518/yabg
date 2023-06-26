@@ -1,7 +1,7 @@
 const rl = @import("raylib");
 const std = @import("std");
 
-const Chunk = @import("Chunk.zig").Chunk;
+const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Direction = @import("enums.zig").Direction;
 const Animation = @import("enums.zig").Animation;
@@ -109,31 +109,28 @@ pub fn reloadChunks(player: *Player) void {
         const cy = @divTrunc(chnk.y, Chunk.size);
 
         if (@divTrunc(chnk.x, Chunk.size) > cx_origin + 1) {
+            chnk.save(player.save_path, "vanilla0") catch unreachable;
             chnk.* = Chunk.load(player.save_path, "vanilla0", cx_origin - 1, cy) catch unreachable;
         } else if (@divTrunc(chnk.x, Chunk.size) < cx_origin - 1) {
+            chnk.save(player.save_path, "vanilla0") catch unreachable;
             chnk.* = Chunk.load(player.save_path, "vanilla0", cx_origin + 1, cy) catch unreachable;
         } else if (@divTrunc(chnk.y, Chunk.size) > cy_origin + 1) {
+            chnk.save(player.save_path, "vanilla0") catch unreachable;
             chnk.* = Chunk.load(player.save_path, "vanilla0", cx, cy_origin - 1) catch unreachable;
         } else if (@divTrunc(chnk.y, Chunk.size) < cy_origin - 1) {
+            chnk.save(player.save_path, "vanilla0") catch unreachable;
             chnk.* = Chunk.load(player.save_path, "vanilla0", cx, cy_origin + 1) catch unreachable;
         }
     }
 }
 
-// TODO: limit to 8 directions and 2 (or maybe 3? speeds)
+// TODO: limit directions and use 2 (or maybe 3?) speeds if using a gamepad
 // I'll probably end up doing a `sneak`, `walk` and `run`
+// Currently limiting to 4 directions to simplify collision, if I can
+// eventually implement it in a simple way without bugs I will re-enable
+// 8 direction movement
 pub fn inputVector(player: *Player) rl.Vector2 {
     _ = player;
-
-    if (rl.IsKeyDown(.KEY_A) and rl.IsKeyDown(.KEY_S)) {
-        return .{ .x = -0.7, .y = 0.7 };
-    } else if (rl.IsKeyDown(.KEY_A) and rl.IsKeyDown(.KEY_W)) {
-        return .{ .x = -0.7, .y = -0.7 };
-    } else if (rl.IsKeyDown(.KEY_D) and rl.IsKeyDown(.KEY_S)) {
-        return .{ .x = 0.7, .y = 0.7 };
-    } else if (rl.IsKeyDown(.KEY_D) and rl.IsKeyDown(.KEY_W)) {
-        return .{ .x = 0.7, .y = -0.7 };
-    }
 
     if (rl.IsKeyDown(.KEY_A)) {
         return .{ .x = -1, .y = 0 };
@@ -148,22 +145,7 @@ pub fn inputVector(player: *Player) rl.Vector2 {
     const axis_x = rl.GetGamepadAxisMovement(0, .GAMEPAD_AXIS_LEFT_X);
     const axis_y = rl.GetGamepadAxisMovement(0, .GAMEPAD_AXIS_LEFT_Y);
 
-    var ret: rl.Vector2 = .{
-        .x = 0,
-        .y = 0,
-    };
-
     const threashold = 0.25;
-
-    if (axis_x < -threashold and axis_y > threashold) {
-        return .{ .x = -0.7, .y = 0.7 };
-    } else if (axis_x < -threashold and axis_y < -threashold) {
-        return .{ .x = -0.7, .y = -0.7 };
-    } else if (axis_x > threashold and axis_y < -threashold) {
-        return .{ .x = 0.7, .y = -0.7 };
-    } else if (axis_x > threashold and axis_y > threashold) {
-        return .{ .x = 0.7, .y = 0.7 };
-    }
 
     if (axis_x < -threashold) {
         return .{ .x = -1, .y = 0 };
@@ -175,7 +157,5 @@ pub fn inputVector(player: *Player) rl.Vector2 {
         return .{ .x = 0, .y = 1 };
     }
 
-    return ret;
-
-    //std.debug.print("{d}:{d}\n", .{ vec.x, vec.y });
+    return .{ .x = 0, .y = 0 };
 }
