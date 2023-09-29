@@ -18,7 +18,7 @@ pub const version = Version{
 
     .major = 0,
     .minor = 1,
-    .patch = 1,
+    .patch = 2,
 };
 
 pub var font: rl.Font = undefined;

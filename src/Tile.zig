@@ -48,19 +48,19 @@ pub const Tile = packed struct {
     }
 
     pub fn texture(self: *const Tile) rl.Texture2D {
-        return Game.tileTextures[@enumToInt(self.id)];
+        return Game.tileTextures[@intFromEnum(self.id)];
     }
 
     pub fn setTexture(id: Id, tex: rl.Texture2D) void {
-        Game.tileTextures[@enumToInt(id)] = tex;
+        Game.tileTextures[@intFromEnum(id)] = tex;
     }
 
     pub fn sound(self: *const Tile) rl.Sound {
-        return Game.tileSounds[@enumToInt(self.id)];
+        return Game.tileSounds[@intFromEnum(self.id)];
     }
 
     pub fn setSound(id: Id, snd: rl.Sound) void {
-        Game.tileSounds[@enumToInt(id)] = snd;
+        Game.tileSounds[@intFromEnum(id)] = snd;
     }
 
     /// Categories should denote the basic qualities of a specific tile.

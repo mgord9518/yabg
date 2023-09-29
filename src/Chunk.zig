@@ -48,7 +48,11 @@ pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !vo
     @memset(&save_buf, 0);
     std.mem.copyForwards(u8, &save_buf, "YABGc");
     save_buf[5] = self.version;
-    std.mem.copyForwards(u8, save_buf[6..], @bitCast([size * size * 2 * 2]u8, self.tiles)[0..]);
+    std.mem.copyForwards(
+        u8,
+        save_buf[6..],
+        @as([size * size * 2 * 2]u8, @bitCast(self.tiles[0 .. size * size * 2].*))[0..],
+    );
 
     _ = try file.write(&save_buf);
 }
@@ -95,13 +99,13 @@ pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk 
         return LoadError.UnknownVersion;
     }
 
-    var tile_buf = @bitCast([size * size * 2 * 2]u8, chunk.tiles);
+    var tile_buf: [size * size * 2 * 2]u8 = @bitCast(chunk.tiles);
 
     // Read tile data
     byte_count = try file.read(&tile_buf);
 
     // TODO: do this without copying
-    std.mem.copy(Tile, chunk.tiles[0..], @bitCast([size * size * 2]Tile, tile_buf)[0..]);
+    std.mem.copy(Tile, chunk.tiles[0..], @as([size * size * 2]Tile, @bitCast(tile_buf))[0..]);
     return chunk;
 }
 
@@ -129,21 +133,31 @@ pub fn init(x: i32, y: i32) !Chunk {
     // this keeps from needing to iterate through all those bytes
     //        @memset(@ptrCast([*]u8, chunk.tiles[size * size..]), 0, size * size * 2);
 
-    @memset(@ptrCast([*]u8, &chunk.tiles)[0 .. size * size * 2 * 2], 0);
+    //@memset(@as([*]u8, @ptrCast(chunk.tiles[0 .. size * size * 2])), 0);
+
+    for (chunk.tiles[0 .. size * size * 2]) |*tile| {
+        tile.* = Tile{
+            .naturally_generated = true,
+            .grade = 0,
+            .damage = 0,
+            .direction = .down,
+            .id = .air,
+        };
+    }
 
     for (&chunk.tiles, 0..) |*tile, idx| {
         if (idx >= size * size) {
             break;
         }
 
-        t_x = chunk.x + @intCast(i32, @mod(idx, size));
-        t_y = chunk.y + @intCast(i32, @divTrunc(idx, size));
+        t_x = chunk.x + @as(i32, @intCast(@mod(idx, size)));
+        t_y = chunk.y + @as(i32, @intCast(@divTrunc(idx, size)));
 
         // TODO: Allow the world directory to control world gen
         const s = 1.5;
-        var val = perlin.noise2D(f64, @intToFloat(f32, t_x) * 0.02 * s, @intToFloat(f32, t_y) * 0.02 * s);
-        val += perlin.noise2D(f64, @intToFloat(f32, t_x) * 0.05 * s, @intToFloat(f32, t_y) * 0.05 * s);
-        val += perlin.noise2D(f64, @intToFloat(f32, t_x) * 0.10 * s, @intToFloat(f32, t_y) * 0.10 * s) / 2;
+        var val = perlin.noise2D(f64, @as(f32, @floatFromInt(t_x)) * 0.02 * s, @as(f32, @floatFromInt(t_y)) * 0.02 * s);
+        val += perlin.noise2D(f64, @as(f32, @floatFromInt(t_x)) * 0.05 * s, @as(f32, @floatFromInt(t_y)) * 0.05 * s);
+        val += perlin.noise2D(f64, @as(f32, @floatFromInt(t_x)) * 0.10 * s, @as(f32, @floatFromInt(t_y)) * 0.10 * s) / 2;
 
         //var val = perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.03, @intToFloat(f32, t_y) * 0.03);
         //val += perlin.noise2D(f64, @intToFloat(f32, t_x ) * 0.25, @intToFloat(f32, t_y) * 0.25);

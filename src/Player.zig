@@ -46,7 +46,7 @@ pub fn init(save_path: []const u8) Player {
 }
 
 pub fn getFrame(self: *Player, animation: Animation, frame_num: u3) *rl.Texture2D {
-    return &self.frames[@enumToInt(animation)][frame_num];
+    return &self.frames[@intFromEnum(animation)][frame_num];
 }
 
 pub fn updatePlayerFrames(
@@ -85,41 +85,53 @@ pub fn updatePlayerFrames(
 // then loads new Game.chunks into their pointers
 // Not yet sure how robust this is
 pub fn reloadChunks(player: *Player) void {
-    var cx_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.x, Tile.size), Chunk.size));
-    var cy_origin = @floatToInt(i32, @divTrunc(@divTrunc(player.y, Tile.size), Chunk.size));
-
-    // Return if player chunk is unchanged to save from executing the for loop every frame
-    if (cx_origin == player.cx and cy_origin == player.cy) {
-        //     return;
-    }
+    player.cx = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.x, Tile.size), Chunk.size)));
+    player.cy = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.y, Tile.size), Chunk.size)));
 
     if (player.x < 0) {
-        cx_origin = cx_origin - 1;
+        player.cx = player.cx - 1;
     }
 
     if (player.y < 0) {
-        cy_origin = cy_origin - 1;
+        player.cy = player.cy - 1;
     }
-
-    player.cx = cx_origin;
-    player.cy = cy_origin;
 
     for (&Game.chunks) |*chnk| {
         const cx = @divTrunc(chnk.x, Chunk.size);
         const cy = @divTrunc(chnk.y, Chunk.size);
 
-        if (@divTrunc(chnk.x, Chunk.size) > cx_origin + 1) {
+        if (@divTrunc(chnk.x, Chunk.size) > player.cx + 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", cx_origin - 1, cy) catch unreachable;
-        } else if (@divTrunc(chnk.x, Chunk.size) < cx_origin - 1) {
+            chnk.* = Chunk.load(player.save_path, "vanilla0", player.cx - 1, cy) catch unreachable;
+        } else if (@divTrunc(chnk.x, Chunk.size) < player.cx - 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", cx_origin + 1, cy) catch unreachable;
-        } else if (@divTrunc(chnk.y, Chunk.size) > cy_origin + 1) {
+            chnk.* = Chunk.load(player.save_path, "vanilla0", player.cx + 1, cy) catch unreachable;
+        } else if (@divTrunc(chnk.y, Chunk.size) > player.cy + 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, cy_origin - 1) catch unreachable;
-        } else if (@divTrunc(chnk.y, Chunk.size) < cy_origin - 1) {
+            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, player.cy - 1) catch unreachable;
+        } else if (@divTrunc(chnk.y, Chunk.size) < player.cy - 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, cy_origin + 1) catch unreachable;
+            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, player.cy + 1) catch unreachable;
+        }
+    }
+
+    // Sort chunks
+    // TODO: refactor
+    for (&Game.chunks) |*chunk| {
+        for (&Game.chunks) |*swap_chunk| {
+            if (swap_chunk.y < chunk.y) {
+                const tmp = chunk.*;
+
+                chunk.* = swap_chunk.*;
+                swap_chunk.* = tmp;
+            }
+
+            if (swap_chunk.y == chunk.y and swap_chunk.x < chunk.x) {
+                const tmp = chunk.*;
+
+                chunk.* = swap_chunk.*;
+                swap_chunk.* = tmp;
+            }
         }
     }
 }

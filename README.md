@@ -50,12 +50,10 @@ Dependencies:
 ```
 # Ubuntu/Debian:
 zig
-libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
-libgl-dev
+libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev
 
 # Alpine:
-libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
-mesa-gl mesa-dev libc-dev pipewire
+libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev mesa-gl mesa-dev libc-dev pipewire
 ```
 
 Building instructions:
