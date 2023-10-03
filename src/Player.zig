@@ -62,7 +62,7 @@ pub fn updatePlayerFrames(
         speed = std.math.sqrt((player.x_speed * player.x_speed) + (player.y_speed * player.y_speed));
     }
 
-    player.frame_sub += Game.tps * 0.4 * Game.delta * @fabs(speed);
+    player.frame_sub += Game.tps * 0.4 * Game.delta * @abs(speed);
 
     if (player.frame_sub >= 1) {
         player.frame_sub -= 1;

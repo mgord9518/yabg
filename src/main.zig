@@ -371,6 +371,8 @@ pub fn main() !void {
         player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
         player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
 
+        //std.debug.print("{d}", .{});
+
         player.x += player.x_speed;
         player.y += player.y_speed;
 
@@ -386,20 +388,18 @@ pub fn main() !void {
         //rl.ToggleFullscreen();
         //}
 
-        var player_mod_x: i32 = undefined;
-        var player_mod_y: i32 = undefined;
+        const player_x_i: i32 = @intFromFloat(player.x * Game.scale);
+        const player_y_i: i32 = @intFromFloat(player.y * Game.scale);
 
-        const player_x_i: i32 = @intFromFloat(player.x);
-        const player_y_i: i32 = @intFromFloat(player.y);
-        player_mod_y = @mod(player_y_i * scale_i, Tile.size * scale_i);
-        player_mod_x = @mod(player_x_i * scale_i, Tile.size * scale_i);
+        var player_mod_x: i32 = @mod(player_x_i, Tile.size * scale_i);
+        var player_mod_y: i32 = @mod(player_y_i, Tile.size * scale_i);
 
         if (player.y < 0 and player_mod_y == 0) {
-            player_mod_y = 12 * scale_i;
+            player_mod_y = Tile.size * scale_i;
         }
 
         if (player.x < 0 and player_mod_x == 0) {
-            player_mod_x = 12 * scale_i;
+            player_mod_x = Tile.size * scale_i;
         }
 
         // Screen modulo is to draw tiles offset depending on screen resolution
@@ -435,9 +435,9 @@ pub fn main() !void {
         var x: i32 = (width_i / Tile.size / 2) - 2;
         var y: i32 = (height_i / Tile.size / 2) - 2;
         while (y * Tile.size <= height_i) : (y += 1) {
-            //if (y > @floatToInt(i32, Game.screen_height / Tile.size / 2) + 3) {
-            //     break;
-            //}
+            if (y > @as(i32, @intFromFloat(Game.screen_height / Tile.size / 2)) + 3) {
+                break;
+            }
             x = (width_i / Tile.size / 2) - 2;
             while (x * Tile.size <= width_i + Tile.size) : (x += 1) {
                 for (&Game.chunks) |*chnk| {
@@ -447,7 +447,6 @@ pub fn main() !void {
                     const screen_width_in_tiles: u31 = width_i / (Tile.size * 2);
                     const screen_height_in_tiles: u31 = height_i / (Tile.size * 2);
 
-                    // 24 because its Tile.size * 2
                     var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
                     var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
@@ -566,13 +565,17 @@ pub fn main() !void {
         if (player_collision.height > player_collision.width) {
             if (player_collision.x == player_rect.x) {
                 player.x += player_collision.width / Game.scale;
+                //player.x -= player.x_speed;
             } else {
                 player.x -= player_collision.width / Game.scale;
+                //player.x -= player.x_speed;
             }
         } else if (player_collision.height < player_collision.width) {
             if (player_collision.y == player_rect.y) {
+                //player.y -= player.y_speed;
                 player.y += player_collision.height / Game.scale;
             } else {
+                //player.y -= player.y_speed;
                 player.y -= player_collision.height / Game.scale;
             }
         }
@@ -643,7 +646,8 @@ pub fn main() !void {
         //rl.DrawTexture(player.frame.*, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
         rl.DrawTexture(
             player.frame.*,
-            @intFromFloat(Game.scale * (Game.screen_width / 2) - 5.5 * Game.scale),
+            //@intFromFloat(Game.scale * (Game.screen_width / 2) - 5.5 * Game.scale),
+            @intFromFloat(Game.scale * (Game.screen_width / 2) - 6 * Game.scale),
             @intFromFloat(Game.scale * (Game.screen_height / 2) - 12 * Game.scale),
             rl.WHITE,
         );
@@ -697,6 +701,7 @@ pub fn main() !void {
         if (menu.enabled) {
             // Draws a red rectangle at the player's collision rect
             rl.DrawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
+            rl.DrawRectangleRec(player_rect, rl.Color{ .r = 255, .g = 0, .b = 255, .a = 0x60 });
             try menu.draw(arena);
         }
 
@@ -728,7 +733,7 @@ fn int2Dozenal(i: isize, allocator: std.mem.Allocator) ![]const u8 {
 
     var buf = try allocator.alloc(u8, 32);
 
-    var n = try std.math.absInt(i);
+    var n = @abs(i);
 
     var idx: usize = buf.len;
     while (n > 0) {
