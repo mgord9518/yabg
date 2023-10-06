@@ -16,6 +16,61 @@ const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
 const Game = @import("Game.zig");
 
+// Helper function to draw text in the `default` style with a shadow
+// Scaling is already accounted for
+// `rl.startDrawing` must be called before using this function
+fn drawText(
+    string: []const u8,
+    coords: rl.Vector2,
+) !void {
+    var it = std.mem.splitSequence(u8, string, "\n");
+
+    var line_offset: f32 = 0;
+    const font_size = 6;
+    var buf: [4096]u8 = undefined;
+
+    while (it.next()) |line| {
+        const lineZ = try std.fmt.bufPrintZ(&buf, "{s}", .{line});
+
+        // Shadow
+        rl.DrawTextEx(
+            Game.font,
+            lineZ,
+            rl.Vector2{
+                .x = coords.x * Game.scale + Game.scale,
+                .y = coords.y * Game.scale + line_offset + Game.scale,
+            },
+            font_size * Game.scale,
+            Game.scale,
+            rl.Color{
+                .r = 0,
+                .g = 0,
+                .b = 0,
+                .a = 47,
+            },
+        );
+
+        rl.DrawTextEx(
+            Game.font,
+            lineZ,
+            rl.Vector2{
+                .x = coords.x * Game.scale,
+                .y = coords.y * Game.scale + line_offset,
+            },
+            font_size * Game.scale,
+            Game.scale,
+            rl.Color{
+                .r = 255,
+                .g = 255,
+                .b = 255,
+                .a = 127,
+            },
+        );
+
+        line_offset += font_size * Game.scale + 2 * Game.scale;
+    }
+}
+
 const Menu = struct {
     enabled: bool = false,
     min_y: f32 = -160,
@@ -62,7 +117,6 @@ const DebugMenu = struct {
     x: f32 = 0,
     y: f32 = -96,
     player: *Player,
-    //  text:    []u8,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
 
@@ -97,7 +151,7 @@ const DebugMenu = struct {
             allocator,
             "YABG {s} {d}.{d}.{d}\n\nFPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\nchunk:{s}:{s};",
             .{
-                Game.version.prefix,
+                Game.version.pre.?,
                 Game.version.major,
                 Game.version.minor,
                 Game.version.patch,
@@ -118,9 +172,13 @@ const DebugMenu = struct {
             alpha = @intFromFloat(192 + menu.y);
         }
 
-        // Draw debug menu and its shadow
-        rl.DrawTextEx(Game.font, string.ptr, rl.Vector2{ .x = Game.scale * 2, .y = Game.scale + menu.y * Game.scale * 0.75 }, 6 * Game.scale, Game.scale, rl.Color{ .r = 0, .g = 0, .b = 0, .a = @divTrunc(alpha, 3) });
-        rl.DrawTextEx(Game.font, string.ptr, rl.Vector2{ .x = Game.scale, .y = menu.y * Game.scale }, 6 * Game.scale, Game.scale, rl.Color{ .r = 192, .g = 192, .b = 192, .a = alpha });
+        try drawText(
+            string,
+            .{
+                .x = 2,
+                .y = menu.y + 1,
+            },
+        );
     }
 };
 
@@ -250,7 +308,7 @@ pub fn main() !void {
     Tile.setSound(.stone, rl.LoadSound(vanilla.join("audio/stone.wav").ptr));
     Tile.setSound(.sand, rl.LoadSound(vanilla.join("audio/sand.wav").ptr));
 
-    Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fn").ptr);
+    Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
 
     var hotbar_item = rl.LoadImage(vanilla.join("ui/hotbar_item.png").ptr);
     const hotbar_item_height = hotbar_item.height * scale_i;
@@ -370,8 +428,6 @@ pub fn main() !void {
         // Update player speed based on control input
         player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
         player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-
-        //std.debug.print("{d}", .{});
 
         player.x += player.x_speed;
         player.y += player.y_speed;
@@ -565,17 +621,13 @@ pub fn main() !void {
         if (player_collision.height > player_collision.width) {
             if (player_collision.x == player_rect.x) {
                 player.x += player_collision.width / Game.scale;
-                //player.x -= player.x_speed;
             } else {
                 player.x -= player_collision.width / Game.scale;
-                //player.x -= player.x_speed;
             }
         } else if (player_collision.height < player_collision.width) {
             if (player_collision.y == player_rect.y) {
-                //player.y -= player.y_speed;
                 player.y += player_collision.height / Game.scale;
             } else {
-                //player.y -= player.y_speed;
                 player.y -= player_collision.height / Game.scale;
             }
         }
@@ -647,8 +699,12 @@ pub fn main() !void {
         rl.DrawTexture(
             player.frame.*,
             //@intFromFloat(Game.scale * (Game.screen_width / 2) - 5.5 * Game.scale),
-            @intFromFloat(Game.scale * (Game.screen_width / 2) - 6 * Game.scale),
-            @intFromFloat(Game.scale * (Game.screen_height / 2) - 12 * Game.scale),
+            @intFromFloat(
+                Game.scale * (Game.screen_width / 2) - 6 * Game.scale,
+            ),
+            @intFromFloat(
+                Game.scale * (Game.screen_height / 2) - 10 * Game.scale,
+            ),
             rl.WHITE,
         );
 

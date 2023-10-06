@@ -1,12 +1,6 @@
-[submodule "raylib-zig"]
-	path = raylib-zig
-	url = https://github.com/Not-Nik/raylib-zig
 [submodule "perlin-zig"]
 	path = perlin-zig
 	url = https://github.com/mgord9518/perlin-zig
-[submodule "zig-toml"]
-	path = zig-toml
-	url = https://github.com/aeronavery/zig-toml
 [submodule "basedirs-zig"]
 	path = basedirs-zig
 	url = https://github.com/mgord9518/basedirs-zig
