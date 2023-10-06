@@ -5,7 +5,8 @@
 [ -z "$TMPDIR" ] && TMPDIR='/tmp'
 [ -z "$ARCH" ]   && ARCH=$(uname -m)
 
-version=0.1.3
+# TODO: add CLI flag to obtain version
+version=0.2.0
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
 formatted_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH"
@@ -21,14 +22,12 @@ compression='zstd'
 git clone https://github.com/ryupold/raylib.zig --recursive
 git clone https://github.com/mgord9518/perlin-zig
 git clone https://github.com/mgord9518/basedirs-zig
-git clone https://github.com/aeronavery/zig-toml
 
 echo 'building for Windows'
-#zig build -Drelease-fast -Dtarget="$ARCH"-windows # Windows x86_64
-zig build -Dtarget="$ARCH"-windows # Windows x86_64
+zig build -Dtarget="$ARCH"-windows -Doptimize=ReleaseSafe
+
 echo 'building for Linux'
-#zig build -Drelease-fast -Dcpu="$ARCH"            # Linux x86_64
-zig build -Dcpu="$ARCH"            # Linux x86_64
+zig build -Dcpu="$ARCH" -Doptimize=ReleaseSafe
 
 strip -s zig-out/bin/*
 
