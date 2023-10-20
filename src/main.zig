@@ -116,9 +116,16 @@ const DebugMenu = struct {
         // Print debug menu
         const string = try fmt.allocPrintZ(
             allocator,
-            "YABG {s} {d}.{d}.{d}\n\nFPS: {s}; (vsync)\nX:{s}{s};{s}\nY:{s}{s};{s}\nchunk:{s}:{s};",
+            \\YABG {?s} {d}.{d}.{d}
+            \\FPS: {s}; (vsync)
+            \\
+            \\X:{s}{s};{s} (chunk X: {s})
+            \\Y:{s}{s};{s} (chunk Y: {s})
+            \\
+            \\Built with Zig {?s} {d}.{d}.{d}
+        ,
             .{
-                Game.version.pre.?,
+                Game.version.pre,
                 Game.version.major,
                 Game.version.minor,
                 Game.version.patch,
@@ -126,13 +133,19 @@ const DebugMenu = struct {
                 neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
                 try int2Dozenal(@mod(px, Tile.size), allocator),
+                try int2Dozenal(menu.player.cx, allocator),
                 neg_y,
                 try int2Dozenal(@divTrunc(py, Tile.size), allocator),
                 try int2Dozenal(@mod(py, Tile.size), allocator),
-                try int2Dozenal(menu.player.cx, allocator),
                 try int2Dozenal(menu.player.cy, allocator),
+                builtin.zig_version.pre,
+                builtin.zig_version.major,
+                builtin.zig_version.minor,
+                builtin.zig_version.patch,
             },
         );
+
+        defer allocator.free(string);
 
         var alpha: u8 = undefined;
         if (menu.y < 0) {

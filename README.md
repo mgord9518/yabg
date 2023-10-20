@@ -27,7 +27,7 @@ The code will ALWAYS be completely open source, however, and I'll have portable
 downloads for Linux and Windows (and macOS if I can get the means to test it)
 here free to use.
 
-Play instructions:
+## Play instructions:
 
 There are currently releases for Linux and Windows (x86_64) that can simply be
 downloaded and ran. As of now, the game has no real content, but it will be
@@ -38,25 +38,42 @@ SCALE_FACTOR  # Must be set to an integer, this will change the scaling of the
               # game (default=6)
 
 PLAYER_SPEED  # Changes the speed of the player per tick. Each game tick is
-              # 1/30th of a second, so if you want to move one pixel per frame,
-			  # the speed would be set to 2 (default). To move an entire tile
-			  # per frame, set this to 24.
+              # 1/30th of a second, so if you want to move one pixel per tick,
+			  # the speed would be set to 2 (default)
 
 WINDOW_WIDTH  # Must be set to an integer, sets the window width in pixels
 WINDOW_HEIGHT # Same as WINDOW_WIDTH but for height
+
+DEBUG_MODE    # Start the game in debug mode (F3 menu)
 ```
 
-Dependencies:
+PC controls:
+ WASD:        Move
+ Left click:  Break block
+ Right click: Place stone
+
+Gamepad controls:
+ Left stick:  Move
+ TODO: break, place blocks
+
+In the future I will likely make both placing and breaking use the same button
+and depend on the item currently highlighted.
+
+## Dependencies:
 ```
+# Regardless of distro, the latest version of Zig is required. This should be
+# obtained through the AUR, Snap or the official tarball. Zig is still in
+# heavy development and even slightly older versions that might be found in a
+# standard repository likely won't be able to build YABG
+
 # Ubuntu/Debian:
-zig
 libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev
 
 # Alpine:
 libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev mesa-gl mesa-dev libc-dev pipewire
 ```
 
-Building instructions:
+## Building instructions:
 ```
 git clone --recurse-submodules https://github.com/mgord9518/yabg
 cd yabg
@@ -64,10 +81,10 @@ cd yabg
 zig build # Or `zig build run`
 ```
 
-Goals to get it up to feature parity:
- - [ ] Tile loading (partially complete)
+Short-term goals:
+ - [X] Tile loading
  - [X] Chunk loading
- - [X] Chunk generation (needs better format)
+ - [X] Chunk generation
  - [ ] Entity loading
  - [X] Collision
  - [ ] Complete animations
