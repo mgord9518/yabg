@@ -1,7 +1,18 @@
+const std = @import("std");
+
 const rl = @import("raylib");
 const enums = @import("enums.zig");
 const Direction = enums.Direction;
 const Game = @import("Game.zig");
+
+comptime {
+    if (@sizeOf(Tile) != 2) {
+        @compileError(std.fmt.comptimePrint(
+            "Tile type must be 2 bytes! Current @sizeOf tile is {d}",
+            .{@sizeOf(Tile)},
+        ));
+    }
+}
 
 pub const Tile = packed struct {
     pub const size = 12;
@@ -13,7 +24,7 @@ pub const Tile = packed struct {
     // will be true, if placed by a player, it will be false
     naturally_generated: bool,
 
-    // The `grade` of a material. This can mean very different things dependin
+    // The `grade` of a material. This could mean very different things depending
     // on the tile in question. If a grass tile, this could mean how tall the
     // grass is and what seeds it contains. If an ore, it could dictate how
     // much metal you'll get from it

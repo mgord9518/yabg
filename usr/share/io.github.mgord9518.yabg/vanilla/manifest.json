@@ -2,13 +2,18 @@
 	"nice_name":   "Vanilla",
 	"name":        "vanilla",
 	"description": "the default resource set",
-	"tilesets": {
-		"vanilla": [
-			"air",
-			"grass",
-			"stone",
-			"sand",
-			"water"
-		]
-	}
+	"tilesets": [
+    	{
+			"0":  "air",
+			"8":  "dirt",
+			"9":  "grass",
+			"10": "sand",
+			"16": "wood",
+			"32": "stone",
+			"48": "metal",
+			"64": "electronic",
+			"80": "water",
+			"255": "placeholder"
+		}
+	]
 }

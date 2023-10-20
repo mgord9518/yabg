@@ -19,7 +19,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 2,
-    .patch = 0,
+    .patch = 1,
 };
 
 pub var font: rl.Font = undefined;
@@ -28,3 +28,4 @@ pub var sounds: [256]rl.Sound = undefined;
 
 pub var tileTextures: [256]rl.Texture2D = undefined;
 pub var tileSounds: [256]rl.Sound = undefined;
+pub var tileMap: std.StringHashMap(Tile) = undefined;

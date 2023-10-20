@@ -1,5 +1,6 @@
 const rl = @import("raylib");
 const std = @import("std");
+const os = std.os;
 
 const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
@@ -39,10 +40,98 @@ standing_on: Tile,
 save_path: []const u8,
 
 pub fn init(save_path: []const u8) Player {
-    return Player{
+    const cwd = std.fs.cwd();
+    var buf: [os.PATH_MAX]u8 = undefined;
+
+    var player = Player{
         .save_path = save_path,
         .standing_on = Tile.init(.{ .id = .grass }),
     };
+
+    // TODO: Allow saving more than one player
+    const player_file = std.fmt.bufPrint(
+        &buf,
+        "{s}/entities/players/0.json",
+        .{player.save_path},
+    ) catch unreachable;
+
+    var file = cwd.openFile(player_file, .{}) catch {
+        return player;
+    };
+
+    var json_buf: [4096]u8 = undefined;
+    const json_data_len = file.read(&json_buf) catch unreachable;
+
+    var fba_buf: [4096]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&fba_buf);
+    const allocator = fba.allocator();
+
+    std.debug.print("data: {s}\n", .{json_buf[0..json_data_len]});
+
+    const player_coords: rl.Vector2 = std.json.parseFromSliceLeaky(
+        rl.Vector2,
+        allocator,
+        json_buf[0..json_data_len],
+        .{},
+    ) catch |err| blk: {
+        std.debug.print("err: {!}\n", .{err});
+
+        break :blk .{
+            .x = 0,
+            .y = 0,
+        };
+    };
+
+    player.x = player_coords.x;
+    player.y = player_coords.y;
+
+    return player;
+}
+
+pub fn save(player: *Player) !void {
+    const cwd = std.fs.cwd();
+
+    var buf: [os.PATH_MAX]u8 = undefined;
+
+    const path = try std.fmt.bufPrint(
+        &buf,
+        "{s}/entities/players",
+        .{player.save_path},
+    );
+
+    cwd.makePath(path) catch |err| {
+        if (err != os.MakeDirError.PathAlreadyExists) {
+            std.debug.print("fail to save player data: {!}", .{err});
+        }
+    };
+
+    var fbs_buf: [4096]u8 = undefined;
+    var fbs = std.io.fixedBufferStream(&fbs_buf);
+
+    const IntVector2 = struct {
+        x: isize,
+        y: isize,
+    };
+
+    try std.json.stringify(
+        IntVector2{
+            .x = @intFromFloat(player.x),
+            .y = @intFromFloat(player.y),
+        },
+        .{},
+        fbs.writer(),
+    );
+
+    // TODO: Allow saving more than one player
+    const player_file = try std.fmt.bufPrint(
+        &buf,
+        "{s}/entities/players/0.json",
+        .{player.save_path},
+    );
+
+    var file = try cwd.createFile(player_file, .{});
+
+    _ = try file.write(fbs_buf[0..fbs.pos]);
 }
 
 pub fn getFrame(self: *Player, animation: Animation, frame_num: u3) *rl.Texture2D {

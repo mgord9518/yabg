@@ -6,7 +6,7 @@
 [ -z "$ARCH" ]   && ARCH=$(uname -m)
 
 # TODO: add CLI flag to obtain version
-version=0.2.0
+version=0.2.1
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
 formatted_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH"
@@ -24,10 +24,10 @@ git clone https://github.com/mgord9518/perlin-zig
 git clone https://github.com/mgord9518/basedirs-zig
 
 echo 'building for Windows'
-zig build -Dtarget="$ARCH"-windows -Doptimize=ReleaseSafe
+zig build -Dtarget="$ARCH"-windows # -Doptimize=ReleaseSafe
 
 echo 'building for Linux'
-zig build -Dcpu="$ARCH" -Doptimize=ReleaseSafe
+zig build -Dcpu="$ARCH" # -Doptimize=ReleaseSafe
 
 strip -s zig-out/bin/*
 

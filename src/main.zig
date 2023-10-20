@@ -73,36 +73,18 @@ fn drawText(
 
 const Menu = struct {
     enabled: bool = false,
-    min_y: f32 = -160,
 
     x: f32 = 0,
     y: f32 = 0,
+
     player: *Player,
     texture: rl.Texture2D,
 
     fn draw(menu: *Menu, allocator: std.mem.Allocator) !void {
         _ = allocator;
-        // Draw debug menu
-        //        if (menu.enabled or menu.y > menu.min_y) {
-        //            if (menu.enabled and menu.y < 0) {
-        //                menu.y += 8 * Game.tps * Game.delta;
-        //            }
-        //            if (menu.y > 0) {
-        //                menu.y = 0;
-        //            }
-        //        }
-        menu.y = 0;
 
-        //        rl.DrawTexture(menu.texture, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
-
-        //var alpha: u8 = undefined;
-        //if (menu.y < 0) alpha = @floatToInt(u8, 192 + menu.y);
-
-        // Draw debug menu and its shadow
-        //        rl.DrawTextEx(Game.font, string.ptr, rl.Vector2{ .x = Game.scale * 2, .y = Game.scale + menu.y * Game.scale * 0.75 }, 6 * Game.scale, Game.scale, rl.Color{ .r = 0, .g = 0, .b = 0, .a = @divTrunc(alpha, 3) });
-        //        rl.DrawTextEx(Game.font, string.ptr, rl.Vector2{ .x = Game.scale, .y = menu.y * Game.scale }, 6 * Game.scale, Game.scale, rl.Color{ .r = 192, .g = 192, .b = 192, .a = alpha });
         const pos = rl.Vector2{
-            .x = Game.scale * @divTrunc(Game.screen_width, 2) - 64 * Game.scale,
+            .x = Game.scale * @divTrunc(Game.screen_width, 2) - 64 * Game.scale + menu.x * Game.scale,
             .y = Game.scale * @divTrunc(Game.screen_height, 2) - 64 * Game.scale + menu.y * Game.scale,
         };
 
@@ -112,27 +94,12 @@ const Menu = struct {
 
 const DebugMenu = struct {
     enabled: bool = false,
-    min_y: f32 = -96,
 
     x: f32 = 0,
-    y: f32 = -96,
+    y: f32 = 0,
     player: *Player,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
-
-        // Draw debug menu
-        if (menu.enabled or menu.y > menu.min_y) {
-            if (menu.enabled and menu.y < 0) {
-                menu.y += 4 * Game.tps * Game.delta;
-            }
-            if (menu.y > 0) {
-                menu.y = 0;
-            }
-        }
-        if (!menu.enabled and menu.y > menu.min_y) {
-            menu.y -= 4 * Game.tps * Game.delta;
-        }
-
         const neg_x = if (menu.player.x < 0) "-" else " ";
         const neg_y = if (menu.player.y < 0) "-" else " ";
 
@@ -256,7 +223,7 @@ pub fn main() !void {
     rl.InitAudioDevice();
 
     // Determine executable directory
-    var exe_path_buf: [std.os.PATH_MAX]u8 = undefined;
+    var exe_path_buf: [os.PATH_MAX]u8 = undefined;
     const exe_path = try std.fs.selfExePath(&exe_path_buf);
 
     const dirname = path.dirname(exe_path) orelse "/";
@@ -302,11 +269,6 @@ pub fn main() !void {
 
     // Disable exit on keypress
     rl.SetExitKey(.KEY_NULL);
-
-    // Load sounds
-    Tile.setSound(.grass, rl.LoadSound(vanilla.join("audio/grass.wav").ptr));
-    Tile.setSound(.stone, rl.LoadSound(vanilla.join("audio/stone.wav").ptr));
-    Tile.setSound(.sand, rl.LoadSound(vanilla.join("audio/sand.wav").ptr));
 
     Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
 
@@ -369,20 +331,41 @@ pub fn main() !void {
         }
     }
 
-    // TODO: automatically iterate and load textures
-    var grass = loadTextureFallback(vanilla.join("tiles/grass.png"));
-    var dirt = loadTextureFallback(vanilla.join("tiles/dirt.png"));
-    var sand = loadTextureFallback(vanilla.join("tiles/sand.png"));
-    var stone = loadTextureFallback(vanilla.join("tiles/stone.png"));
-    var water = loadTextureFallback(vanilla.join("tiles/water.png"));
-    var placeholder = loadTextureFallback("");
+    inline for (.{
+        "placeholder",
+        "grass",
+        "dirt",
+        "sand",
+        "stone",
+        "water",
+    }) |tile_name| {
+        var buf: [os.PATH_MAX]u8 = undefined;
+        const tile_id = std.meta.stringToEnum(
+            Tile.Id,
+            tile_name,
+        ) orelse unreachable;
 
-    Tile.setTexture(.grass, grass);
-    Tile.setTexture(.stone, stone);
-    Tile.setTexture(.dirt, dirt);
-    Tile.setTexture(.sand, sand);
-    Tile.setTexture(.water, water);
-    Tile.setTexture(.placeholder, placeholder);
+        const tile_texture = loadTextureFallback(try std.fmt.bufPrintZ(
+            &buf,
+            "{s}/tiles/{s}.png",
+            .{
+                vanilla_dir,
+                tile_name,
+            },
+        ));
+
+        const tile_sound = rl.LoadSound(try std.fmt.bufPrintZ(
+            &buf,
+            "{s}/audio/{s}.wav",
+            .{
+                vanilla_dir,
+                tile_name,
+            },
+        ));
+
+        Tile.setTexture(tile_id, tile_texture);
+        Tile.setSound(tile_id, tile_sound);
+    }
 
     // Main game loop
     while (!rl.WindowShouldClose()) {
@@ -579,9 +562,20 @@ pub fn main() !void {
                             }
                         }
 
-                        if (tile_idx >= Chunk.size * Chunk.size or
-                            wall_tile.id == .air and floor_tile.id != .water)
-                        {
+                        // Change walking sound to whatever tile the player is
+                        // standing on
+                        // TODO: Different sounds for walking on vs placing
+                        // tiles
+                        const player_point = rl.Vector2{
+                            .x = player_rect.x + player_rect.width / 2,
+                            .y = player_rect.y + player_rect.height / 2,
+                        };
+
+                        if (rl.CheckCollisionPointRec(player_point, tile_rect)) {
+                            player.standing_on = floor_tile;
+                        }
+
+                        if (wall_tile.id == .air and floor_tile.id != .water) {
                             continue;
                         }
 
@@ -771,6 +765,8 @@ pub fn main() !void {
     for (Game.chunks) |chunk| {
         try chunk.save(player.save_path, "vanilla0");
     }
+
+    try player.save();
 
     rl.CloseWindow();
 }
