@@ -6,7 +6,7 @@
 [ -z "$ARCH" ]   && ARCH=$(uname -m)
 
 # TODO: add CLI flag to obtain version
-version=0.2.1
+version=0.2.2
 app_id='io.github.mgord9518.yabg'
 app_name="YABG"
 formatted_name=$(echo $app_name | tr ' ' '_')"-$version-$ARCH"

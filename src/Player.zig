@@ -20,10 +20,6 @@ y: f32 = 0,
 x_speed: f32 = 0,
 y_speed: f32 = 0,
 
-// Chunk coords, this is used to check when the player has moved over a chunk boundry
-cx: i32 = 0,
-cy: i32 = 0,
-
 frame: *rl.Texture2D = undefined,
 frames_idle: [1]rl.Texture2D = undefined,
 
@@ -34,6 +30,7 @@ frame_num: u3 = 0,
 frame_sub: f32 = 0,
 
 animation: Animation = .idle,
+direction: Direction,
 
 standing_on: Tile,
 
@@ -46,6 +43,7 @@ pub fn init(save_path: []const u8) Player {
     var player = Player{
         .save_path = save_path,
         .standing_on = Tile.init(.{ .id = .grass }),
+        .direction = .down,
     };
 
     // TODO: Allow saving more than one player
@@ -174,33 +172,33 @@ pub fn updatePlayerFrames(
 // then loads new Game.chunks into their pointers
 // Not yet sure how robust this is
 pub fn reloadChunks(player: *Player) void {
-    player.cx = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.x, Tile.size), Chunk.size)));
-    player.cy = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.y, Tile.size), Chunk.size)));
+    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.x, Tile.size), Chunk.size)));
+    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.y, Tile.size), Chunk.size)));
 
     if (player.x < 0) {
-        player.cx = player.cx - 1;
+        chunk_x = chunk_x - 1;
     }
 
     if (player.y < 0) {
-        player.cy = player.cy - 1;
+        chunk_y = chunk_y - 1;
     }
 
     for (&Game.chunks) |*chnk| {
         const cx = @divTrunc(chnk.x, Chunk.size);
         const cy = @divTrunc(chnk.y, Chunk.size);
 
-        if (@divTrunc(chnk.x, Chunk.size) > player.cx + 1) {
+        if (@divTrunc(chnk.x, Chunk.size) > chunk_x + 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", player.cx - 1, cy) catch unreachable;
-        } else if (@divTrunc(chnk.x, Chunk.size) < player.cx - 1) {
+            chnk.* = Chunk.load(player.save_path, "vanilla0", chunk_x - 1, cy) catch unreachable;
+        } else if (@divTrunc(chnk.x, Chunk.size) < chunk_x - 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", player.cx + 1, cy) catch unreachable;
-        } else if (@divTrunc(chnk.y, Chunk.size) > player.cy + 1) {
+            chnk.* = Chunk.load(player.save_path, "vanilla0", chunk_x + 1, cy) catch unreachable;
+        } else if (@divTrunc(chnk.y, Chunk.size) > chunk_y + 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, player.cy - 1) catch unreachable;
-        } else if (@divTrunc(chnk.y, Chunk.size) < player.cy - 1) {
+            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, chunk_y - 1) catch unreachable;
+        } else if (@divTrunc(chnk.y, Chunk.size) < chunk_y - 1) {
             chnk.save(player.save_path, "vanilla0") catch unreachable;
-            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, player.cy + 1) catch unreachable;
+            chnk.* = Chunk.load(player.save_path, "vanilla0", cx, chunk_y + 1) catch unreachable;
         }
     }
 

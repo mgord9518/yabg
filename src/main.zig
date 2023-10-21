@@ -3,7 +3,6 @@ const toml = @import("toml");
 const std = @import("std");
 const os = std.os;
 const fmt = std.fmt;
-const print = std.debug.print;
 const builtin = @import("builtin");
 const fs = std.fs;
 const path = fs.path;
@@ -119,8 +118,8 @@ const DebugMenu = struct {
             \\YABG {?s} {d}.{d}.{d}
             \\FPS: {s}; (vsync)
             \\
-            \\X:{s}{s};{s} (chunk X: {s})
-            \\Y:{s}{s};{s} (chunk Y: {s})
+            \\X:{s}{s};{s}
+            \\Y:{s}{s};{s}
             \\
             \\Built with Zig {?s} {d}.{d}.{d}
         ,
@@ -133,11 +132,11 @@ const DebugMenu = struct {
                 neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
                 try int2Dozenal(@mod(px, Tile.size), allocator),
-                try int2Dozenal(menu.player.cx, allocator),
+                //                try int2Dozenal(menu.player.x, allocator),
                 neg_y,
                 try int2Dozenal(@divTrunc(py, Tile.size), allocator),
                 try int2Dozenal(@mod(py, Tile.size), allocator),
-                try int2Dozenal(menu.player.cy, allocator),
+                //               try int2Dozenal(menu.player.cy, allocator),
                 builtin.zig_version.pre,
                 builtin.zig_version.major,
                 builtin.zig_version.minor,
@@ -301,18 +300,32 @@ pub fn main() !void {
     const cwd = fs.cwd();
     cwd.makePath(save_path) catch |err| {
         if (err != os.MakeDirError.PathAlreadyExists) {
-            print("Error creating save directory: {}", .{err});
+            std.debug.print("Error creating save directory: {}", .{err});
         }
     };
 
+    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.x, Tile.size), Chunk.size)));
+    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.y, Tile.size), Chunk.size)));
+
+    if (player.x < 0) {
+        chunk_x = chunk_x - 1;
+    }
+
+    if (player.y < 0) {
+        chunk_y = chunk_y - 1;
+    }
+
     // Init chunk array
     // TODO: lower this number to 4 to so that less iterations have to be done
+    var x_it = chunk_x - 1;
+    var y_it = chunk_y - 1;
     var it: usize = 0;
-    inline for (.{ -1, 0, 1 }) |row| {
-        inline for (.{ -1, 0, 1 }) |col| {
-            Game.chunks[it] = try Chunk.load(save_path, "vanilla0", row, col);
+    while (x_it <= chunk_x + 1) : (x_it += 1) {
+        while (y_it <= chunk_y + 1) : (y_it += 1) {
+            Game.chunks[it] = try Chunk.load(save_path, "vanilla0", x_it, y_it);
             it += 1;
         }
+        y_it = chunk_y - 1;
     }
 
     var player_image = rl.LoadImage(vanilla.join("entities/players/player_down_0.png"));
@@ -409,12 +422,16 @@ pub fn main() !void {
 
         // update player coords based on keys pressed
         if (input_vec.x > 0) {
+            player.direction = .right;
             player.animation = .walk_right;
         } else if (input_vec.x < 0) {
+            player.direction = .left;
             player.animation = .walk_left;
         } else if (input_vec.y > 0) {
+            player.direction = .down;
             player.animation = .walk_down;
         } else if (input_vec.y < 0) {
+            player.direction = .up;
             player.animation = .walk_up;
         } else {
             // If not moving, reset animation to the start
@@ -428,11 +445,11 @@ pub fn main() !void {
         player.x += player.x_speed;
         player.y += player.y_speed;
 
-        if (rl.IsKeyPressed(.KEY_F3) or rl.IsGamepadButtonPressed(0, @enumFromInt(13))) {
+        if (rl.IsKeyPressed(.KEY_F3) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_MIDDLE_LEFT)) {
             menu.enabled = !menu.enabled;
         }
 
-        if (rl.IsKeyPressed(.KEY_ESCAPE)) { // or rl.IsGamepadButtonPressed(0, @intToEnum(rl.GamepadButton, 13))) {
+        if (rl.IsKeyPressed(.KEY_ESCAPE) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
             settings.enabled = !settings.enabled;
         }
 
@@ -553,6 +570,50 @@ pub fn main() !void {
 
                         _ = tile_front_rect;
 
+                        const player_point = rl.Vector2{
+                            .x = player_rect.x + player_rect.width / 2,
+                            .y = player_rect.y + player_rect.height / 2,
+                        };
+
+                        const player_target_point = switch (player.direction) {
+                            .left => .{
+                                .x = player_point.x - Tile.size * Game.scale,
+                                .y = player_point.y,
+                            },
+                            .right => .{
+                                .x = player_point.x + Tile.size * Game.scale,
+                                .y = player_point.y,
+                            },
+                            .up => .{
+                                .x = player_point.x,
+                                .y = player_point.y - Tile.size * Game.scale,
+                            },
+                            .down => .{
+                                .x = player_point.x,
+                                .y = player_point.y + Tile.size * Game.scale,
+                            },
+                        };
+
+                        if (rl.CheckCollisionPointRec(player_target_point, tile_rect)) {
+                            if (rl.IsKeyPressed(.KEY_PERIOD) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) {
+                                rl.PlaySound(wall_tile.sound());
+                                chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
+                                if (floor_tile.id == .grass and wall_tile.id != .air) {
+                                    chnk.tiles[tile_idx].id = .dirt;
+                                }
+                            }
+
+                            if (rl.IsKeyPressed(.KEY_SLASH) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+                                const stone_dummy = Tile.init(.{ .id = .stone });
+                                rl.PlaySound(stone_dummy.sound());
+                                if (floor_tile.id == .water) {
+                                    chnk.tiles[tile_idx].id = .stone;
+                                } else if (wall_tile.id == .air) {
+                                    chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
+                                }
+                            }
+                        }
+
                         // TODO: refactor
                         if (rl.CheckCollisionPointRec(mouse_pos, player_range_rect)) {
                             if (rl.CheckCollisionPointRec(mouse_pos, tile_rect)) {
@@ -579,11 +640,6 @@ pub fn main() !void {
                         // standing on
                         // TODO: Different sounds for walking on vs placing
                         // tiles
-                        const player_point = rl.Vector2{
-                            .x = player_rect.x + player_rect.width / 2,
-                            .y = player_rect.y + player_rect.height / 2,
-                        };
-
                         if (rl.CheckCollisionPointRec(player_point, tile_rect)) {
                             player.standing_on = floor_tile;
                         }
@@ -783,6 +839,35 @@ pub fn main() !void {
 
     rl.CloseWindow();
 }
+
+const ModifyTileOptions = struct {
+    action: enum {
+        attack,
+        place,
+    },
+};
+
+//fn modifyTile(
+//    tile: *Tile,
+//    layer: enum{
+//        floor,
+//        wall,
+//    },
+//    opts: ModifyTileOptions,
+//) void {
+//    switch (layer) {
+//        .floor => {
+//            switch (tile.id) {
+//
+//            }
+//        },
+//        .wall => {
+//
+//        },
+//    }
+//
+//    _ = tile;
+//}
 
 fn int2Dozenal(i: isize, allocator: std.mem.Allocator) ![]const u8 {
     if (i == 0) return "0";

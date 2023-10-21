@@ -60,7 +60,7 @@ In the future I will likely make both placing and breaking use the same button
 and depend on the item currently highlighted.
 
 ## Dependencies:
-```
+```sh
 # Regardless of distro, the latest version of Zig is required. This should be
 # obtained through the AUR, Snap or the official tarball. Zig is still in
 # heavy development and even slightly older versions that might be found in a
