@@ -38,7 +38,7 @@ save_path: []const u8,
 
 pub fn init(save_path: []const u8) Player {
     const cwd = std.fs.cwd();
-    var buf: [os.PATH_MAX]u8 = undefined;
+    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
 
     var player = Player{
         .save_path = save_path,
@@ -89,7 +89,7 @@ pub fn init(save_path: []const u8) Player {
 pub fn save(player: *Player) !void {
     const cwd = std.fs.cwd();
 
-    var buf: [os.PATH_MAX]u8 = undefined;
+    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
 
     const path = try std.fmt.bufPrint(
         &buf,
@@ -98,7 +98,7 @@ pub fn save(player: *Player) !void {
     );
 
     cwd.makePath(path) catch |err| {
-        if (err != os.MakeDirError.PathAlreadyExists) {
+        if (err != error.PathAlreadyExists) {
             std.debug.print("fail to save player data: {!}", .{err});
         }
     };
@@ -158,7 +158,7 @@ pub fn updatePlayerFrames(
         if (player.frame_num == 2 or player.frame_num == 6) {
             // Dummy tile
             //rl.PlaySound(Tile.init(.{ .id = .grass }).sound());
-            rl.PlaySound(player.standing_on.sound());
+            rl.playSound(player.standing_on.sound());
         }
     }
 
@@ -231,18 +231,18 @@ pub fn reloadChunks(player: *Player) void {
 pub fn inputVector(player: *Player) rl.Vector2 {
     _ = player;
 
-    if (rl.IsKeyDown(.KEY_A)) {
+    if (rl.isKeyDown(.key_a)) {
         return .{ .x = -1, .y = 0 };
-    } else if (rl.IsKeyDown(.KEY_D)) {
+    } else if (rl.isKeyDown(.key_d)) {
         return .{ .x = 1, .y = 0 };
-    } else if (rl.IsKeyDown(.KEY_W)) {
+    } else if (rl.isKeyDown(.key_w)) {
         return .{ .x = 0, .y = -1 };
-    } else if (rl.IsKeyDown(.KEY_S)) {
+    } else if (rl.isKeyDown(.key_s)) {
         return .{ .x = 0, .y = 1 };
     }
 
-    const axis_x = rl.GetGamepadAxisMovement(0, .GAMEPAD_AXIS_LEFT_X);
-    const axis_y = rl.GetGamepadAxisMovement(0, .GAMEPAD_AXIS_LEFT_Y);
+    const axis_x = rl.getGamepadAxisMovement(0, @intFromEnum(rl.GamepadAxis.gamepad_axis_left_x));
+    const axis_y = rl.getGamepadAxisMovement(0, @intFromEnum(rl.GamepadAxis.gamepad_axis_left_y));
 
     const threashold = 0.25;
 

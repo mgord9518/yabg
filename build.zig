@@ -1,9 +1,6 @@
 const std = @import("std");
-const Builder = std.build.Builder;
-//const raylib = @import("raylib-zig/lib.zig");
-const raylib = @import("raylib.zig/build.zig");
 
-pub fn build(b: *Builder) void {
+pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
 
     const optimize = b.standardOptimizeOption(.{});
@@ -12,31 +9,30 @@ pub fn build(b: *Builder) void {
 
     const exe = b.addExecutable(.{
         .name = "yabg",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
     exe.linkLibC();
 
-    const perlin_module = b.addModule("perlin", .{
-        .source_file = .{
-            .path = "perlin-zig/lib.zig",
-        },
+    const raylib_dep = b.dependency("raylib", .{
+        .target = target,
+        .optimize = optimize,
     });
 
-    const basedirs_mod = b.addModule("basedirs", .{
-        .source_file = .{
-            .path = "basedirs-zig/lib.zig",
-        },
-    });
+    const known_folders_dep = b.dependency("known-folders", .{});
+    const perlin_dep = b.dependency("perlin", .{});
 
-    raylib.addTo(b, exe, target, optimize);
+    const raylib = raylib_dep.module("raylib");
+    const raylib_artifact = raylib_dep.artifact("raylib");
 
-    exe.addModule("perlin", perlin_module);
-    exe.addModule("basedirs", basedirs_mod);
+    exe.linkLibrary(raylib_artifact);
+    exe.root_module.addImport("raylib", raylib);
+    exe.root_module.addImport("known-folders", known_folders_dep.module("known-folders"));
+    exe.root_module.addImport("perlin", perlin_dep.module("perlin"));
 
-    if (exe.target.getOsTag() == .linux) {
+    if (target.result.os.tag == .linux) {
         exe.pie = !no_pie;
     }
 

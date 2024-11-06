@@ -7,8 +7,9 @@ const builtin = @import("builtin");
 const fs = std.fs;
 const path = fs.path;
 const ChildProcess = std.ChildProcess;
-const basedirs = @import("basedirs");
-const BaseDirs = basedirs.BaseDirs;
+const known_folders = @import("known-folders");
+//const basedirs = @import("basedirs");
+//const BaseDirs = basedirs.BaseDirs;
 
 const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
@@ -32,7 +33,7 @@ fn drawText(
         const lineZ = try std.fmt.bufPrintZ(&buf, "{s}", .{line});
 
         // Shadow
-        rl.DrawTextEx(
+        rl.drawTextEx(
             Game.font,
             lineZ,
             rl.Vector2{
@@ -49,7 +50,7 @@ fn drawText(
             },
         );
 
-        rl.DrawTextEx(
+        rl.drawTextEx(
             Game.font,
             lineZ,
             rl.Vector2{
@@ -87,7 +88,7 @@ const Menu = struct {
             .y = Game.scale * @divTrunc(Game.screen_height, 2) - 64 * Game.scale + menu.y * Game.scale,
         };
 
-        rl.DrawTextureV(menu.texture, pos, rl.WHITE);
+        rl.drawTextureV(menu.texture, pos, rl.Color.white);
     }
 };
 
@@ -128,7 +129,7 @@ const DebugMenu = struct {
                 Game.version.major,
                 Game.version.minor,
                 Game.version.patch,
-                try int2Dozenal(rl.GetFPS(), allocator),
+                try int2Dozenal(rl.getFPS(), allocator),
                 neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
                 try int2Dozenal(@mod(px, Tile.size), allocator),
@@ -194,48 +195,47 @@ fn printChunk(chunk: *const Chunk) void {
 
 fn loadTextureFallback(img_path: [:0]const u8) rl.Texture2D {
     const placeholder_data = @embedFile("embedded_files/placeholder.png");
-    var placeholder = rl.LoadImageFromMemory(
+    var placeholder = rl.loadImageFromMemory(
         ".png",
         placeholder_data,
-        placeholder_data.len,
     );
 
     const scale_i: i32 = @intFromFloat(Game.scale);
-    rl.ImageResizeNN(
+    rl.imageResizeNN(
         &placeholder,
         scale_i * placeholder.width,
         scale_i * placeholder.height,
     );
 
-    var img = rl.LoadImage(img_path.ptr);
+    var img = rl.loadImage(img_path.ptr);
     const data_any: ?*anyopaque = @ptrCast(img.data);
     if (data_any == null) {
-        return rl.LoadTextureFromImage(placeholder);
+        return rl.loadTextureFromImage(placeholder);
     }
 
-    rl.ImageResizeNN(&img, scale_i * img.width, scale_i * img.height);
+    rl.imageResizeNN(&img, scale_i * img.width, scale_i * img.height);
 
-    return rl.LoadTextureFromImage(img);
+    return rl.loadTextureFromImage(img);
 }
 
 fn cursorInAttackRange() !bool {}
 
 pub fn main() !void {
-    var allocator = std.heap.page_allocator;
+    const allocator = std.heap.page_allocator;
 
     const env_map = try std.process.getEnvMap(allocator);
 
     // Enable vsync, resizing and init audio devices
-    rl.SetConfigFlags(.{
-        .FLAG_VSYNC_HINT = true,
-        .FLAG_WINDOW_RESIZABLE = true,
+    rl.setConfigFlags(.{
+        .vsync_hint = true,
+        .window_resizable = true,
     });
 
-    rl.SetTraceLogLevel(7);
-    rl.InitAudioDevice();
+    rl.setTraceLogLevel(.log_debug);
+    rl.initAudioDevice();
 
     // Determine executable directory
-    var exe_path_buf: [os.PATH_MAX]u8 = undefined;
+    var exe_path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
     const exe_path = try std.fs.selfExePath(&exe_path_buf);
 
     const dirname = path.dirname(exe_path) orelse "/";
@@ -255,19 +255,32 @@ pub fn main() !void {
     var width_i: u31 = @intFromFloat(Game.screen_width);
     var height_i: u31 = @intFromFloat(Game.screen_height);
 
-    var w = fmt.parseInt(i32, w_env, 10) catch width_i * scale_i;
-    var h = fmt.parseInt(i32, h_env, 10) catch height_i * scale_i;
+    const w = fmt.parseInt(i32, w_env, 10) catch width_i * scale_i;
+    const h = fmt.parseInt(i32, h_env, 10) catch height_i * scale_i;
 
-    const base_dirs = try BaseDirs.init(allocator);
+    //const base_dirs = try BaseDirs.init(allocator);
+    const data_dir = (try known_folders.getPath(allocator, .data)).?;
 
     const save_path = try path.joinZ(
         allocator,
-        &[_][]const u8{ base_dirs.data, Game.id, "saves", "DEVTEST" },
+        &.{
+            data_dir,
+            Game.id,
+            "saves",
+            "DEVTEST",
+        },
     );
 
     const vanilla_dir = try path.joinZ(
         allocator,
-        &[_][]const u8{ app_dir, "usr/share/io.github.mgord9518.yabg/vanilla/vanilla" },
+        &.{
+            app_dir,
+            "usr",
+            "share",
+            "io.github.mgord9518.yabg",
+            "vanilla",
+            "vanilla",
+        },
     );
 
     var player = Player.init(save_path);
@@ -277,29 +290,29 @@ pub fn main() !void {
 
     var vanilla = PathBuilder.init(allocator, vanilla_dir);
 
-    rl.InitWindow(w, h, Game.title);
+    rl.initWindow(w, h, Game.title);
 
     // Disable exit on keypress
-    rl.SetExitKey(.KEY_NULL);
+    rl.setExitKey(.key_null);
 
-    Game.font = rl.LoadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
+    Game.font = rl.loadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
 
-    var hotbar_item = rl.LoadImage(vanilla.join("ui/hotbar_item.png").ptr);
+    var hotbar_item = rl.loadImage(vanilla.join("ui/hotbar_item.png").ptr);
     const hotbar_item_height = hotbar_item.height * scale_i;
     const hotbar_item_width = hotbar_item.width * scale_i;
-    rl.ImageResizeNN(&hotbar_item, hotbar_item_height, hotbar_item_width);
-    var hotbar_item_texture = rl.LoadTextureFromImage(hotbar_item);
+    rl.imageResizeNN(&hotbar_item, hotbar_item_height, hotbar_item_width);
+    const hotbar_item_texture = rl.loadTextureFromImage(hotbar_item);
 
-    var menu_frame = rl.LoadImage(vanilla.join("ui/menu.png").ptr);
-    rl.ImageResizeNN(&menu_frame, scale_i * 128, scale_i * 128);
-    var menu_frame_texture = rl.LoadTextureFromImage(menu_frame);
+    var menu_frame = rl.loadImage(vanilla.join("ui/menu.png").ptr);
+    rl.imageResizeNN(&menu_frame, scale_i * 128, scale_i * 128);
+    const menu_frame_texture = rl.loadTextureFromImage(menu_frame);
 
     var settings = Menu{ .player = &player, .texture = menu_frame_texture };
 
     // Create save directory if it doesn't already exist
     const cwd = fs.cwd();
     cwd.makePath(save_path) catch |err| {
-        if (err != os.MakeDirError.PathAlreadyExists) {
+        if (err != error.PathAlreadyExists) {
             std.debug.print("Error creating save directory: {}", .{err});
         }
     };
@@ -328,10 +341,10 @@ pub fn main() !void {
         y_it = chunk_y - 1;
     }
 
-    var player_image = rl.LoadImage(vanilla.join("entities/players/player_down_0.png"));
-    rl.ImageResizeNN(&player_image, scale_i * 12, scale_i * 24);
+    var player_image = rl.loadImage(vanilla.join("entities/players/player_down_0.png"));
+    rl.imageResizeNN(&player_image, scale_i * 12, scale_i * 24);
 
-    player.frames[0][0] = rl.LoadTextureFromImage(player_image);
+    player.frames[0][0] = rl.loadTextureFromImage(player_image);
     player.frame = &player.frames[0][0];
 
     // Load player frames
@@ -344,15 +357,15 @@ pub fn main() !void {
     }, 1..) |direction, direction_enum| {
         it = 0;
         while (it <= 7) {
-            var img_path = try fmt.allocPrintZ(
+            const img_path = try fmt.allocPrintZ(
                 allocator,
                 "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png",
                 .{ app_dir, direction, it },
             );
 
-            var player_image1 = rl.LoadImage(img_path.ptr);
-            rl.ImageResizeNN(&player_image1, scale_i * 12, scale_i * 24);
-            player.frames[direction_enum][it] = rl.LoadTextureFromImage(player_image1);
+            var player_image1 = rl.loadImage(img_path.ptr);
+            rl.imageResizeNN(&player_image1, scale_i * 12, scale_i * 24);
+            player.frames[direction_enum][it] = rl.loadTextureFromImage(player_image1);
             it += 1;
         }
     }
@@ -365,7 +378,7 @@ pub fn main() !void {
         "stone",
         "water",
     }) |tile_name| {
-        var buf: [os.PATH_MAX]u8 = undefined;
+        var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
         const tile_id = std.meta.stringToEnum(
             Tile.Id,
             tile_name,
@@ -380,7 +393,7 @@ pub fn main() !void {
             },
         ));
 
-        const tile_sound = rl.LoadSound(try std.fmt.bufPrintZ(
+        const tile_sound = rl.loadSound(try std.fmt.bufPrintZ(
             &buf,
             "{s}/audio/{s}.wav",
             .{
@@ -394,20 +407,20 @@ pub fn main() !void {
     }
 
     // Main game loop
-    while (!rl.WindowShouldClose()) {
+    while (!rl.windowShouldClose()) {
         var arena_allocator = std.heap.ArenaAllocator.init(allocator);
         defer arena_allocator.deinit();
-        var arena = arena_allocator.allocator();
+        const arena = arena_allocator.allocator();
 
-        Game.delta = rl.GetFrameTime();
+        Game.delta = rl.getFrameTime();
 
         Game.screen_width = @divTrunc(
-            @as(f32, @floatFromInt(rl.GetScreenWidth())),
+            @as(f32, @floatFromInt(rl.getScreenWidth())),
             Game.scale,
         );
 
         Game.screen_height = @divTrunc(
-            @as(f32, @floatFromInt(rl.GetScreenHeight())),
+            @as(f32, @floatFromInt(rl.getScreenHeight())),
             Game.scale,
         );
 
@@ -445,11 +458,11 @@ pub fn main() !void {
         player.x += player.x_speed;
         player.y += player.y_speed;
 
-        if (rl.IsKeyPressed(.KEY_F3) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_MIDDLE_LEFT)) {
+        if (rl.isKeyPressed(.key_f3) or rl.isGamepadButtonPressed(0, .gamepad_button_middle_left)) {
             menu.enabled = !menu.enabled;
         }
 
-        if (rl.IsKeyPressed(.KEY_ESCAPE) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_MIDDLE_RIGHT)) {
+        if (rl.isKeyPressed(.key_escape) or rl.isGamepadButtonPressed(0, .gamepad_button_middle_right)) {
             settings.enabled = !settings.enabled;
         }
 
@@ -474,11 +487,11 @@ pub fn main() !void {
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 16 eg:
         // active resizing
-        var screen_mod_x: i32 = @intFromFloat(
+        const screen_mod_x: i32 = @intFromFloat(
             @mod(@divTrunc(Game.screen_width, 2), Tile.size) * Game.scale,
         );
 
-        var screen_mod_y: i32 = @intFromFloat(
+        const screen_mod_y: i32 = @intFromFloat(
             @mod(@divTrunc(Game.screen_height, 2), Tile.size) * Game.scale,
         );
 
@@ -516,8 +529,8 @@ pub fn main() !void {
                     const screen_width_in_tiles: u31 = width_i / (Tile.size * 2);
                     const screen_height_in_tiles: u31 = height_i / (Tile.size * 2);
 
-                    var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
+                    const tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
+                    const tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
                     if (tile_x + tile_y < 0) {
                         continue;
@@ -566,7 +579,7 @@ pub fn main() !void {
                             },
                         };
 
-                        const mouse_pos = rl.GetMousePosition();
+                        const mouse_pos = rl.getMousePosition();
 
                         _ = tile_front_rect;
 
@@ -594,18 +607,18 @@ pub fn main() !void {
                             },
                         };
 
-                        if (rl.CheckCollisionPointRec(player_target_point, tile_rect)) {
-                            if (rl.IsKeyPressed(.KEY_PERIOD) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_RIGHT_FACE_LEFT)) {
-                                rl.PlaySound(wall_tile.sound());
+                        if (rl.checkCollisionPointRec(player_target_point, tile_rect)) {
+                            if (rl.isKeyPressed(.key_period) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_left)) {
+                                rl.playSound(wall_tile.sound());
                                 chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
                                 if (floor_tile.id == .grass and wall_tile.id != .air) {
                                     chnk.tiles[tile_idx].id = .dirt;
                                 }
                             }
 
-                            if (rl.IsKeyPressed(.KEY_SLASH) or rl.IsGamepadButtonPressed(0, .GAMEPAD_BUTTON_RIGHT_FACE_DOWN)) {
+                            if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
                                 const stone_dummy = Tile.init(.{ .id = .stone });
-                                rl.PlaySound(stone_dummy.sound());
+                                rl.playSound(stone_dummy.sound());
                                 if (floor_tile.id == .water) {
                                     chnk.tiles[tile_idx].id = .stone;
                                 } else if (wall_tile.id == .air) {
@@ -615,18 +628,18 @@ pub fn main() !void {
                         }
 
                         // TODO: refactor
-                        if (rl.CheckCollisionPointRec(mouse_pos, player_range_rect)) {
-                            if (rl.CheckCollisionPointRec(mouse_pos, tile_rect)) {
+                        if (rl.checkCollisionPointRec(mouse_pos, player_range_rect)) {
+                            if (rl.checkCollisionPointRec(mouse_pos, tile_rect)) {
                                 // Left click breaks tile, right click places
-                                if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_LEFT)) {
-                                    rl.PlaySound(wall_tile.sound());
+                                if (rl.isMouseButtonPressed(.mouse_button_left)) {
+                                    rl.playSound(wall_tile.sound());
                                     chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
                                     if (floor_tile.id == .grass and wall_tile.id != .air) {
                                         chnk.tiles[tile_idx].id = .dirt;
                                     }
-                                } else if (rl.IsMouseButtonPressed(.MOUSE_BUTTON_RIGHT)) {
+                                } else if (rl.isMouseButtonPressed(.mouse_button_right)) {
                                     const stone_dummy = Tile.init(.{ .id = .stone });
-                                    rl.PlaySound(stone_dummy.sound());
+                                    rl.playSound(stone_dummy.sound());
                                     if (floor_tile.id == .water) {
                                         chnk.tiles[tile_idx].id = .stone;
                                     } else if (wall_tile.id == .air) {
@@ -640,7 +653,7 @@ pub fn main() !void {
                         // standing on
                         // TODO: Different sounds for walking on vs placing
                         // tiles
-                        if (rl.CheckCollisionPointRec(player_point, tile_rect)) {
+                        if (rl.checkCollisionPointRec(player_point, tile_rect)) {
                             player.standing_on = floor_tile;
                         }
 
@@ -649,8 +662,8 @@ pub fn main() !void {
                         }
 
                         var collision: rl.Rectangle = undefined;
-                        if (rl.CheckCollisionRecs(player_rect, tile_rect)) {
-                            collision = rl.GetCollisionRec(player_rect, tile_rect);
+                        if (rl.checkCollisionRecs(player_rect, tile_rect)) {
+                            collision = rl.getCollisionRec(player_rect, tile_rect);
 
                             if (player_collision.x == 0) {
                                 player_collision.x = collision.x;
@@ -709,7 +722,7 @@ pub fn main() !void {
             player_mod_x = Tile.size * scale_i;
         }
 
-        rl.BeginDrawing();
+        rl.beginDrawing();
 
         x = -1;
         y = -3;
@@ -723,8 +736,8 @@ pub fn main() !void {
                     const screen_width_in_tiles = width_i / (Tile.size * 2);
                     const screen_height_in_tiles = height_i / (Tile.size * 2);
 
-                    var tile_x: i32 = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    var tile_y: i32 = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
+                    const tile_x: i32 = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
+                    const tile_y: i32 = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
                     if (x + x_num - screen_width_in_tiles >= chnk.x and
@@ -737,18 +750,18 @@ pub fn main() !void {
                             // If wall level tile exists, draw it instead
                             if (chnk.tiles[@intCast((tile_x + tile_y) + Chunk.size * Chunk.size)].id == .air) {
                                 const tile = chnk.tiles[@intCast(tile_x + tile_y)];
-                                rl.DrawTextureEx(tile.texture(), rl.Vector2{
+                                rl.drawTextureEx(tile.texture(), rl.Vector2{
                                     .x = x_pos,
                                     .y = y_pos,
-                                }, 0, 1, rl.LIGHTGRAY);
+                                }, 0, 1, rl.Color.light_gray);
                             } else {
                                 if (y_pos < Game.screen_height * Game.scale / 2) {
                                     //rl.DrawTextureEx(Game.tiles[@enumToInt(chnk.tiles[@intCast(usize, tile_x + tile_y)].id)], rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
                                     const tile = chnk.tiles[@intCast((tile_x + tile_y) + Chunk.size * Chunk.size)];
-                                    rl.DrawTextureEx(tile.texture(), rl.Vector2{
+                                    rl.drawTextureEx(tile.texture(), rl.Vector2{
                                         .x = x_pos,
                                         .y = y_pos - 8 * Game.scale,
-                                    }, 0, 1, rl.WHITE);
+                                    }, 0, 1, rl.Color.white);
                                 }
                             }
                         }
@@ -759,7 +772,7 @@ pub fn main() !void {
 
         // Draw player in the center of the screen
         //rl.DrawTexture(player.frame.*, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
-        rl.DrawTexture(
+        rl.drawTexture(
             player.frame.*,
             //@intFromFloat(Game.scale * (Game.screen_width / 2) - 5.5 * Game.scale),
             @intFromFloat(
@@ -768,7 +781,7 @@ pub fn main() !void {
             @intFromFloat(
                 Game.scale * (Game.screen_height / 2) - 10 * Game.scale,
             ),
-            rl.WHITE,
+            rl.Color.white,
         );
 
         // Now draw all raised Game.tiles that sit above the player in front to give
@@ -785,8 +798,8 @@ pub fn main() !void {
                     const screen_width_in_tiles = width_i / (Tile.size * 2);
                     const screen_height_in_tiles = height_i / (Tile.size * 2);
 
-                    var tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    var tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
+                    const tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
+                    const tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
 
                     // Check if tile is on screen
                     if (x + x_num - screen_width_in_tiles >= chnk.x and
@@ -798,7 +811,7 @@ pub fn main() !void {
                         if (chnk.tiles[@intCast((tile_x + tile_y) + Chunk.size * Chunk.size)].id != .air) {
                             if (y_pos >= Game.screen_height * Game.scale / 2) {
                                 const tile = chnk.tiles[@intCast((tile_x + tile_y) + Chunk.size * Chunk.size)];
-                                rl.DrawTextureEx(tile.texture(), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.WHITE);
+                                rl.drawTextureEx(tile.texture(), rl.Vector2{ .x = x_pos, .y = y_pos - 8 * Game.scale }, 0, 1, rl.Color.white);
                             }
                         }
                     }
@@ -812,15 +825,15 @@ pub fn main() !void {
         const hotbar_y = scale_i * height_i - 13 * scale_i;
         while (i < 6) {
             const hotbar_x = mid + i * scale_i * 12;
-            rl.DrawTexture(hotbar_item_texture, hotbar_x, hotbar_y, rl.WHITE);
+            rl.drawTexture(hotbar_item_texture, hotbar_x, hotbar_y, rl.Color.white);
             i += 1;
         }
 
         // Draw debug menu
         if (menu.enabled) {
             // Draws a red rectangle at the player's collision rect
-            rl.DrawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
-            rl.DrawRectangleRec(player_rect, rl.Color{ .r = 255, .g = 0, .b = 255, .a = 0x60 });
+            rl.drawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
+            rl.drawRectangleRec(player_rect, rl.Color{ .r = 255, .g = 0, .b = 255, .a = 0x60 });
             try menu.draw(arena);
         }
 
@@ -828,7 +841,7 @@ pub fn main() !void {
             try settings.draw(arena);
         }
 
-        rl.EndDrawing();
+        rl.endDrawing();
     }
 
     for (Game.chunks) |chunk| {
@@ -837,7 +850,7 @@ pub fn main() !void {
 
     try player.save();
 
-    rl.CloseWindow();
+    rl.closeWindow();
 }
 
 const ModifyTileOptions = struct {
@@ -887,14 +900,14 @@ fn int2Dozenal(i: isize, allocator: std.mem.Allocator) ![]const u8 {
 
     var idx: usize = buf.len;
     while (n > 0) {
-        var rem: u16 = @intCast(@mod(n, 12));
+        const rem: u16 = @intCast(@mod(n, 12));
         const digit = digits[rem];
 
         // As UTF8 has variable codepoint length, some digits may be longer
         // than one byte, which is the case in dozenal.
         idx -= digit.len;
 
-        std.mem.copy(u8, buf[idx..], digit);
+        std.mem.copyForwards(u8, buf[idx..], digit);
         n = @divFloor(n, 12);
     }
 

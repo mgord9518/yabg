@@ -1,0 +1,26 @@
+.{
+    .name = "yabg",
+    .version = "0.0.48",
+
+    .paths = [][]const u8{
+        "build.zig",
+        "build.zig.zon",
+        "lib",
+        "lib.zig",
+    },
+
+    .dependencies = .{
+        .raylib = .{
+            .url = "git+https://github.com/Not-Nik/raylib-zig.git#c191e12e7c50e5dc2b1addd1e5dbd16bd405d2b5",
+            .hash = "12202f8c415153088be8df39a51e0a4c9d402afd403422a0dcc9afdd417e437a6fdb",
+        },
+        .@"known-folders" = .{
+            .url = "git+https://github.com/ziglibs/known-folders.git#1cceeb70e77dec941a4178160ff6c8d05a74de6f",
+            .hash = "12205f5e7505c96573f6fc5144592ec38942fb0a326d692f9cddc0c7dd38f9028f29",
+        },
+        .perlin = .{
+            .url = "git+https://github.com/mgord9518/perlin-zig.git#8811e7cd3c5f10c970f31bd9aebf29d5723690d6",
+            .hash = "1220d4da17c1598a27202169e9d1d26f5063a1d66ba8c3919d662a000fc8c6456655",
+        },
+    },
+}

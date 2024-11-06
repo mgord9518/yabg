@@ -1,6 +1,4 @@
-zig-cache
 zig-out
-saves
 *.AppImage
 *.shImg
 *.zsync

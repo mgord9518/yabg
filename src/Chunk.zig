@@ -105,7 +105,7 @@ pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk 
     byte_count = try file.read(&tile_buf);
 
     // TODO: do this without copying
-    std.mem.copy(
+    std.mem.copyForwards(
         Tile,
         chunk.tiles[0..],
         @as([size * size * 2]Tile, @bitCast(tile_buf))[0..],
