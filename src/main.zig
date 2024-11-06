@@ -1,20 +1,25 @@
 const rl = @import("raylib");
 const toml = @import("toml");
 const std = @import("std");
-const os = std.os;
-const fmt = std.fmt;
 const builtin = @import("builtin");
 const fs = std.fs;
 const path = fs.path;
-const ChildProcess = std.ChildProcess;
 const known_folders = @import("known-folders");
-//const basedirs = @import("basedirs");
-//const BaseDirs = basedirs.BaseDirs;
+const psf = @import("psf.zig");
 
 const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
 const Game = @import("Game.zig");
+
+const font_data = @embedFile("font.psf2");
+var font: psf.Font = undefined;
+var font_atlas: rl.Texture = undefined;
+
+const Vec2 = struct {
+    x: u16,
+    y: u16,
+};
 
 // Helper function to draw text in the `default` style with a shadow
 // Scaling is already accounted for
@@ -92,12 +97,39 @@ const Menu = struct {
     }
 };
 
+fn drawCharToImage(image: rl.Image, char: u21, pos: Vec2) !void {
+    const bitmap = font.glyphs.get(char) orelse return;
+
+    const imgw: usize = @intCast(image.width);
+    const imgh: usize = @intCast(image.height);
+
+    const image_data: []u16 = @as([*]u16, @ptrCast(@alignCast(image.data)))[0 .. imgw * imgh];
+
+    const x = pos.x;
+    var y = pos.y;
+
+    for (bitmap) |byte| {
+        image_data[x + 0 + y * imgw] = if (byte & 0b10000000 == 0) 0x0000 else 0xfff1;
+        image_data[x + 1 + y * imgw] = if (byte & 0b01000000 == 0) 0x0000 else 0xfff1;
+        image_data[x + 2 + y * imgw] = if (byte & 0b00100000 == 0) 0x0000 else 0xfff1;
+        image_data[x + 3 + y * imgw] = if (byte & 0b00010000 == 0) 0x0000 else 0xfff1;
+
+        y += 1;
+
+        if (y == font.h) {
+            y = pos.y;
+        }
+    }
+}
+
 const DebugMenu = struct {
     enabled: bool = false,
 
     x: f32 = 0,
     y: f32 = 0,
     player: *Player,
+
+    data: [32 * 32]u16 = undefined,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
         const neg_x = if (menu.player.x < 0) "-" else " ";
@@ -114,7 +146,7 @@ const DebugMenu = struct {
         }
 
         // Print debug menu
-        const string = try fmt.allocPrintZ(
+        const string = try std.fmt.allocPrintZ(
             allocator,
             \\YABG {?s} {d}.{d}.{d}
             \\FPS: {s}; (vsync)
@@ -144,7 +176,6 @@ const DebugMenu = struct {
                 builtin.zig_version.patch,
             },
         );
-
         defer allocator.free(string);
 
         var alpha: u8 = undefined;
@@ -159,6 +190,18 @@ const DebugMenu = struct {
                 .y = menu.y + 1,
             },
         );
+
+        // TODO
+        //        rl.drawTextureEx(
+        //            font_atlas,
+        //            .{
+        //                .x = 0,
+        //                .y = 0,
+        //            },
+        //            0,
+        //            Game.scale,
+        //            rl.Color.white,
+        //        );
     }
 };
 
@@ -223,7 +266,10 @@ fn cursorInAttackRange() !bool {}
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
-    const env_map = try std.process.getEnvMap(allocator);
+    var initialization_arena = std.heap.ArenaAllocator.init(allocator);
+    defer initialization_arena.deinit();
+
+    const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
     // Enable vsync, resizing and init audio devices
     rl.setConfigFlags(.{
@@ -234,12 +280,14 @@ pub fn main() !void {
     rl.setTraceLogLevel(.log_debug);
     rl.initAudioDevice();
 
-    // Determine executable directory
-    var exe_path_buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
-    const exe_path = try std.fs.selfExePath(&exe_path_buf);
+    font = try psf.Font.parse(allocator, font_data);
 
-    const dirname = path.dirname(exe_path) orelse "/";
-    const app_dir = try path.joinZ(allocator, &[_][]const u8{ dirname, "../.." });
+    const exe_path = (try known_folders.getPath(allocator, .executable_dir)).?;
+
+    const app_dir = try path.joinZ(
+        initialization_arena.allocator(),
+        &.{ exe_path, "../.." },
+    );
 
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
@@ -248,17 +296,16 @@ pub fn main() !void {
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
 
     // Scale must be an int because fractionals cause tons of issues
-    Game.scale = @floor(fmt.parseFloat(f32, scale_env) catch Game.scale);
-    Player.walk_speed = fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
+    Game.scale = @floor(std.fmt.parseFloat(f32, scale_env) catch Game.scale);
+    Player.walk_speed = std.fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
 
     const scale_i: i32 = @intFromFloat(Game.scale);
     var width_i: u31 = @intFromFloat(Game.screen_width);
     var height_i: u31 = @intFromFloat(Game.screen_height);
 
-    const w = fmt.parseInt(i32, w_env, 10) catch width_i * scale_i;
-    const h = fmt.parseInt(i32, h_env, 10) catch height_i * scale_i;
+    const w = std.fmt.parseInt(i32, w_env, 10) catch width_i * scale_i;
+    const h = std.fmt.parseInt(i32, h_env, 10) catch height_i * scale_i;
 
-    //const base_dirs = try BaseDirs.init(allocator);
     const data_dir = (try known_folders.getPath(allocator, .data)).?;
 
     const save_path = try path.joinZ(
@@ -291,6 +338,19 @@ pub fn main() !void {
     var vanilla = PathBuilder.init(allocator, vanilla_dir);
 
     rl.initWindow(w, h, Game.title);
+
+    var font_image = rl.Image{
+        .data = undefined,
+        .width = 32,
+        .height = 32,
+        .mipmaps = 1,
+        .format = .pixelformat_uncompressed_r5g5b5a1,
+    };
+    font_image.data = (try std.heap.c_allocator.alloc(u16, 32 * 32)).ptr;
+
+    try drawCharToImage(font_image, '!', .{ .x = 0, .y = 0 });
+    try drawCharToImage(font_image, '#', .{ .x = 4, .y = 0 });
+    font_atlas = rl.loadTextureFromImage(font_image);
 
     // Disable exit on keypress
     rl.setExitKey(.key_null);
@@ -357,7 +417,7 @@ pub fn main() !void {
     }, 1..) |direction, direction_enum| {
         it = 0;
         while (it <= 7) {
-            const img_path = try fmt.allocPrintZ(
+            const img_path = try std.fmt.allocPrintZ(
                 allocator,
                 "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png",
                 .{ app_dir, direction, it },

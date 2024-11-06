@@ -8,5 +8,7 @@ pkgs.mkShell {
     xorg.libXi
     libGL
     pulseaudio
+
+    psftools
   ];
 }
