@@ -105,14 +105,22 @@ fn drawCharToImage(image: rl.Image, char: u21, pos: Vec2) !void {
 
     const image_data: []u16 = @as([*]u16, @ptrCast(@alignCast(image.data)))[0 .. imgw * imgh];
 
+    const color = 0x7f_ee;
+    const shadow_color = 0x3f_00;
+
     const x = pos.x;
     var y = pos.y;
 
     for (bitmap) |byte| {
-        image_data[x + 0 + y * imgw] = if (byte & 0b10000000 == 0) 0x0000 else 0xfff1;
-        image_data[x + 1 + y * imgw] = if (byte & 0b01000000 == 0) 0x0000 else 0xfff1;
-        image_data[x + 2 + y * imgw] = if (byte & 0b00100000 == 0) 0x0000 else 0xfff1;
-        image_data[x + 3 + y * imgw] = if (byte & 0b00010000 == 0) 0x0000 else 0xfff1;
+        if (byte & 0b10000000 != 0) image_data[x + 1 + (y + 1) * imgw] = shadow_color;
+        if (byte & 0b01000000 != 0) image_data[x + 2 + (y + 1) * imgw] = shadow_color;
+        if (byte & 0b00100000 != 0) image_data[x + 3 + (y + 1) * imgw] = shadow_color;
+        if (byte & 0b00010000 != 0) image_data[x + 4 + (y + 1) * imgw] = shadow_color;
+
+        if (byte & 0b10000000 != 0) image_data[x + 0 + y * imgw] = color;
+        if (byte & 0b01000000 != 0) image_data[x + 1 + y * imgw] = color;
+        if (byte & 0b00100000 != 0) image_data[x + 2 + y * imgw] = color;
+        if (byte & 0b00010000 != 0) image_data[x + 3 + y * imgw] = color;
 
         y += 1;
 
@@ -183,25 +191,27 @@ const DebugMenu = struct {
             alpha = @intFromFloat(192 + menu.y);
         }
 
-        try drawText(
-            string,
-            .{
-                .x = 2,
-                .y = menu.y + 1,
-            },
-        );
-
-        // TODO
-        //        rl.drawTextureEx(
-        //            font_atlas,
-        //            .{
-        //                .x = 0,
-        //                .y = 0,
-        //            },
-        //            0,
-        //            Game.scale,
-        //            rl.Color.white,
-        //        );
+        if (true) {
+            try drawText(
+                string,
+                .{
+                    .x = 2,
+                    .y = menu.y + 1,
+                },
+            );
+        } else {
+            // TODO
+            rl.drawTextureEx(
+                font_atlas,
+                .{
+                    .x = 0,
+                    .y = 0,
+                },
+                0,
+                Game.scale,
+                rl.Color.white,
+            );
+        }
     }
 };
 
@@ -339,14 +349,18 @@ pub fn main() !void {
 
     rl.initWindow(w, h, Game.title);
 
-    var font_image = rl.Image{
-        .data = undefined,
+    const data = try allocator.alloc(u16, 32 * 32);
+    @memset(data, 0);
+
+    defer allocator.free(data);
+
+    const font_image = rl.Image{
+        .data = data.ptr,
         .width = 32,
         .height = 32,
         .mipmaps = 1,
-        .format = .pixelformat_uncompressed_r5g5b5a1,
+        .format = .pixelformat_uncompressed_gray_alpha,
     };
-    font_image.data = (try std.heap.c_allocator.alloc(u16, 32 * 32)).ptr;
 
     try drawCharToImage(font_image, '!', .{ .x = 0, .y = 0 });
     try drawCharToImage(font_image, '#', .{ .x = 4, .y = 0 });
