@@ -18,8 +18,8 @@ pub const version = std.SemanticVersion{
     .pre = "pre-alpha",
 
     .major = 0,
-    .minor = 2,
-    .patch = 2,
+    .minor = 0,
+    .patch = 49,
 };
 
 pub var font: rl.Font = undefined;

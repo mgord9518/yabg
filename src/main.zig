@@ -12,67 +12,63 @@ const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
 const Game = @import("Game.zig");
 
-const font_data = @embedFile("font.psf2");
-var font: psf.Font = undefined;
-var font_atlas: rl.Texture = undefined;
+const font_data = @embedFile("font.psfu");
+var font: Font = undefined;
+var psf_font: psf.Font = undefined;
+//var font_atlas: rl.Texture = undefined;
 
 const Vec2 = struct {
     x: u16,
     y: u16,
 };
 
-// Helper function to draw text in the `default` style with a shadow
-// Scaling is already accounted for
-// `rl.startDrawing` must be called before using this function
+const Font = struct {
+    atlas: rl.Texture,
+    glyph_offsets: std.AutoHashMap(u21, usize),
+};
+
 fn drawText(
     string: []const u8,
     coords: rl.Vector2,
 ) !void {
-    var it = std.mem.splitSequence(u8, string, "\n");
+    var view = try std.unicode.Utf8View.init(string);
+    var it = view.iterator();
 
     var line_offset: f32 = 0;
-    const font_size = 6;
-    var buf: [4096]u8 = undefined;
+    const font_size = 8;
 
-    while (it.next()) |line| {
-        const lineZ = try std.fmt.bufPrintZ(&buf, "{s}", .{line});
+    var x_off: f32 = 0;
 
-        // Shadow
-        rl.drawTextEx(
-            Game.font,
-            lineZ,
-            rl.Vector2{
-                .x = coords.x * Game.scale + Game.scale,
-                .y = coords.y * Game.scale + line_offset + Game.scale,
+    while (it.nextCodepoint()) |codepoint| {
+        if (codepoint == '\n') {
+            x_off = 0;
+            line_offset += font_size * Game.scale;
+            continue;
+        }
+
+        rl.drawTexturePro(
+            font.atlas,
+            .{
+                .x = @floatFromInt(font.glyph_offsets.get(codepoint) orelse 0),
+                .y = 0,
+                .width = 4 + 1,
+                .height = 8 + 1,
             },
-            font_size * Game.scale,
-            Game.scale,
-            rl.Color{
-                .r = 0,
-                .g = 0,
-                .b = 0,
-                .a = 47,
-            },
-        );
-
-        rl.drawTextEx(
-            Game.font,
-            lineZ,
-            rl.Vector2{
-                .x = coords.x * Game.scale,
+            .{
+                .x = (coords.x + @as(f32, x_off)) * Game.scale,
                 .y = coords.y * Game.scale + line_offset,
+                .width = (4 + 1) * Game.scale,
+                .height = (8 + 1) * Game.scale,
             },
-            font_size * Game.scale,
-            Game.scale,
-            rl.Color{
-                .r = 255,
-                .g = 255,
-                .b = 255,
-                .a = 127,
+            .{
+                .x = 0,
+                .y = 0,
             },
+            0,
+            rl.Color.white,
         );
 
-        line_offset += font_size * Game.scale + 2 * Game.scale;
+        x_off += 5;
     }
 }
 
@@ -98,7 +94,7 @@ const Menu = struct {
 };
 
 fn drawCharToImage(image: rl.Image, char: u21, pos: Vec2) !void {
-    const bitmap = font.glyphs.get(char) orelse return;
+    const bitmap = psf_font.glyphs.get(char) orelse return;
 
     const imgw: usize = @intCast(image.width);
     const imgh: usize = @intCast(image.height);
@@ -106,7 +102,8 @@ fn drawCharToImage(image: rl.Image, char: u21, pos: Vec2) !void {
     const image_data: []u16 = @as([*]u16, @ptrCast(@alignCast(image.data)))[0 .. imgw * imgh];
 
     const color = 0x7f_ee;
-    const shadow_color = 0x3f_00;
+    const shadow_color = 0x7f_00;
+    //const shadow_color = 0xff_00;
 
     const x = pos.x;
     var y = pos.y;
@@ -124,7 +121,7 @@ fn drawCharToImage(image: rl.Image, char: u21, pos: Vec2) !void {
 
         y += 1;
 
-        if (y == font.h) {
+        if (y == psf_font.h) {
             y = pos.y;
         }
     }
@@ -136,8 +133,6 @@ const DebugMenu = struct {
     x: f32 = 0,
     y: f32 = 0,
     player: *Player,
-
-    data: [32 * 32]u16 = undefined,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
         const neg_x = if (menu.player.x < 0) "-" else " ";
@@ -162,7 +157,7 @@ const DebugMenu = struct {
             \\X:{s}{s};{s}
             \\Y:{s}{s};{s}
             \\
-            \\Built with Zig {?s} {d}.{d}.{d}
+            \\Built with Zig {d}.{d}.{d}
         ,
             .{
                 Game.version.pre,
@@ -173,12 +168,9 @@ const DebugMenu = struct {
                 neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
                 try int2Dozenal(@mod(px, Tile.size), allocator),
-                //                try int2Dozenal(menu.player.x, allocator),
                 neg_y,
                 try int2Dozenal(@divTrunc(py, Tile.size), allocator),
                 try int2Dozenal(@mod(py, Tile.size), allocator),
-                //               try int2Dozenal(menu.player.cy, allocator),
-                builtin.zig_version.pre,
                 builtin.zig_version.major,
                 builtin.zig_version.minor,
                 builtin.zig_version.patch,
@@ -191,27 +183,13 @@ const DebugMenu = struct {
             alpha = @intFromFloat(192 + menu.y);
         }
 
-        if (true) {
-            try drawText(
-                string,
-                .{
-                    .x = 2,
-                    .y = menu.y + 1,
-                },
-            );
-        } else {
-            // TODO
-            rl.drawTextureEx(
-                font_atlas,
-                .{
-                    .x = 0,
-                    .y = 0,
-                },
-                0,
-                Game.scale,
-                rl.Color.white,
-            );
-        }
+        try drawText(
+            string,
+            .{
+                .x = 2,
+                .y = menu.y + 1,
+            },
+        );
     }
 };
 
@@ -290,7 +268,7 @@ pub fn main() !void {
     rl.setTraceLogLevel(.log_debug);
     rl.initAudioDevice();
 
-    font = try psf.Font.parse(allocator, font_data);
+    psf_font = try psf.Font.parse(allocator, font_data);
 
     const exe_path = (try known_folders.getPath(allocator, .executable_dir)).?;
 
@@ -349,22 +327,45 @@ pub fn main() !void {
 
     rl.initWindow(w, h, Game.title);
 
-    const data = try allocator.alloc(u16, 32 * 32);
+    const data = try allocator.alloc(u16, 9 * (1024 * 4) + 1);
+
     @memset(data, 0);
 
     defer allocator.free(data);
 
     const font_image = rl.Image{
         .data = data.ptr,
-        .width = 32,
-        .height = 32,
+
+        // Room for 1024 characters
+        // This should be expanded in the future if needed
+        .width = 1024 * 4 + 1,
+
+        // One extra pixel for the shadow
+        .height = 8 + 1,
         .mipmaps = 1,
         .format = .pixelformat_uncompressed_gray_alpha,
     };
 
-    try drawCharToImage(font_image, '!', .{ .x = 0, .y = 0 });
-    try drawCharToImage(font_image, '#', .{ .x = 4, .y = 0 });
-    font_atlas = rl.loadTextureFromImage(font_image);
+    font = .{
+        .atlas = undefined,
+        .glyph_offsets = std.AutoHashMap(u21, usize).init(allocator),
+    };
+
+    var off: usize = 0;
+
+    var key_it = psf_font.glyphs.keyIterator();
+    while (key_it.next()) |key| : (off += (psf_font.w + 1)) {
+        try drawCharToImage(font_image, key.*, .{
+            .x = @intCast(off),
+            .y = 0,
+        });
+
+        try font.glyph_offsets.put(key.*, off);
+    }
+
+    font.atlas = rl.loadTextureFromImage(font_image);
+
+    defer font.glyph_offsets.deinit();
 
     // Disable exit on keypress
     rl.setExitKey(.key_null);
