@@ -5,16 +5,7 @@ const enums = @import("enums.zig");
 const Direction = enums.Direction;
 const Game = @import("Game.zig");
 
-comptime {
-    if (@sizeOf(Tile) != 2) {
-        @compileError(std.fmt.comptimePrint(
-            "Tile type must be 2 bytes! Current @sizeOf tile is {d}",
-            .{@sizeOf(Tile)},
-        ));
-    }
-}
-
-pub const Tile = packed struct {
+pub const Tile = packed struct(u16) {
     pub const size = 12;
 
     // 8 bits

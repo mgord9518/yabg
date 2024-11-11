@@ -57,6 +57,17 @@ pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !vo
     _ = try file.write(&save_buf);
 }
 
+pub const Layer = enum {
+    floor,
+    wall,
+};
+
+pub fn tile(self: Chunk, layer: Layer, x: u16, y: u16) Tile {
+    const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
+
+    return self.tiles[@as(usize, x) + y + offset];
+}
+
 pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
     var buf: [256]u8 = undefined;
     const path = try fmt.bufPrint(
@@ -133,15 +144,8 @@ pub fn init(x: i32, y: i32) !Chunk {
     var t_x: i32 = undefined;
     var t_y: i32 = undefined;
 
-    // Set the upper layer of the chunk to byte 0x00, which is air tiles.
-    // As an overwhelming majority of the upper layer will be air on generation,
-    // this keeps from needing to iterate through all those bytes
-    //        @memset(@ptrCast([*]u8, chunk.tiles[size * size..]), 0, size * size * 2);
-
-    //@memset(@as([*]u8, @ptrCast(chunk.tiles[0 .. size * size * 2])), 0);
-
-    for (chunk.tiles[0 .. size * size * 2]) |*tile| {
-        tile.* = Tile{
+    for (chunk.tiles[0 .. size * size * 2]) |*t| {
+        t.* = Tile{
             .naturally_generated = true,
             .grade = 0,
             .damage = 0,
@@ -150,7 +154,7 @@ pub fn init(x: i32, y: i32) !Chunk {
         };
     }
 
-    for (&chunk.tiles, 0..) |*tile, idx| {
+    for (&chunk.tiles, 0..) |*t, idx| {
         if (idx >= size * size) {
             break;
         }
@@ -179,24 +183,21 @@ pub fn init(x: i32, y: i32) !Chunk {
 
         // Inside of mountains
         if (val > 0.60) {
-            tile.id = .stone;
+            t.id = .stone;
             chunk.tiles[idx + size * size].id = .stone;
         } else if (val > 0.3) {
-            tile.id = .dirt;
+            t.id = .dirt;
             chunk.tiles[idx + size * size].id = .grass;
         } else if (val > -0.6) {
-            tile.id = .grass;
-            // chunk.tiles[idx + size * size].id = .air;
+            t.id = .grass;
         } else if (val > -0.90) {
-            tile.id = .sand;
-            //   chunk.tiles[idx + size * size].id = .air;
+            t.id = .sand;
         } else {
-            tile.id = .water;
-            //  chunk.tiles[idx + size * size].id = .air;
+            t.id = .water;
         }
     }
 
-    std.debug.print("INIT: {any}\n", .{chunk.tiles[size * size + 3]});
+    std.debug.print("Chunk generated: {any}\n", .{chunk.tiles[size * size + 3]});
 
     return chunk;
 }

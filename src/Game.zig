@@ -19,7 +19,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 49,
+    .patch = 50,
 };
 
 pub var font: rl.Font = undefined;
