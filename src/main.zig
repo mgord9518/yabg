@@ -2,35 +2,20 @@ const rl = @import("raylib");
 const std = @import("std");
 const builtin = @import("builtin");
 const known_folders = @import("known-folders");
-const psf = @import("psf.zig");
 
 const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
 const Game = @import("Game.zig");
 
-const font_data = @embedFile("font.psfu");
-var font: Font = undefined;
-var psf_font: psf.Font = undefined;
-
-const Vec = struct {
-    x: u16,
-    y: u16,
-};
-
 const NewVec = struct {
     x: i16,
     y: i16,
 };
 
-const Font = struct {
-    atlas: rl.Texture,
-    glyph_offsets: std.AutoHashMap(u21, usize),
-};
-
 fn drawText(
     string: []const u8,
-    coords: rl.Vector2,
+    coords: NewVec,
 ) !void {
     var view = try std.unicode.Utf8View.init(string);
     var it = view.iterator();
@@ -48,16 +33,16 @@ fn drawText(
         }
 
         rl.drawTexturePro(
-            font.atlas,
+            Game.font.atlas,
             .{
-                .x = @floatFromInt(font.glyph_offsets.get(codepoint) orelse 0),
+                .x = @floatFromInt(Game.font.glyph_offsets.get(codepoint) orelse 0),
                 .y = 0,
                 .width = 4 + 1,
                 .height = 8 + 1,
             },
             .{
-                .x = (coords.x + @as(f32, x_off)) * Game.scale,
-                .y = coords.y * Game.scale + line_offset,
+                .x = (@as(f32, @floatFromInt(coords.x)) + x_off) * Game.scale,
+                .y = @as(f32, @floatFromInt(coords.y)) * Game.scale + line_offset,
                 .width = (4 + 1) * Game.scale,
                 .height = (8 + 1) * Game.scale,
             },
@@ -72,6 +57,10 @@ fn drawText(
         x_off += 5;
     }
 }
+
+const ChatLog = struct {
+    text: std.ArrayList(u8),
+};
 
 const Menu = struct {
     enabled: bool = false,
@@ -93,42 +82,6 @@ const Menu = struct {
         rl.drawTextureV(menu.texture, pos, rl.Color.white);
     }
 };
-
-fn drawCharToImage(image: rl.Image, char: u21, pos: Vec) !void {
-    const bitmap = psf_font.glyphs.get(char) orelse return;
-
-    const imgw: usize = @intCast(image.width);
-    const imgh: usize = @intCast(image.height);
-
-    const image_data: []u16 = @as([*]u16, @ptrCast(@alignCast(image.data)))[0 .. imgw * imgh];
-
-    const color = 0x7f_ee;
-    const shadow_color = 0x7f_00;
-
-    const x = pos.x;
-    var y = pos.y;
-
-    for (bitmap) |byte| {
-        // Shadow
-        if (byte & 0b10000000 != 0) image_data[x + 1 + (y + 1) * imgw] = shadow_color;
-        if (byte & 0b01000000 != 0) image_data[x + 2 + (y + 1) * imgw] = shadow_color;
-        if (byte & 0b00100000 != 0) image_data[x + 3 + (y + 1) * imgw] = shadow_color;
-        if (byte & 0b00010000 != 0) image_data[x + 4 + (y + 1) * imgw] = shadow_color;
-        if (byte & 0b00001000 != 0) image_data[x + 5 + (y + 1) * imgw] = shadow_color;
-
-        if (byte & 0b10000000 != 0) image_data[x + 0 + y * imgw] = color;
-        if (byte & 0b01000000 != 0) image_data[x + 1 + y * imgw] = color;
-        if (byte & 0b00100000 != 0) image_data[x + 2 + y * imgw] = color;
-        if (byte & 0b00010000 != 0) image_data[x + 3 + y * imgw] = color;
-        if (byte & 0b00001000 != 0) image_data[x + 4 + y * imgw] = color;
-
-        y += 1;
-
-        if (y == psf_font.h) {
-            y = pos.y;
-        }
-    }
-}
 
 const DebugMenu = struct {
     enabled: bool = false,
@@ -190,7 +143,7 @@ const DebugMenu = struct {
             string,
             .{
                 .x = 2,
-                .y = menu.y + 1,
+                .y = @intFromFloat(menu.y + 1),
             },
         );
     }
@@ -209,20 +162,23 @@ const PathBuilder = struct {
     }
 };
 
-fn loadTextureFallback(img_path: [:0]const u8) rl.Texture2D {
-    const placeholder_data = @embedFile("embedded_files/placeholder.png");
-    const placeholder = rl.loadImageFromMemory(
+fn loadTextureEmbedded(comptime image_path: []const u8) rl.Texture {
+    const image = rl.loadImageFromMemory(
         ".png",
-        placeholder_data,
+        @embedFile(image_path),
     );
 
+    return rl.loadTextureFromImage(image);
+}
+
+fn loadTextureFallback(img_path: [:0]const u8) rl.Texture2D {
     const img = rl.loadImage(img_path.ptr);
     const data_maybe: ?*anyopaque = @ptrCast(img.data);
     if (data_maybe) |_| {
         return rl.loadTextureFromImage(img);
     }
 
-    return rl.loadTextureFromImage(placeholder);
+    return loadTextureEmbedded("embedded_files/placeholder.png");
 }
 
 pub fn main() !void {
@@ -233,17 +189,6 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    // Enable vsync, resizing and init audio devices
-    rl.setConfigFlags(.{
-        .vsync_hint = true,
-        .window_resizable = true,
-    });
-
-    rl.setTraceLogLevel(.log_debug);
-    rl.initAudioDevice();
-
-    psf_font = try psf.Font.parse(allocator, font_data);
-
     const exe_path = (try known_folders.getPath(allocator, .executable_dir)).?;
 
     const app_dir = try std.fs.path.joinZ(
@@ -251,22 +196,14 @@ pub fn main() !void {
         &.{ exe_path, "../.." },
     );
 
-    // Get enviornment variables and set window size to them if they exist
-    const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
-    const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
-    const scale_env: []const u8 = env_map.get("SCALE_FACTOR") orelse "";
-    const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
-
-    // Scale must be an int because fractionals cause tons of issues
-    Game.scale = @floor(std.fmt.parseFloat(f32, scale_env) catch Game.scale);
-    Player.walk_speed = std.fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
-
     const scale_i: i32 = @intFromFloat(Game.scale);
     var width_i: u31 = @intFromFloat(Game.screen_width);
     var height_i: u31 = @intFromFloat(Game.screen_height);
 
-    const w = std.fmt.parseInt(i32, w_env, 10) catch width_i * scale_i;
-    const h = std.fmt.parseInt(i32, h_env, 10) catch height_i * scale_i;
+    try Game.init(allocator);
+
+    const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
+    Player.walk_speed = std.fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
 
     const data_dir = (try known_folders.getPath(allocator, .data)).?;
 
@@ -299,63 +236,9 @@ pub fn main() !void {
 
     var vanilla = PathBuilder.init(allocator, vanilla_dir);
 
-    rl.initWindow(w, h, Game.title);
+    const hotbar_item_texture = loadTextureFallback(vanilla.join("ui/hotbar_item.png"));
 
-    const data = try allocator.alloc(u16, 9 * (1024 * 4) + 1);
-
-    @memset(data, 0);
-
-    defer allocator.free(data);
-
-    const font_image = rl.Image{
-        .data = data.ptr,
-
-        // Room for 1024 characters
-        // This should be expanded in the future if needed
-        .width = 1024 * 4 + 1,
-
-        // One extra pixel for the shadow
-        .height = 8 + 1,
-        .mipmaps = 1,
-        .format = .pixelformat_uncompressed_gray_alpha,
-    };
-
-    font = .{
-        .atlas = undefined,
-        .glyph_offsets = std.AutoHashMap(u21, usize).init(allocator),
-    };
-
-    var off: usize = 0;
-
-    var key_it = psf_font.glyphs.keyIterator();
-    while (key_it.next()) |key| : (off += (psf_font.w + 1)) {
-        try drawCharToImage(font_image, key.*, .{
-            .x = @intCast(off),
-            .y = 0,
-        });
-
-        try font.glyph_offsets.put(key.*, off);
-    }
-
-    font.atlas = rl.loadTextureFromImage(font_image);
-
-    defer font.glyph_offsets.deinit();
-
-    // Disable exit on keypress
-    rl.setExitKey(.key_null);
-
-    Game.font = rl.loadFont(vanilla.join("ui/fonts/4x8/full.fnt").ptr);
-
-    var hotbar_item = rl.loadImage(vanilla.join("ui/hotbar_item.png").ptr);
-    const hotbar_item_height = hotbar_item.height * scale_i;
-    const hotbar_item_width = hotbar_item.width * scale_i;
-
-    rl.imageResizeNN(&hotbar_item, hotbar_item_height, hotbar_item_width);
-    const hotbar_item_texture = rl.loadTextureFromImage(hotbar_item);
-
-    var menu_frame = rl.loadImage(vanilla.join("ui/menu.png").ptr);
-    rl.imageResizeNN(&menu_frame, scale_i * 128, scale_i * 128);
-    const menu_frame_texture = rl.loadTextureFromImage(menu_frame);
+    const menu_frame_texture = loadTextureFallback(vanilla.join("ui/menu.png"));
 
     var settings = Menu{ .player = &player, .texture = menu_frame_texture };
 
@@ -393,7 +276,7 @@ pub fn main() !void {
 
     const player_image = rl.loadImage(vanilla.join("entities/players/player_down_0.png"));
     player.frames[0][0] = rl.loadTextureFromImage(player_image);
-    player.frame = &player.frames[0][0];
+    player.updatePlayerFrames(player.animation);
 
     // Load player frames
     // TODO: implement as spritesheets
@@ -482,23 +365,20 @@ pub fn main() !void {
         // Keyboard/gamepad inputs
         const input_vec = player.inputVector();
 
-        // update player coords based on keys pressed
         if (input_vec.x > 0) {
             player.direction = .right;
-            player.animation = .walk_right;
         } else if (input_vec.x < 0) {
             player.direction = .left;
-            player.animation = .walk_left;
         } else if (input_vec.y > 0) {
             player.direction = .down;
-            player.animation = .walk_down;
         } else if (input_vec.y < 0) {
             player.direction = .up;
-            player.animation = .walk_up;
         } else {
             // If not moving, reset animation to the start
             player.frame_num = 0;
         }
+
+        player.updateAnimation();
 
         // Update player speed based on control input
         player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
@@ -514,10 +394,6 @@ pub fn main() !void {
         if (rl.isKeyPressed(.key_escape) or rl.isGamepadButtonPressed(0, .gamepad_button_middle_right)) {
             settings.enabled = !settings.enabled;
         }
-
-        //if (rl.IsKeyPressed(.KEY_F11)) {
-        //rl.ToggleFullscreen();
-        //}
 
         const player_x_i: i32 = @intFromFloat(player.x * Game.scale);
         const player_y_i: i32 = @intFromFloat(player.y * Game.scale);
@@ -587,121 +463,120 @@ pub fn main() !void {
 
                     const tile_idx: u31 = @intCast(tile_x + tile_y);
 
-                    // Check if tile is on screen
-                    if (x + x_num - screen_width_in_tiles >= chnk.x and
-                        x + x_num - screen_width_in_tiles < chnk.x + Chunk.size and
-                        y + y_num - screen_height_in_tiles >= chnk.y and
-                        y + y_num - screen_height_in_tiles < chnk.y + Chunk.size)
-                    {
-                        const floor_tile = chnk.tiles[tile_idx];
-                        const wall_tile = chnk.tiles[tile_idx + Chunk.size * Chunk.size];
+                    // Skip if tile not on screen
+                    if (x + x_num - screen_width_in_tiles < chnk.x or
+                        x + x_num - screen_width_in_tiles >= chnk.x + Chunk.size or
+                        y + y_num - screen_height_in_tiles < chnk.y or
+                        y + y_num - screen_height_in_tiles >= chnk.y + Chunk.size) continue;
 
-                        const tile_rect = rl.Rectangle{
-                            .x = x_pos,
-                            .y = y_pos,
-                            .width = 12 * Game.scale,
-                            .height = 12 * Game.scale,
-                        };
+                    const floor_tile = chnk.tile(.floor, @intCast(tile_x), @intCast(tile_y));
+                    const wall_tile = chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y));
 
-                        const tile_front_rect = switch (chnk.tiles[tile_idx + Chunk.size * Chunk.size].id) {
-                            .air => rl.Rectangle{
-                                .x = 0,
-                                .y = 0,
-                                .width = 0,
-                                .height = 0,
-                            },
-                            else => rl.Rectangle{
-                                .x = x_pos,
-                                .y = y_pos - 8 * Game.scale,
-                                .width = 12 * Game.scale,
-                                .height = 20 * Game.scale,
-                            },
-                        };
+                    const tile_rect = rl.Rectangle{
+                        .x = x_pos,
+                        .y = y_pos,
+                        .width = 12 * Game.scale,
+                        .height = 12 * Game.scale,
+                    };
 
-                        _ = tile_front_rect;
+                    const player_point = rl.Vector2{
+                        .x = player_rect.x + (player_rect.width / 2),
+                        .y = player_rect.y + (player_rect.height / 2),
+                    };
 
-                        const player_point = rl.Vector2{
-                            .x = player_rect.x + player_rect.width / 2,
-                            .y = player_rect.y + player_rect.height / 2,
-                        };
+                    const player_target_point = switch (player.direction) {
+                        .left => .{
+                            .x = player_point.x - Tile.size * Game.scale,
+                            .y = player_point.y,
+                        },
+                        .right => .{
+                            .x = player_point.x + Tile.size * Game.scale,
+                            .y = player_point.y,
+                        },
+                        .up => .{
+                            .x = player_point.x,
+                            .y = player_point.y - Tile.size * Game.scale,
+                        },
+                        .down => .{
+                            .x = player_point.x,
+                            .y = player_point.y + Tile.size * Game.scale,
+                        },
+                    };
 
-                        const player_target_point = switch (player.direction) {
-                            .left => .{
-                                .x = player_point.x - Tile.size * Game.scale,
-                                .y = player_point.y,
-                            },
-                            .right => .{
-                                .x = player_point.x + Tile.size * Game.scale,
-                                .y = player_point.y,
-                            },
-                            .up => .{
-                                .x = player_point.x,
-                                .y = player_point.y - Tile.size * Game.scale,
-                            },
-                            .down => .{
-                                .x = player_point.x,
-                                .y = player_point.y + Tile.size * Game.scale,
-                            },
-                        };
+                    if (rl.checkCollisionPointRec(player_target_point, tile_rect)) {
+                        if (rl.isKeyPressed(.key_period) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_left)) {
+                            rl.playSound(wall_tile.sound());
 
-                        if (rl.checkCollisionPointRec(player_target_point, tile_rect)) {
-                            if (rl.isKeyPressed(.key_period) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_left)) {
-                                rl.playSound(wall_tile.sound());
-                                chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .air;
-                                if (floor_tile.id == .grass and wall_tile.id != .air) {
-                                    chnk.tiles[tile_idx].id = .dirt;
-                                }
+                            // Apply damage to tile, break once it hits 3
+                            switch (chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).damage) {
+                                3 => {
+                                    chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).* = .{
+                                        .id = .air,
+                                        .damage = 0,
+                                        .naturally_generated = false,
+                                        .grade = 0,
+                                        .direction = .down,
+                                    };
+                                },
+
+                                else => {
+                                    chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).damage += 1;
+                                },
                             }
 
-                            if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
-                                const stone_dummy = Tile.init(.{ .id = .stone });
-                                rl.playSound(stone_dummy.sound());
-                                if (floor_tile.id == .water) {
-                                    chnk.tiles[tile_idx].id = .stone;
-                                } else if (wall_tile.id == .air) {
-                                    chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
-                                }
+                            if (floor_tile.id == .grass and wall_tile.id != .air) {
+                                chnk.tiles[tile_idx].id = .dirt;
                             }
                         }
 
-                        // Change walking sound to whatever tile the player is
-                        // standing on
-                        // TODO: Different sounds for walking on vs placing
-                        // tiles
-                        if (rl.checkCollisionPointRec(player_point, tile_rect)) {
-                            player.standing_on = floor_tile;
+                        if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
+                            const stone_dummy = Tile.init(.{ .id = .stone });
+                            rl.playSound(stone_dummy.sound());
+                            if (floor_tile.id == .water) {
+                                chnk.tiles[tile_idx].id = .stone;
+                            } else if (wall_tile.id == .air) {
+                                chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
+                            }
+                        }
+                    }
+
+                    // Change walking sound to whatever tile the player is
+                    // standing on
+                    // TODO: Different sounds for walking on vs placing
+                    // tiles
+                    if (rl.checkCollisionPointRec(player_point, tile_rect)) {
+                        player.standing_on = floor_tile.*;
+                    }
+
+                    if (wall_tile.id == .air and floor_tile.id != .water) {
+                        continue;
+                    }
+
+                    if (rl.checkCollisionRecs(player_rect, tile_rect)) {
+                        const collision = rl.getCollisionRec(player_rect, tile_rect);
+
+                        if (player_collision.x == 0) {
+                            player_collision.x = collision.x;
                         }
 
-                        if (wall_tile.id == .air and floor_tile.id != .water) {
-                            continue;
+                        if (player_collision.y == 0) {
+                            player_collision.y = collision.y;
                         }
 
-                        if (rl.checkCollisionRecs(player_rect, tile_rect)) {
-                            const collision = rl.getCollisionRec(player_rect, tile_rect);
+                        if (collision.y + collision.height >= player_collision.y + player_collision.height) {
+                            player_collision.height = collision.y - player_collision.y + collision.height;
+                        }
 
-                            if (player_collision.x == 0) {
-                                player_collision.x = collision.x;
-                            }
+                        if (collision.x + collision.width >= player_collision.x + player_collision.width) {
+                            player_collision.width = collision.x - player_collision.x + collision.width;
+                        }
 
-                            if (player_collision.y == 0) {
-                                player_collision.y = collision.y;
-                            }
+                        if (collision.x < player_collision.x) {
+                            player_collision.x = collision.x;
+                        }
 
-                            if (collision.y + collision.height >= player_collision.y + player_collision.height) {
-                                player_collision.height = collision.y - player_collision.y + collision.height;
-                            }
-
-                            if (collision.x + collision.width >= player_collision.x + player_collision.width) {
-                                player_collision.width = collision.x - player_collision.x + collision.width;
-                            }
-
-                            if (collision.x < player_collision.x) {
-                                player_collision.x = collision.x;
-                            }
-
-                            if (collision.y < player_collision.y) {
-                                player_collision.y = collision.y;
-                            }
+                        if (collision.y < player_collision.y) {
+                            player_collision.y = collision.y;
                         }
                     }
                 }
@@ -743,7 +618,7 @@ pub fn main() !void {
         while (y * Tile.size <= height_i) : (y += 1) {
             x = -1;
             while (x * Tile.size <= width_i + Tile.size) : (x += 1) {
-                for (Game.chunks) |chnk| {
+                for (&Game.chunks) |*chnk| {
                     const y_pos: f32 = @floatFromInt(y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
                     const screen_width_in_tiles = width_i / (Tile.size * 2);
@@ -787,12 +662,11 @@ pub fn main() !void {
         }
 
         // Draw player in the center of the screen
-        //rl.DrawTexture(player.frame.*, @floatToInt(i32, Game.scale * @divTrunc(Game.screen_width, 2) - 5.5 * Game.scale), @floatToInt(i32, Game.scale * @divTrunc(Game.screen_height, 2) - 12 * Game.scale), rl.WHITE);
         drawTexture(
             player.frame.*,
             .{
                 .x = @intFromFloat(
-                    (Game.screen_width / 2) - 6,
+                    (Game.screen_width / 2) - 5,
                 ),
                 .y = @intFromFloat(
                     (Game.screen_height / 2) - 10,
@@ -808,7 +682,7 @@ pub fn main() !void {
         while (y * Tile.size <= height_i) : (y += 1) {
             x = -1;
             while (x * Tile.size <= width_i + Tile.size) : (x += 1) {
-                for (Game.chunks) |chnk| {
+                for (&Game.chunks) |*chnk| {
                     const y_pos: f32 = @floatFromInt(y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
                     const screen_width_in_tiles = width_i / (Tile.size * 2);
@@ -842,11 +716,15 @@ pub fn main() !void {
 
         // Draw hotbar
         var i: u31 = 0;
-        const mid = (width_i * @divTrunc(scale_i, 2) - 35 * scale_i);
-        const hotbar_y = scale_i * height_i - 13 * scale_i;
+        const mid = (width_i / 2 - 35 - 9);
+        const hotbar_y: i16 = @intCast(height_i - 15);
         while (i < 6) {
-            const hotbar_x = mid + i * scale_i * 12;
-            rl.drawTexture(hotbar_item_texture, hotbar_x, hotbar_y, rl.Color.white);
+            const hotbar_x: i16 = @intCast(mid + i * 15);
+            drawTexture(
+                hotbar_item_texture,
+                .{ .x = hotbar_x, .y = hotbar_y },
+                rl.Color.white,
+            );
             i += 1;
         }
 
@@ -861,6 +739,14 @@ pub fn main() !void {
         if (settings.enabled) {
             try settings.draw(arena);
         }
+
+        try drawText(
+            "Test text\nmore",
+            .{
+                .x = 2,
+                .y = hotbar_y - 4,
+            },
+        );
 
         rl.endDrawing();
     }

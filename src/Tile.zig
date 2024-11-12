@@ -19,16 +19,13 @@ pub const Tile = packed struct(u16) {
     // on the tile in question. If a grass tile, this could mean how tall the
     // grass is and what seeds it contains. If an ore, it could dictate how
     // much metal you'll get from it
-    // (4 different possibilities)
     grade: u2,
 
     // The damage level of the tile. This can be caused by player mining,
     // explosions, etc.
-    // (8 different possibilities)
     damage: u3,
 
     // The direction the tile is facing
-    // (4 different possibilities)
     direction: Direction,
 
     pub const Options = struct {

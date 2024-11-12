@@ -19,8 +19,8 @@
             .hash = "12205f5e7505c96573f6fc5144592ec38942fb0a326d692f9cddc0c7dd38f9028f29",
         },
         .perlin = .{
-            .url = "git+https://github.com/mgord9518/perlin-zig.git#8811e7cd3c5f10c970f31bd9aebf29d5723690d6",
-            .hash = "1220d4da17c1598a27202169e9d1d26f5063a1d66ba8c3919d662a000fc8c6456655",
+            .url = "git+https://github.com/mgord9518/perlin-zig.git#73a69cdd2a42483a2138aed9725e61791d07b58d",
+            .hash = "12208b3a835f168e660e826f82d36a2b0ff3a1060fdeebd2b238bf2bd24a8d1faaff",
         },
     },
 }

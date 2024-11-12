@@ -62,10 +62,10 @@ pub const Layer = enum {
     wall,
 };
 
-pub fn tile(self: Chunk, layer: Layer, x: u16, y: u16) Tile {
+pub fn tile(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
     const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
 
-    return self.tiles[@as(usize, x) + y + offset];
+    return &self.tiles[@as(usize, x) + y + offset];
 }
 
 pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {

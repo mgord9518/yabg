@@ -36,6 +36,13 @@ standing_on: Tile,
 
 save_path: []const u8,
 
+const PlayerJson = struct {
+    x: i64,
+    y: i64,
+
+    direction: Direction,
+};
+
 pub fn init(save_path: []const u8) Player {
     const cwd = std.fs.cwd();
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
@@ -66,22 +73,20 @@ pub fn init(save_path: []const u8) Player {
 
     std.debug.print("data: {s}\n", .{json_buf[0..json_data_len]});
 
-    const player_coords: rl.Vector2 = std.json.parseFromSliceLeaky(
-        rl.Vector2,
+    const player_coords: PlayerJson = std.json.parseFromSliceLeaky(
+        PlayerJson,
         allocator,
         json_buf[0..json_data_len],
         .{},
-    ) catch |err| blk: {
-        std.debug.print("err: {!}\n", .{err});
+    ) catch |err| {
+        std.debug.print("Error loading player 0: {!}\n", .{err});
 
-        break :blk .{
-            .x = 0,
-            .y = 0,
-        };
+        return player;
     };
 
-    player.x = player_coords.x;
-    player.y = player_coords.y;
+    player.x = @floatFromInt(player_coords.x);
+    player.y = @floatFromInt(player_coords.y);
+    player.direction = player_coords.direction;
 
     return player;
 }
@@ -106,15 +111,11 @@ pub fn save(player: *Player) !void {
     var fbs_buf: [4096]u8 = undefined;
     var fbs = std.io.fixedBufferStream(&fbs_buf);
 
-    const IntVector2 = struct {
-        x: isize,
-        y: isize,
-    };
-
     try std.json.stringify(
-        IntVector2{
+        PlayerJson{
             .x = @intFromFloat(player.x),
             .y = @intFromFloat(player.y),
+            .direction = player.direction,
         },
         .{},
         fbs.writer(),
@@ -132,8 +133,17 @@ pub fn save(player: *Player) !void {
     _ = try file.write(fbs_buf[0..fbs.pos]);
 }
 
-pub fn getFrame(self: *Player, animation: Animation, frame_num: u3) *rl.Texture2D {
+pub fn getFrame(self: *Player, animation: Animation, frame_num: u3) *rl.Texture {
     return &self.frames[@intFromEnum(animation)][frame_num];
+}
+
+pub fn updateAnimation(self: *Player) void {
+    self.animation = switch (self.direction) {
+        .right => .walk_right,
+        .left => .walk_left,
+        .down => .walk_down,
+        .up => .walk_up,
+    };
 }
 
 pub fn updatePlayerFrames(
