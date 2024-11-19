@@ -2,6 +2,8 @@ const rl = @import("raylib");
 const std = @import("std");
 const os = std.os;
 
+const known_folders = @import("known-folders");
+
 const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Direction = @import("enums.zig").Direction;
@@ -16,15 +18,14 @@ pub var walk_speed: f32 = 2;
 x: f32 = 0,
 y: f32 = 0,
 
+remaining_x: f32 = 0,
+remaining_y: f32 = 0,
+
 // Current speeds
 x_speed: f32 = 0,
 y_speed: f32 = 0,
 
-frame: *rl.Texture2D = undefined,
-frames_idle: [1]rl.Texture2D = undefined,
-
-// Top-level array is the animation, 2nd is the current frame
-frames: [5][8]rl.Texture2D = undefined,
+animation_texture: [5]rl.Texture,
 
 frame_num: u3 = 0,
 frame_sub: f32 = 0,
@@ -43,15 +44,43 @@ const PlayerJson = struct {
     direction: Direction,
 };
 
-pub fn init(save_path: []const u8) Player {
+pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
     const cwd = std.fs.cwd();
     var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+
+    const exe_path = (try known_folders.getPath(allocator, .executable_dir)).?;
+    const app_dir = try std.fs.path.joinZ(
+        allocator,
+        &.{ exe_path, "../.." },
+    );
+
+    allocator.free(exe_path);
+    defer allocator.free(app_dir);
 
     var player = Player{
         .save_path = save_path,
         .standing_on = Tile.init(.{ .id = .grass }),
         .direction = .down,
+        .animation_texture = undefined,
     };
+
+    inline for (@as([4]Animation, .{
+        .walk_up,
+        .walk_down,
+        .walk_left,
+        .walk_right,
+    })) |animation| {
+        const img_path = try std.fmt.allocPrintZ(
+            allocator,
+            "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}.png",
+            .{ app_dir, @tagName(animation) },
+        );
+
+        const img = rl.loadImage(img_path.ptr);
+        player.animation_texture[@intFromEnum(animation)] = rl.loadTextureFromImage(img);
+
+        allocator.free(img_path);
+    }
 
     // TODO: Allow saving more than one player
     const player_file = std.fmt.bufPrint(
@@ -67,13 +96,7 @@ pub fn init(save_path: []const u8) Player {
     var json_buf: [4096]u8 = undefined;
     const json_data_len = file.read(&json_buf) catch unreachable;
 
-    var fba_buf: [4096]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&fba_buf);
-    const allocator = fba.allocator();
-
-    std.debug.print("data: {s}\n", .{json_buf[0..json_data_len]});
-
-    const player_coords: PlayerJson = std.json.parseFromSliceLeaky(
+    const player_coords = std.json.parseFromSlice(
         PlayerJson,
         allocator,
         json_buf[0..json_data_len],
@@ -84,9 +107,11 @@ pub fn init(save_path: []const u8) Player {
         return player;
     };
 
-    player.x = @floatFromInt(player_coords.x);
-    player.y = @floatFromInt(player_coords.y);
-    player.direction = player_coords.direction;
+    defer player_coords.deinit();
+
+    player.x = @floatFromInt(player_coords.value.x);
+    player.y = @floatFromInt(player_coords.value.y);
+    player.direction = player_coords.value.direction;
 
     return player;
 }
@@ -133,10 +158,6 @@ pub fn save(player: *Player) !void {
     _ = try file.write(fbs_buf[0..fbs.pos]);
 }
 
-pub fn getFrame(self: *Player, animation: Animation, frame_num: u3) *rl.Texture {
-    return &self.frames[@intFromEnum(animation)][frame_num];
-}
-
 pub fn updateAnimation(self: *Player) void {
     self.animation = switch (self.direction) {
         .right => .walk_right,
@@ -148,34 +169,19 @@ pub fn updateAnimation(self: *Player) void {
 
 pub fn updatePlayerFrames(
     player: *Player,
-    animation: Animation,
 ) void {
-    var speed: f32 = undefined;
-
-    if (player.x_speed != 0 and player.y_speed != 0) {
-        // Not really sure why this number works but it does
-        speed = std.math.sqrt((player.x_speed * player.x_speed) + (player.y_speed * player.y_speed)) * 0.8;
-    } else {
-        speed = std.math.sqrt((player.x_speed * player.x_speed) + (player.y_speed * player.y_speed));
+    if (player.remaining_x != 0 or player.remaining_y != 0) {
+        player.frame_sub += Game.tps * 0.4 * Game.delta;
     }
-
-    player.frame_sub += Game.tps * 0.4 * Game.delta * @abs(speed);
 
     if (player.frame_sub >= 1) {
         player.frame_sub -= 1;
         player.frame_num +%= 1;
 
         if (player.frame_num == 2 or player.frame_num == 6) {
-            // Dummy tile
-            //rl.PlaySound(Tile.init(.{ .id = .grass }).sound());
             rl.playSound(player.standing_on.sound());
         }
     }
-
-    // Given an FPS of 60, this means that the animation will
-    // update at 14 FPS
-    player.frame = player.getFrame(animation, player.frame_num);
-    //std.debug.print("{}\n", .{animation});
 }
 
 // Checks and unloads any Game.chunks not surrounding the player in a 9x9 area
@@ -216,14 +222,14 @@ pub fn reloadChunks(player: *Player) void {
     // TODO: refactor
     for (&Game.chunks) |*chunk| {
         for (&Game.chunks) |*swap_chunk| {
-            if (swap_chunk.y < chunk.y) {
+            if (swap_chunk.y > chunk.y) {
                 const tmp = chunk.*;
 
                 chunk.* = swap_chunk.*;
                 swap_chunk.* = tmp;
             }
 
-            if (swap_chunk.y == chunk.y and swap_chunk.x < chunk.x) {
+            if (swap_chunk.y == chunk.y and swap_chunk.x > chunk.x) {
                 const tmp = chunk.*;
 
                 chunk.* = swap_chunk.*;
@@ -233,11 +239,6 @@ pub fn reloadChunks(player: *Player) void {
     }
 }
 
-// TODO: limit directions and use 2 (or maybe 3?) speeds if using a gamepad
-// I'll probably end up doing a `sneak`, `walk` and `run`
-// Currently limiting to 4 directions to simplify collision, if I can
-// eventually implement it in a simple way without bugs I will re-enable
-// 8 direction movement
 pub fn inputVector(player: *Player) rl.Vector2 {
     _ = player;
 

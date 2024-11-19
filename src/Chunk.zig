@@ -62,6 +62,12 @@ pub const Layer = enum {
     wall,
 };
 
+pub fn tileNew(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
+    const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
+
+    return &self.tiles[@as(usize, x) + (@as(usize, y) * Chunk.size) + offset];
+}
+
 pub fn tile(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
     const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
 

@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const no_pie = b.option(bool, "no-pie", "do not build as a PIE (position independent executable) on Linux systems") orelse false;
+    const pie = b.option(bool, "pie", "do not build as a PIE (position independent executable) on Linux systems") orelse true;
 
     const exe = b.addExecutable(.{
         .name = "yabg",
@@ -33,7 +33,7 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("perlin", perlin_dep.module("perlin"));
 
     if (target.result.os.tag == .linux) {
-        exe.pie = !no_pie;
+        exe.pie = pie;
     }
 
     const run_cmd = b.addRunArtifact(exe);

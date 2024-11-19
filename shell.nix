@@ -7,7 +7,10 @@ pkgs.mkShell {
     xorg.libXinerama
     xorg.libXi
     libGL
+    libxkbcommon
     pulseaudio
+    p7zip
+    #wayland
 
     psftools
   ];

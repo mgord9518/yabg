@@ -1,6 +1,6 @@
 .{
     .name = "yabg",
-    .version = "0.0.50",
+    .version = "0.0.51",
 
     .paths = [][]const u8{
         "build.zig",

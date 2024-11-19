@@ -35,7 +35,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 50,
+    .patch = 51,
 };
 
 pub var chunks: [9]Chunk = undefined;
@@ -116,8 +116,6 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
     // Disable exit on keypress
     rl.setExitKey(.key_null);
-
-    //defer font.glyph_offsets.deinit();
 }
 
 fn drawCharToImage(image: rl.Image, char: u21, pos: Vec) !void {

@@ -8,55 +8,7 @@ const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
 const Game = @import("Game.zig");
 
-const NewVec = struct {
-    x: i16,
-    y: i16,
-};
-
-fn drawText(
-    string: []const u8,
-    coords: NewVec,
-) !void {
-    var view = try std.unicode.Utf8View.init(string);
-    var it = view.iterator();
-
-    var line_offset: f32 = 0;
-    const font_size = 8;
-
-    var x_off: f32 = 0;
-
-    while (it.nextCodepoint()) |codepoint| {
-        if (codepoint == '\n') {
-            x_off = 0;
-            line_offset += font_size * Game.scale;
-            continue;
-        }
-
-        rl.drawTexturePro(
-            Game.font.atlas,
-            .{
-                .x = @floatFromInt(Game.font.glyph_offsets.get(codepoint) orelse 0),
-                .y = 0,
-                .width = 4 + 1,
-                .height = 8 + 1,
-            },
-            .{
-                .x = (@as(f32, @floatFromInt(coords.x)) + x_off) * Game.scale,
-                .y = @as(f32, @floatFromInt(coords.y)) * Game.scale + line_offset,
-                .width = (4 + 1) * Game.scale,
-                .height = (8 + 1) * Game.scale,
-            },
-            .{
-                .x = 0,
-                .y = 0,
-            },
-            0,
-            rl.Color.white,
-        );
-
-        x_off += 5;
-    }
-}
+const ui = @import("ui.zig");
 
 const ChatLog = struct {
     text: std.ArrayList(u8),
@@ -139,12 +91,13 @@ const DebugMenu = struct {
             alpha = @intFromFloat(192 + menu.y);
         }
 
-        try drawText(
+        try ui.drawText(
             string,
             .{
                 .x = 2,
                 .y = @intFromFloat(menu.y + 1),
             },
+            rl.Color.white,
         );
     }
 };
@@ -180,6 +133,8 @@ fn loadTextureFallback(img_path: [:0]const u8) rl.Texture2D {
 
     return loadTextureEmbedded("embedded_files/placeholder.png");
 }
+
+var target_x_distance: f32 = 0;
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
@@ -229,7 +184,7 @@ pub fn main() !void {
         },
     );
 
-    var player = Player.init(save_path);
+    var player = try Player.init(allocator, save_path);
     var menu = DebugMenu{ .player = &player };
 
     menu.enabled = env_map.get("DEBUG_MODE") != null;
@@ -274,32 +229,6 @@ pub fn main() !void {
         y_it = chunk_y - 1;
     }
 
-    const player_image = rl.loadImage(vanilla.join("entities/players/player_down_0.png"));
-    player.frames[0][0] = rl.loadTextureFromImage(player_image);
-    player.updatePlayerFrames(player.animation);
-
-    // Load player frames
-    // TODO: implement as spritesheets
-    inline for (.{
-        "down",
-        "left",
-        "up",
-        "right",
-    }, 1..) |direction, direction_enum| {
-        it = 0;
-        while (it <= 7) {
-            const img_path = try std.fmt.allocPrintZ(
-                allocator,
-                "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}_{x}.png",
-                .{ app_dir, direction, it },
-            );
-
-            const player_image1 = rl.loadImage(img_path.ptr);
-            player.frames[direction_enum][it] = rl.loadTextureFromImage(player_image1);
-            it += 1;
-        }
-    }
-
     inline for (.{
         "placeholder",
         "grass",
@@ -338,11 +267,14 @@ pub fn main() !void {
 
     // Main game loop
     while (!rl.windowShouldClose()) {
-        rl.clearBackground(rl.Color.black);
-
         var arena_allocator = std.heap.ArenaAllocator.init(allocator);
         defer arena_allocator.deinit();
         const arena = arena_allocator.allocator();
+
+        if (false) {
+            try mainMenuLoop(allocator);
+            continue;
+        }
 
         Game.delta = rl.getFrameTime();
 
@@ -359,7 +291,7 @@ pub fn main() !void {
         width_i = @intFromFloat(Game.screen_width);
         height_i = @intFromFloat(Game.screen_height);
 
-        player.updatePlayerFrames(player.animation);
+        player.updatePlayerFrames();
         player.reloadChunks();
 
         // Keyboard/gamepad inputs
@@ -373,19 +305,9 @@ pub fn main() !void {
             player.direction = .down;
         } else if (input_vec.y < 0) {
             player.direction = .up;
-        } else {
-            // If not moving, reset animation to the start
-            player.frame_num = 0;
-        }
+        } else {}
 
         player.updateAnimation();
-
-        // Update player speed based on control input
-        player.x_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.x;
-        player.y_speed = Game.tps * Player.walk_speed * Game.delta * input_vec.y;
-
-        player.x += player.x_speed;
-        player.y += player.y_speed;
 
         if (rl.isKeyPressed(.key_f3) or rl.isGamepadButtonPressed(0, .gamepad_button_middle_left)) {
             menu.enabled = !menu.enabled;
@@ -428,7 +350,7 @@ pub fn main() !void {
         };
 
         // Player collision rectangle
-        var player_collision = rl.Rectangle{
+        const player_collision = rl.Rectangle{
             .x = 0,
             .y = 0,
             .width = 0,
@@ -436,166 +358,137 @@ pub fn main() !void {
         };
 
         // Collision detection
+        var player_coordinate_x: i32 = @intFromFloat(@divTrunc(player.x + (Tile.size / 2), Tile.size));
+        var player_coordinate_y: i32 = @intFromFloat(@divTrunc(player.y + (Tile.size / 2), Tile.size));
+
+        if (player.x < 0) player_coordinate_x -= 1;
+        if (player.y < 0) player_coordinate_y -= 1;
+
+        var player_tile_offset_x: u16 = @intCast(@mod(player_coordinate_x, Chunk.size));
+        var player_tile_offset_y: u16 = @intCast(@mod(player_coordinate_y, Chunk.size));
+
+        // Middle chunk
+        var target_chunk = &Game.chunks[4];
+
+        if (player_tile_offset_x == 0 and player.direction == .left) {
+            target_chunk = &Game.chunks[3];
+            player_tile_offset_x = Chunk.size;
+        } else if (player_tile_offset_y == 0 and player.direction == .up) {
+            target_chunk = &Game.chunks[1];
+            player_tile_offset_y = Chunk.size;
+        }
+
+        switch (player.direction) {
+            .left => player_tile_offset_x -= 1,
+            .right => player_tile_offset_x += 1,
+            .up => player_tile_offset_y -= 1,
+            .down => player_tile_offset_y += 1,
+        }
+
+        if (player_tile_offset_x == Chunk.size and player.direction == .right) {
+            target_chunk = &Game.chunks[5];
+            player_tile_offset_x = 0;
+        } else if (player_tile_offset_y == Chunk.size and player.direction == .down) {
+            target_chunk = &Game.chunks[7];
+            player_tile_offset_y = 0;
+        }
+
+        var target_tile = target_chunk.tileNew(
+            .wall,
+            player_tile_offset_x,
+            player_tile_offset_y,
+        );
+
+        var floor_tile = target_chunk.tileNew(
+            .floor,
+            player_tile_offset_x,
+            player_tile_offset_y,
+        );
+
+        if (rl.isKeyPressed(.key_period) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_left)) {
+            rl.playSound(target_tile.sound());
+
+            // Apply damage to tile, break olnce it hits 3
+            switch (target_tile.damage) {
+                3 => {
+                    target_tile.* = .{
+                        .id = .air,
+                        .damage = 0,
+                        .naturally_generated = false,
+                        .grade = 0,
+                        .direction = .down,
+                    };
+                },
+
+                else => {
+                    target_tile.damage += 1;
+                },
+            }
+
+            if (floor_tile.id == .grass and target_tile.id != .air) {
+                floor_tile.id = .dirt;
+            }
+        }
+
+        if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
+            const temp_tile = Tile.init(.{ .id = .stone });
+
+            if (floor_tile.id == .water) {
+                floor_tile.* = temp_tile;
+            } else if (target_tile.id == .air) {
+                target_tile.* = temp_tile;
+            }
+
+            rl.playSound(temp_tile.sound());
+        }
+
+        if (input_vec.x != 0 and player.remaining_x == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
+            player.remaining_x = Tile.size;
+
+            if (player.direction == .left) player.remaining_x = -player.remaining_x;
+        }
+
+        if (input_vec.y != 0 and player.remaining_y == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
+            player.remaining_y = Tile.size;
+
+            if (player.direction == .up) player.remaining_y = -player.remaining_y;
+        }
+
+        if (player.direction == .right and player.remaining_x > 0 or player.direction == .left and player.remaining_x < 0) {
+            player.x_speed = Game.tps * Player.walk_speed * Game.delta;
+            if (player.direction == .left) player.x_speed = -player.x_speed;
+
+            player.remaining_x -= player.x_speed;
+        } else {
+            player.x_speed = 0;
+            player.x = @floatFromInt((player_coordinate_x) * Tile.size);
+            player.remaining_x = 0;
+        }
+
+        if (player.direction == .down and player.remaining_y > 0 or player.direction == .up and player.remaining_y < 0) {
+            player.y_speed = Game.tps * Player.walk_speed * Game.delta;
+            if (player.direction == .up) player.y_speed = -player.y_speed;
+
+            player.remaining_y -= player.y_speed;
+        } else {
+            player.y_speed = 0;
+            player.y = @floatFromInt((player_coordinate_y) * Tile.size);
+            player.y += 3;
+            player.remaining_y = 0;
+        }
+
+        if (input_vec.x == 0 and input_vec.y == 0 and player.remaining_x == 0 and player.remaining_y == 0) {
+            player.frame_num = 0;
+        }
+
+        if (target_tile.id != .air and player.remaining_x == 0 and player.remaining_y == 0) {
+            player.frame_num = 0;
+        }
+        player.x += player.x_speed;
+        player.y += player.y_speed;
+
         const x_num: i32 = @intFromFloat(@divFloor(player.x, 12));
         const y_num: i32 = @intFromFloat(@divFloor(player.y, 12));
-
-        var x: i32 = (width_i / Tile.size / 2) - 2;
-        var y: i32 = (height_i / Tile.size / 2) - 2;
-        while (y * Tile.size <= height_i) : (y += 1) {
-            if (y > @as(i32, @intFromFloat(Game.screen_height / Tile.size / 2)) + 3) {
-                break;
-            }
-            x = (width_i / Tile.size / 2) - 2;
-            while (x * Tile.size <= width_i + Tile.size) : (x += 1) {
-                for (&Game.chunks) |*chnk| {
-                    const x_pos: f32 = @floatFromInt(x * Tile.size * scale_i - player_mod_x + screen_mod_x);
-                    const y_pos: f32 = @floatFromInt(y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
-
-                    const screen_width_in_tiles: u31 = width_i / (Tile.size * 2);
-                    const screen_height_in_tiles: u31 = height_i / (Tile.size * 2);
-
-                    const tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    const tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
-
-                    if (tile_x + tile_y < 0) {
-                        continue;
-                    }
-
-                    const tile_idx: u31 = @intCast(tile_x + tile_y);
-
-                    // Skip if tile not on screen
-                    if (x + x_num - screen_width_in_tiles < chnk.x or
-                        x + x_num - screen_width_in_tiles >= chnk.x + Chunk.size or
-                        y + y_num - screen_height_in_tiles < chnk.y or
-                        y + y_num - screen_height_in_tiles >= chnk.y + Chunk.size) continue;
-
-                    const floor_tile = chnk.tile(.floor, @intCast(tile_x), @intCast(tile_y));
-                    const wall_tile = chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y));
-
-                    const tile_rect = rl.Rectangle{
-                        .x = x_pos,
-                        .y = y_pos,
-                        .width = 12 * Game.scale,
-                        .height = 12 * Game.scale,
-                    };
-
-                    const player_point = rl.Vector2{
-                        .x = player_rect.x + (player_rect.width / 2),
-                        .y = player_rect.y + (player_rect.height / 2),
-                    };
-
-                    const player_target_point = switch (player.direction) {
-                        .left => .{
-                            .x = player_point.x - Tile.size * Game.scale,
-                            .y = player_point.y,
-                        },
-                        .right => .{
-                            .x = player_point.x + Tile.size * Game.scale,
-                            .y = player_point.y,
-                        },
-                        .up => .{
-                            .x = player_point.x,
-                            .y = player_point.y - Tile.size * Game.scale,
-                        },
-                        .down => .{
-                            .x = player_point.x,
-                            .y = player_point.y + Tile.size * Game.scale,
-                        },
-                    };
-
-                    if (rl.checkCollisionPointRec(player_target_point, tile_rect)) {
-                        if (rl.isKeyPressed(.key_period) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_left)) {
-                            rl.playSound(wall_tile.sound());
-
-                            // Apply damage to tile, break once it hits 3
-                            switch (chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).damage) {
-                                3 => {
-                                    chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).* = .{
-                                        .id = .air,
-                                        .damage = 0,
-                                        .naturally_generated = false,
-                                        .grade = 0,
-                                        .direction = .down,
-                                    };
-                                },
-
-                                else => {
-                                    chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).damage += 1;
-                                },
-                            }
-
-                            if (floor_tile.id == .grass and wall_tile.id != .air) {
-                                chnk.tiles[tile_idx].id = .dirt;
-                            }
-                        }
-
-                        if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
-                            const stone_dummy = Tile.init(.{ .id = .stone });
-                            rl.playSound(stone_dummy.sound());
-                            if (floor_tile.id == .water) {
-                                chnk.tiles[tile_idx].id = .stone;
-                            } else if (wall_tile.id == .air) {
-                                chnk.tiles[tile_idx + Chunk.size * Chunk.size].id = .stone;
-                            }
-                        }
-                    }
-
-                    // Change walking sound to whatever tile the player is
-                    // standing on
-                    // TODO: Different sounds for walking on vs placing
-                    // tiles
-                    if (rl.checkCollisionPointRec(player_point, tile_rect)) {
-                        player.standing_on = floor_tile.*;
-                    }
-
-                    if (wall_tile.id == .air and floor_tile.id != .water) {
-                        continue;
-                    }
-
-                    if (rl.checkCollisionRecs(player_rect, tile_rect)) {
-                        const collision = rl.getCollisionRec(player_rect, tile_rect);
-
-                        if (player_collision.x == 0) {
-                            player_collision.x = collision.x;
-                        }
-
-                        if (player_collision.y == 0) {
-                            player_collision.y = collision.y;
-                        }
-
-                        if (collision.y + collision.height >= player_collision.y + player_collision.height) {
-                            player_collision.height = collision.y - player_collision.y + collision.height;
-                        }
-
-                        if (collision.x + collision.width >= player_collision.x + player_collision.width) {
-                            player_collision.width = collision.x - player_collision.x + collision.width;
-                        }
-
-                        if (collision.x < player_collision.x) {
-                            player_collision.x = collision.x;
-                        }
-
-                        if (collision.y < player_collision.y) {
-                            player_collision.y = collision.y;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (player_collision.height > player_collision.width) {
-            if (player_collision.x == player_rect.x) {
-                player.x += player_collision.width / Game.scale;
-            } else {
-                player.x -= player_collision.width / Game.scale;
-            }
-        } else if (player_collision.height < player_collision.width) {
-            if (player_collision.y == player_rect.y) {
-                player.y += player_collision.height / Game.scale;
-            } else {
-                player.y -= player_collision.height / Game.scale;
-            }
-        }
 
         const px: i32 = @intFromFloat(player.x);
         const py: i32 = @intFromFloat(player.y);
@@ -613,6 +506,10 @@ pub fn main() !void {
 
         rl.beginDrawing();
 
+        rl.clearBackground(rl.Color.black);
+
+        var x: i32 = (width_i / Tile.size / 2) - 2;
+        var y: i32 = (height_i / Tile.size / 2) - 2;
         x = -1;
         y = -3;
         while (y * Tile.size <= height_i) : (y += 1) {
@@ -662,8 +559,14 @@ pub fn main() !void {
         }
 
         // Draw player in the center of the screen
-        drawTexture(
-            player.frame.*,
+        drawTextureRect(
+            player.animation_texture[@intFromEnum(player.animation)],
+            .{
+                .x = @as(u15, player.frame_num) * 12,
+                .y = 0,
+                .w = 12,
+                .h = 24,
+            },
             .{
                 .x = @intFromFloat(
                     (Game.screen_width / 2) - 5,
@@ -740,12 +643,13 @@ pub fn main() !void {
             try settings.draw(arena);
         }
 
-        try drawText(
-            "Test text\nmore",
+        try ui.drawText(
+            ">This will be a chat eventually...\n>More chat",
             .{
                 .x = 2,
                 .y = hotbar_y - 4,
             },
+            rl.Color.white,
         );
 
         rl.endDrawing();
@@ -760,7 +664,31 @@ pub fn main() !void {
     rl.closeWindow();
 }
 
-fn drawTexture(texture: rl.Texture, pos: NewVec, tint: rl.Color) void {
+fn mainMenuLoop(allocator: std.mem.Allocator) !void {
+    var arena_allocator = std.heap.ArenaAllocator.init(allocator);
+    defer arena_allocator.deinit();
+    const arena = arena_allocator.allocator();
+
+    rl.beginDrawing();
+    rl.clearBackground(rl.Color.dark_gray);
+
+    try ui.drawText(
+        try std.fmt.allocPrint(arena, "YABG {?s} {d}.{d}.{d}", .{
+            Game.version.pre,
+            Game.version.major,
+            Game.version.minor,
+            Game.version.patch,
+        }),
+        .{ .x = 2, .y = 2 },
+        rl.Color.white,
+    );
+
+    try ui.button("Save 1", .{ .x = 2, .y = 40, .w = 38, .h = 17 });
+
+    rl.endDrawing();
+}
+
+fn drawTexture(texture: rl.Texture, pos: ui.NewVec, tint: rl.Color) void {
     rl.drawTextureEx(
         texture,
         .{
@@ -769,6 +697,27 @@ fn drawTexture(texture: rl.Texture, pos: NewVec, tint: rl.Color) void {
         },
         0,
         Game.scale,
+        tint,
+    );
+}
+
+fn drawTextureRect(texture: rl.Texture, rect: ui.Rectangle, pos: ui.NewVec, tint: rl.Color) void {
+    rl.drawTexturePro(
+        texture,
+        .{
+            .x = @as(f32, @floatFromInt(rect.x)),
+            .y = @as(f32, @floatFromInt(rect.y)),
+            .width = @as(f32, @floatFromInt(rect.w)),
+            .height = @as(f32, @floatFromInt(rect.h)),
+        },
+        .{
+            .x = @as(f32, @floatFromInt(pos.x)) * Game.scale,
+            .y = @as(f32, @floatFromInt(pos.y)) * Game.scale,
+            .width = @as(f32, @floatFromInt(rect.w)) * Game.scale,
+            .height = @as(f32, @floatFromInt(rect.h)) * Game.scale,
+        },
+        .{ .x = 0, .y = 0 },
+        0,
         tint,
     );
 }
