@@ -43,15 +43,15 @@ const DebugMenu = struct {
     player: *Player,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
-        const neg_x = if (menu.player.x < 0) "-" else " ";
-        const neg_y = if (menu.player.y < 0) "-" else " ";
+        const neg_x = if (menu.player.entity.x < 0) "-" else " ";
+        const neg_y = if (menu.player.entity.y < 0) "-" else " ";
 
-        var px: i32 = @intFromFloat(menu.player.x);
+        var px: i32 = @intFromFloat(menu.player.entity.x);
         if (px < 0) {
             px *= -1;
         }
 
-        var py: i32 = @intFromFloat(menu.player.y);
+        var py: i32 = @intFromFloat(menu.player.entity.y);
         if (py < 0) {
             py *= -1;
         }
@@ -62,8 +62,8 @@ const DebugMenu = struct {
             \\YABG {?s} {d}.{d}.{d}
             \\FPS: {s}; (vsync)
             \\
-            \\X:{s}{s};{s}
-            \\Y:{s}{s};{s}
+            \\X:{s}{s}
+            \\Y:{s}{s}
             \\
             \\Built with Zig {d}.{d}.{d}
         ,
@@ -75,10 +75,8 @@ const DebugMenu = struct {
                 try int2Dozenal(rl.getFPS(), allocator),
                 neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
-                try int2Dozenal(@mod(px, Tile.size), allocator),
                 neg_y,
                 try int2Dozenal(@divTrunc(py, Tile.size), allocator),
-                try int2Dozenal(@mod(py, Tile.size), allocator),
                 builtin.zig_version.major,
                 builtin.zig_version.minor,
                 builtin.zig_version.patch,
@@ -205,14 +203,14 @@ pub fn main() !void {
         }
     };
 
-    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.x, Tile.size), Chunk.size)));
-    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.y, Tile.size), Chunk.size)));
+    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.x, Tile.size), Chunk.size)));
+    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.y, Tile.size), Chunk.size)));
 
-    if (player.x < 0) {
+    if (player.entity.x < 0) {
         chunk_x = chunk_x - 1;
     }
 
-    if (player.y < 0) {
+    if (player.entity.y < 0) {
         chunk_y = chunk_y - 1;
     }
 
@@ -298,13 +296,13 @@ pub fn main() !void {
         const input_vec = player.inputVector();
 
         if (input_vec.x > 0) {
-            player.direction = .right;
+            player.entity.direction = .right;
         } else if (input_vec.x < 0) {
-            player.direction = .left;
+            player.entity.direction = .left;
         } else if (input_vec.y > 0) {
-            player.direction = .down;
+            player.entity.direction = .down;
         } else if (input_vec.y < 0) {
-            player.direction = .up;
+            player.entity.direction = .up;
         } else {}
 
         player.updateAnimation();
@@ -317,17 +315,17 @@ pub fn main() !void {
             settings.enabled = !settings.enabled;
         }
 
-        const player_x_i: i32 = @intFromFloat(player.x * Game.scale);
-        const player_y_i: i32 = @intFromFloat(player.y * Game.scale);
+        const player_x_i: i32 = @intFromFloat(player.entity.x * Game.scale);
+        const player_y_i: i32 = @intFromFloat(player.entity.y * Game.scale);
 
         var player_mod_x: i32 = @mod(player_x_i, Tile.size * scale_i);
         var player_mod_y: i32 = @mod(player_y_i, Tile.size * scale_i);
 
-        if (player.y < 0 and player_mod_y == 0) {
+        if (player.entity.y < 0 and player_mod_y == 0) {
             player_mod_y = Tile.size * scale_i;
         }
 
-        if (player.x < 0 and player_mod_x == 0) {
+        if (player.entity.x < 0 and player_mod_x == 0) {
             player_mod_x = Tile.size * scale_i;
         }
 
@@ -358,11 +356,11 @@ pub fn main() !void {
         };
 
         // Collision detection
-        var player_coordinate_x: i32 = @intFromFloat(@divTrunc(player.x + (Tile.size / 2), Tile.size));
-        var player_coordinate_y: i32 = @intFromFloat(@divTrunc(player.y + (Tile.size / 2), Tile.size));
+        var player_coordinate_x: i32 = @intFromFloat(@divTrunc(player.entity.x + (Tile.size / 2), Tile.size));
+        var player_coordinate_y: i32 = @intFromFloat(@divTrunc(player.entity.y + (Tile.size / 2), Tile.size));
 
-        if (player.x < 0) player_coordinate_x -= 1;
-        if (player.y < 0) player_coordinate_y -= 1;
+        if (player.entity.x < 0) player_coordinate_x -= 1;
+        if (player.entity.y < 0) player_coordinate_y -= 1;
 
         var player_tile_offset_x: u16 = @intCast(@mod(player_coordinate_x, Chunk.size));
         var player_tile_offset_y: u16 = @intCast(@mod(player_coordinate_y, Chunk.size));
@@ -370,25 +368,25 @@ pub fn main() !void {
         // Middle chunk
         var target_chunk = &Game.chunks[4];
 
-        if (player_tile_offset_x == 0 and player.direction == .left) {
+        if (player_tile_offset_x == 0 and player.entity.direction == .left) {
             target_chunk = &Game.chunks[3];
             player_tile_offset_x = Chunk.size;
-        } else if (player_tile_offset_y == 0 and player.direction == .up) {
+        } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
             target_chunk = &Game.chunks[1];
             player_tile_offset_y = Chunk.size;
         }
 
-        switch (player.direction) {
+        switch (player.entity.direction) {
             .left => player_tile_offset_x -= 1,
             .right => player_tile_offset_x += 1,
             .up => player_tile_offset_y -= 1,
             .down => player_tile_offset_y += 1,
         }
 
-        if (player_tile_offset_x == Chunk.size and player.direction == .right) {
+        if (player_tile_offset_x == Chunk.size and player.entity.direction == .right) {
             target_chunk = &Game.chunks[5];
             player_tile_offset_x = 0;
-        } else if (player_tile_offset_y == Chunk.size and player.direction == .down) {
+        } else if (player_tile_offset_y == Chunk.size and player.entity.direction == .down) {
             target_chunk = &Game.chunks[7];
             player_tile_offset_y = 0;
         }
@@ -418,6 +416,8 @@ pub fn main() !void {
                         .grade = 0,
                         .direction = .down,
                     };
+
+                    player.invintory[0].?.count += 1;
                 },
 
                 else => {
@@ -431,76 +431,80 @@ pub fn main() !void {
         }
 
         if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
-            const temp_tile = Tile.init(.{ .id = .stone });
+            if (player.invintory[0].?.count > 0) {
+                const temp_tile = Tile.init(.{ .id = .stone });
 
-            if (floor_tile.id == .water) {
-                floor_tile.* = temp_tile;
-            } else if (target_tile.id == .air) {
-                target_tile.* = temp_tile;
+                if (floor_tile.id == .water) {
+                    floor_tile.* = temp_tile;
+                    player.invintory[0].?.count -= 1;
+                    rl.playSound(temp_tile.sound());
+                } else if (target_tile.id == .air) {
+                    target_tile.* = temp_tile;
+                    player.invintory[0].?.count -= 1;
+                    rl.playSound(temp_tile.sound());
+                }
             }
-
-            rl.playSound(temp_tile.sound());
         }
 
-        if (input_vec.x != 0 and player.remaining_x == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-            player.remaining_x = Tile.size;
+        if (input_vec.x != 0 and player.entity.remaining_x == 0 and player.entity.remaining_y == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
+            player.entity.remaining_x = Tile.size;
 
-            if (player.direction == .left) player.remaining_x = -player.remaining_x;
+            if (player.entity.direction == .left) player.entity.remaining_x = -player.entity.remaining_x;
         }
 
-        if (input_vec.y != 0 and player.remaining_y == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-            player.remaining_y = Tile.size;
+        if (input_vec.y != 0 and player.entity.remaining_y == 0 and player.entity.remaining_x == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
+            player.entity.remaining_y = Tile.size;
 
-            if (player.direction == .up) player.remaining_y = -player.remaining_y;
+            if (player.entity.direction == .up) player.entity.remaining_y = -player.entity.remaining_y;
         }
 
-        if (player.direction == .right and player.remaining_x > 0 or player.direction == .left and player.remaining_x < 0) {
-            player.x_speed = Game.tps * Player.walk_speed * Game.delta;
-            if (player.direction == .left) player.x_speed = -player.x_speed;
+        if (player.entity.direction == .right and player.entity.remaining_x > 0 or player.entity.direction == .left and player.entity.remaining_x < 0) {
+            player.entity.x_speed = Game.tps * Player.walk_speed * Game.delta;
+            if (player.entity.direction == .left) player.entity.x_speed = -player.entity.x_speed;
 
-            player.remaining_x -= player.x_speed;
+            player.entity.remaining_x -= player.entity.x_speed;
         } else {
-            player.x_speed = 0;
-            player.x = @floatFromInt((player_coordinate_x) * Tile.size);
-            player.remaining_x = 0;
+            player.entity.x_speed = 0;
+            player.entity.x = @floatFromInt((player_coordinate_x) * Tile.size);
+            player.entity.remaining_x = 0;
         }
 
-        if (player.direction == .down and player.remaining_y > 0 or player.direction == .up and player.remaining_y < 0) {
-            player.y_speed = Game.tps * Player.walk_speed * Game.delta;
-            if (player.direction == .up) player.y_speed = -player.y_speed;
+        if (player.entity.direction == .down and player.entity.remaining_y > 0 or player.entity.direction == .up and player.entity.remaining_y < 0) {
+            player.entity.y_speed = Game.tps * Player.walk_speed * Game.delta;
+            if (player.entity.direction == .up) player.entity.y_speed = -player.entity.y_speed;
 
-            player.remaining_y -= player.y_speed;
+            player.entity.remaining_y -= player.entity.y_speed;
         } else {
-            player.y_speed = 0;
-            player.y = @floatFromInt((player_coordinate_y) * Tile.size);
-            player.y += 3;
-            player.remaining_y = 0;
+            player.entity.y_speed = 0;
+            player.entity.y = @floatFromInt((player_coordinate_y) * Tile.size);
+            player.entity.y += 3;
+            player.entity.remaining_y = 0;
         }
 
-        if (input_vec.x == 0 and input_vec.y == 0 and player.remaining_x == 0 and player.remaining_y == 0) {
-            player.frame_num = 0;
+        if (input_vec.x == 0 and input_vec.y == 0 and player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
+            player.entity.frame_num = 0;
         }
 
-        if (target_tile.id != .air and player.remaining_x == 0 and player.remaining_y == 0) {
-            player.frame_num = 0;
+        if (target_tile.id != .air and player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
+            player.entity.frame_num = 0;
         }
-        player.x += player.x_speed;
-        player.y += player.y_speed;
+        player.entity.x += player.entity.x_speed;
+        player.entity.y += player.entity.y_speed;
 
-        const x_num: i32 = @intFromFloat(@divFloor(player.x, 12));
-        const y_num: i32 = @intFromFloat(@divFloor(player.y, 12));
+        const x_num: i32 = @intFromFloat(@divFloor(player.entity.x, 12));
+        const y_num: i32 = @intFromFloat(@divFloor(player.entity.y, 12));
 
-        const px: i32 = @intFromFloat(player.x);
-        const py: i32 = @intFromFloat(player.y);
+        const px: i32 = @intFromFloat(player.entity.x);
+        const py: i32 = @intFromFloat(player.entity.y);
 
         player_mod_x = @mod(px, Tile.size);
         player_mod_y = @mod(py, Tile.size);
 
-        if (player.y < 0 and player_mod_y == 0) {
-            player_mod_y = Tile.size;
+        if (player.entity.y < 0 and player_mod_y == 0) {
+            //player_mod_y = Tile.size;
         }
 
-        if (player.x < 0 and player_mod_x == 0) {
+        if (player.entity.x < 0 and player_mod_x == 0) {
             player_mod_x = Tile.size;
         }
 
@@ -508,6 +512,7 @@ pub fn main() !void {
 
         rl.clearBackground(rl.Color.black);
 
+        // TODO: refactor
         var x: i32 = (width_i / Tile.size / 2) - 2;
         var y: i32 = (height_i / Tile.size / 2) - 2;
         x = -1;
@@ -560,9 +565,9 @@ pub fn main() !void {
 
         // Draw player in the center of the screen
         drawTextureRect(
-            player.animation_texture[@intFromEnum(player.animation)],
+            player.entity.animation_texture[@intFromEnum(player.entity.animation)],
             .{
-                .x = @as(u15, player.frame_num) * 12,
+                .x = @as(u15, player.entity.frame_num) * 12,
                 .y = 0,
                 .w = 12,
                 .h = 24,
@@ -619,15 +624,33 @@ pub fn main() !void {
 
         // Draw hotbar
         var i: u31 = 0;
-        const mid = (width_i / 2 - 35 - 9);
-        const hotbar_y: i16 = @intCast(height_i - 15);
+        const mid = (width_i / 2 - 35 - 15);
+        const hotbar_y: i16 = @intCast(height_i - 17);
         while (i < 6) {
-            const hotbar_x: i16 = @intCast(mid + i * 15);
+            const hotbar_x: i16 = @intCast(mid + i * 17);
             drawTexture(
                 hotbar_item_texture,
                 .{ .x = hotbar_x, .y = hotbar_y },
                 rl.Color.white,
             );
+
+            if (player.invintory[i]) |item| {
+                drawTextureRect(
+                    Game.tileTexture(item.value.tile),
+                    .{ .x = 0, .y = 0, .w = 12, .h = 12 },
+                    .{ .x = hotbar_x + 2, .y = hotbar_y + 2 },
+                    rl.Color.white,
+                );
+
+                try ui.drawText(
+                    try int2Dozenal(item.count, arena),
+                    .{
+                        .x = hotbar_x + 3 + @as(u15, if (item.count < 12) 3 else 0),
+                        .y = hotbar_y + 4,
+                    },
+                    rl.Color.white,
+                );
+            }
             i += 1;
         }
 
@@ -644,7 +667,7 @@ pub fn main() !void {
         }
 
         try ui.drawText(
-            ">This will be a chat eventually...\n>More chat",
+            ">This will be a chat...\n>More chat",
             .{
                 .x = 2,
                 .y = hotbar_y - 4,

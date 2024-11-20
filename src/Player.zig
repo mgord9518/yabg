@@ -9,29 +9,15 @@ const Tile = @import("Tile.zig").Tile;
 const Direction = @import("enums.zig").Direction;
 const Animation = @import("enums.zig").Animation;
 const Game = @import("Game.zig");
+const Entity = @import("Entity.zig");
 
 const Player = @This();
 
 // The max speed at which the player is allowed to walk
 pub var walk_speed: f32 = 2;
 
-x: f32 = 0,
-y: f32 = 0,
-
-remaining_x: f32 = 0,
-remaining_y: f32 = 0,
-
-// Current speeds
-x_speed: f32 = 0,
-y_speed: f32 = 0,
-
-animation_texture: [5]rl.Texture,
-
-frame_num: u3 = 0,
-frame_sub: f32 = 0,
-
-animation: Animation = .idle,
-direction: Direction,
+entity: Entity,
+invintory: [6]?Game.Item,
 
 standing_on: Tile,
 
@@ -60,9 +46,14 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
     var player = Player{
         .save_path = save_path,
         .standing_on = Tile.init(.{ .id = .grass }),
-        .direction = .down,
-        .animation_texture = undefined,
+        .entity = .{
+            .direction = .down,
+            .animation_texture = undefined,
+        },
+        .invintory = .{null} ** 6,
     };
+
+    player.invintory[0] = .{ .value = .{ .tile = .stone }, .count = 12 };
 
     inline for (@as([4]Animation, .{
         .walk_up,
@@ -77,7 +68,7 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
         );
 
         const img = rl.loadImage(img_path.ptr);
-        player.animation_texture[@intFromEnum(animation)] = rl.loadTextureFromImage(img);
+        player.entity.animation_texture[@intFromEnum(animation)] = rl.loadTextureFromImage(img);
 
         allocator.free(img_path);
     }
@@ -109,9 +100,9 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 
     defer player_coords.deinit();
 
-    player.x = @floatFromInt(player_coords.value.x);
-    player.y = @floatFromInt(player_coords.value.y);
-    player.direction = player_coords.value.direction;
+    player.entity.x = @floatFromInt(player_coords.value.x);
+    player.entity.y = @floatFromInt(player_coords.value.y);
+    player.entity.direction = player_coords.value.direction;
 
     return player;
 }
@@ -138,9 +129,9 @@ pub fn save(player: *Player) !void {
 
     try std.json.stringify(
         PlayerJson{
-            .x = @intFromFloat(player.x),
-            .y = @intFromFloat(player.y),
-            .direction = player.direction,
+            .x = @intFromFloat(player.entity.x),
+            .y = @intFromFloat(player.entity.y),
+            .direction = player.entity.direction,
         },
         .{},
         fbs.writer(),
@@ -159,7 +150,7 @@ pub fn save(player: *Player) !void {
 }
 
 pub fn updateAnimation(self: *Player) void {
-    self.animation = switch (self.direction) {
+    self.entity.animation = switch (self.entity.direction) {
         .right => .walk_right,
         .left => .walk_left,
         .down => .walk_down,
@@ -170,15 +161,15 @@ pub fn updateAnimation(self: *Player) void {
 pub fn updatePlayerFrames(
     player: *Player,
 ) void {
-    if (player.remaining_x != 0 or player.remaining_y != 0) {
-        player.frame_sub += Game.tps * 0.4 * Game.delta;
+    if (player.entity.remaining_x != 0 or player.entity.remaining_y != 0) {
+        player.entity.frame_sub += Game.tps * 0.4 * Game.delta;
     }
 
-    if (player.frame_sub >= 1) {
-        player.frame_sub -= 1;
-        player.frame_num +%= 1;
+    if (player.entity.frame_sub >= 1) {
+        player.entity.frame_sub -= 1;
+        player.entity.frame_num +%= 1;
 
-        if (player.frame_num == 2 or player.frame_num == 6) {
+        if (player.entity.frame_num == 2 or player.entity.frame_num == 6) {
             rl.playSound(player.standing_on.sound());
         }
     }
@@ -188,14 +179,14 @@ pub fn updatePlayerFrames(
 // then loads new Game.chunks into their pointers
 // Not yet sure how robust this is
 pub fn reloadChunks(player: *Player) void {
-    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.x, Tile.size), Chunk.size)));
-    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.y, Tile.size), Chunk.size)));
+    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.x, Tile.size), Chunk.size)));
+    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.y, Tile.size), Chunk.size)));
 
-    if (player.x < 0) {
+    if (player.entity.x < 0) {
         chunk_x = chunk_x - 1;
     }
 
-    if (player.y < 0) {
+    if (player.entity.y < 0) {
         chunk_y = chunk_y - 1;
     }
 

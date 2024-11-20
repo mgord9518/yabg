@@ -18,6 +18,15 @@ const Vec = struct {
     y: u16,
 };
 
+pub const ItemType = union(enum) {
+    tile: Tile.Id,
+};
+
+pub const Item = struct {
+    value: ItemType,
+    count: u8,
+};
+
 pub var delta: f32 = 0;
 pub var screen_width: f32 = 0;
 pub var screen_height: f32 = 0;
@@ -35,7 +44,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 51,
+    .patch = 52,
 };
 
 pub var chunks: [9]Chunk = undefined;
@@ -116,6 +125,10 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
     // Disable exit on keypress
     rl.setExitKey(.key_null);
+}
+
+pub fn tileTexture(tile_id: Tile.Id) rl.Texture {
+    return tileTextures[@intFromEnum(tile_id)];
 }
 
 fn drawCharToImage(image: rl.Image, char: u21, pos: Vec) !void {
