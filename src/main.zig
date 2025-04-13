@@ -113,17 +113,17 @@ const PathBuilder = struct {
     }
 };
 
-fn loadTextureEmbedded(comptime image_path: []const u8) rl.Texture {
-    const image = rl.loadImageFromMemory(
+fn loadTextureEmbedded(comptime image_path: []const u8) !rl.Texture {
+    const image = try rl.loadImageFromMemory(
         ".png",
         @embedFile(image_path),
     );
 
-    return rl.loadTextureFromImage(image);
+    return try rl.loadTextureFromImage(image);
 }
 
-fn loadTextureFallback(img_path: [:0]const u8) rl.Texture2D {
-    const img = rl.loadImage(img_path.ptr);
+fn loadTextureFallback(img_path: [:0]const u8) !rl.Texture2D {
+    const img = try rl.loadImage(img_path);
     const data_maybe: ?*anyopaque = @ptrCast(img.data);
     if (data_maybe) |_| {
         return rl.loadTextureFromImage(img);
@@ -189,9 +189,10 @@ pub fn main() !void {
 
     var vanilla = PathBuilder.init(allocator, vanilla_dir);
 
-    const hotbar_item_texture = loadTextureFallback(vanilla.join("ui/hotbar_item.png"));
+    const hotbar_item_texture = try loadTextureFallback(vanilla.join("ui/hotbar_item.png"));
 
-    const menu_frame_texture = loadTextureFallback(vanilla.join("ui/menu.png"));
+    const menu_frame_texture = try loadTextureFallback(vanilla.join("ui/menu.png"));
+
 
     var settings = Menu{ .player = &player, .texture = menu_frame_texture };
 
@@ -235,13 +236,13 @@ pub fn main() !void {
         "stone",
         "water",
     }) |tile_name| {
-        var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+        var buf: [std.fs.max_path_bytes]u8 = undefined;
         const tile_id = std.meta.stringToEnum(
             Tile.Id,
             tile_name,
         ) orelse unreachable;
 
-        const tile_texture = loadTextureFallback(try std.fmt.bufPrintZ(
+        const tile_texture = try loadTextureFallback(try std.fmt.bufPrintZ(
             &buf,
             "{s}/tiles/{s}.png",
             .{
@@ -250,7 +251,7 @@ pub fn main() !void {
             },
         ));
 
-        const tile_sound = rl.loadSound(try std.fmt.bufPrintZ(
+        const tile_sound = try rl.loadSound(try std.fmt.bufPrintZ(
             &buf,
             "{s}/audio/{s}.wav",
             .{
@@ -307,11 +308,11 @@ pub fn main() !void {
 
         player.updateAnimation();
 
-        if (rl.isKeyPressed(.key_f3) or rl.isGamepadButtonPressed(0, .gamepad_button_middle_left)) {
+        if (rl.isKeyPressed(.f3) or rl.isGamepadButtonPressed(0, .middle_left)) {
             menu.enabled = !menu.enabled;
         }
 
-        if (rl.isKeyPressed(.key_escape) or rl.isGamepadButtonPressed(0, .gamepad_button_middle_right)) {
+        if (rl.isKeyPressed(.escape) or rl.isGamepadButtonPressed(0, .middle_right)) {
             settings.enabled = !settings.enabled;
         }
 
@@ -403,7 +404,7 @@ pub fn main() !void {
             player_tile_offset_y,
         );
 
-        if (rl.isKeyPressed(.key_period) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_left)) {
+        if (rl.isKeyPressed(.period) or rl.isGamepadButtonPressed(0, .right_face_left)) {
             rl.playSound(target_tile.sound());
 
             // Apply damage to tile, break olnce it hits 3
@@ -430,7 +431,7 @@ pub fn main() !void {
             }
         }
 
-        if (rl.isKeyPressed(.key_slash) or rl.isGamepadButtonPressed(0, .gamepad_button_right_face_down)) {
+        if (rl.isKeyPressed(.slash) or rl.isGamepadButtonPressed(0, .right_face_down)) {
             if (player.invintory[0].?.count > 0) {
                 const temp_tile = Tile.init(.{ .id = .stone });
 

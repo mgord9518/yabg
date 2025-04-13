@@ -10,7 +10,8 @@ pkgs.mkShell {
     libxkbcommon
     pulseaudio
     p7zip
-    #wayland
+    wayland
+    wayland-scanner
 
     psftools
   ];

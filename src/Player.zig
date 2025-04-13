@@ -32,7 +32,7 @@ const PlayerJson = struct {
 
 pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
     const cwd = std.fs.cwd();
-    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
 
     const exe_path = (try known_folders.getPath(allocator, .executable_dir)).?;
     const app_dir = try std.fs.path.joinZ(
@@ -67,8 +67,8 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
             .{ app_dir, @tagName(animation) },
         );
 
-        const img = rl.loadImage(img_path.ptr);
-        player.entity.animation_texture[@intFromEnum(animation)] = rl.loadTextureFromImage(img);
+        const img = try rl.loadImage(img_path);
+        player.entity.animation_texture[@intFromEnum(animation)] = try rl.loadTextureFromImage(img);
 
         allocator.free(img_path);
     }
@@ -110,7 +110,7 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 pub fn save(player: *Player) !void {
     const cwd = std.fs.cwd();
 
-    var buf: [std.fs.MAX_PATH_BYTES]u8 = undefined;
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
 
     const path = try std.fmt.bufPrint(
         &buf,
@@ -233,18 +233,18 @@ pub fn reloadChunks(player: *Player) void {
 pub fn inputVector(player: *Player) rl.Vector2 {
     _ = player;
 
-    if (rl.isKeyDown(.key_a)) {
+    if (rl.isKeyDown(.a)) {
         return .{ .x = -1, .y = 0 };
-    } else if (rl.isKeyDown(.key_d)) {
+    } else if (rl.isKeyDown(.d)) {
         return .{ .x = 1, .y = 0 };
-    } else if (rl.isKeyDown(.key_w)) {
+    } else if (rl.isKeyDown(.w)) {
         return .{ .x = 0, .y = -1 };
-    } else if (rl.isKeyDown(.key_s)) {
+    } else if (rl.isKeyDown(.s)) {
         return .{ .x = 0, .y = 1 };
     }
 
-    const axis_x = rl.getGamepadAxisMovement(0, @intFromEnum(rl.GamepadAxis.gamepad_axis_left_x));
-    const axis_y = rl.getGamepadAxisMovement(0, @intFromEnum(rl.GamepadAxis.gamepad_axis_left_y));
+    const axis_x = rl.getGamepadAxisMovement(0, .left_x);
+    const axis_y = rl.getGamepadAxisMovement(0, .left_y);
 
     const threashold = 0.25;
 

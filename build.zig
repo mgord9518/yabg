@@ -19,6 +19,8 @@ pub fn build(b: *std.Build) void {
     const raylib_dep = b.dependency("raylib", .{
         .target = target,
         .optimize = optimize,
+        .shared = true,
+        .linux_display_backend = .X11,
     });
 
     const known_folders_dep = b.dependency("known-folders", .{});

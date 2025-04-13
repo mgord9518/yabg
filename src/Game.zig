@@ -78,7 +78,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .window_resizable = true,
     });
 
-    rl.setTraceLogLevel(.log_debug);
+    rl.setTraceLogLevel(.debug);
     rl.initAudioDevice();
 
     rl.initWindow(w, h, title);
@@ -101,7 +101,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         // One extra pixel for the shadow
         .height = 8 + 1,
         .mipmaps = 1,
-        .format = .pixelformat_uncompressed_gray_alpha,
+        .format = .uncompressed_gray_alpha,
     };
 
     font = .{
@@ -121,10 +121,10 @@ pub fn init(allocator: std.mem.Allocator) !void {
         try font.glyph_offsets.put(key.*, off);
     }
 
-    font.atlas = rl.loadTextureFromImage(font_image);
+    font.atlas = try rl.loadTextureFromImage(font_image);
 
     // Disable exit on keypress
-    rl.setExitKey(.key_null);
+    rl.setExitKey(.null);
 }
 
 pub fn tileTexture(tile_id: Tile.Id) rl.Texture {

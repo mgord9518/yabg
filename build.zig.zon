@@ -1,5 +1,5 @@
 .{
-    .name = "yabg",
+    .name = .yabg,
     .version = "0.0.52",
 
     .paths = [][]const u8{
@@ -9,14 +9,16 @@
         "lib.zig",
     },
 
+    .fingerprint = 0xfa7b6cc348947ce5,
+
     .dependencies = .{
         .raylib = .{
-            .url = "git+https://github.com/Not-Nik/raylib-zig.git#c191e12e7c50e5dc2b1addd1e5dbd16bd405d2b5",
-            .hash = "12202f8c415153088be8df39a51e0a4c9d402afd403422a0dcc9afdd417e437a6fdb",
+            .url = "git+https://github.com/Not-Nik/raylib-zig.git#d6c77762cbdebbf56d3ff101142048dfae2496c4",
+            .hash = "raylib_zig-5.6.0-dev-KE8REBMyBQCnQ9RBhHsoSKr97XmDHF84wx3g0UiMRDxj",
         },
         .@"known-folders" = .{
-            .url = "git+https://github.com/ziglibs/known-folders.git#1cceeb70e77dec941a4178160ff6c8d05a74de6f",
-            .hash = "12205f5e7505c96573f6fc5144592ec38942fb0a326d692f9cddc0c7dd38f9028f29",
+            .url = "git+https://github.com/ziglibs/known-folders.git#aa24df42183ad415d10bc0a33e6238c437fc0f59",
+            .hash = "known_folders-0.0.0-Fy-PJtLDAADGDOwYwMkVydMSTp_aN-nfjCZw6qPQ2ECL",
         },
         .perlin = .{
             .url = "git+https://github.com/mgord9518/perlin-zig.git#73a69cdd2a42483a2138aed9725e61791d07b58d",
