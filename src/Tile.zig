@@ -3,7 +3,7 @@ const std = @import("std");
 const rl = @import("raylib");
 const enums = @import("enums.zig");
 const Direction = enums.Direction;
-const Game = @import("Game.zig");
+const Game = @import("engine/init.zig");
 
 pub const Tile = packed struct(u16) {
     pub const size = 12;
@@ -75,19 +75,19 @@ pub const Tile = packed struct(u16) {
         sand,
 
         // Logs, planks, bamboo
-        wood = 16,
+        //wood = 16,
 
         // Cobblestone, smooth stone, bricks, ore
         stone = 32,
 
-        metal = 48,
+        //metal = 48,
 
         // Computers, wires, machines
-        electronic = 64,
+        //electronic = 64,
 
         water = 80,
 
-        misc = 240,
+        //misc = 240,
 
         // Tile dedicated to the `placeholder` texture
         placeholder = 255,

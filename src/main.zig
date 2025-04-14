@@ -6,9 +6,9 @@ const known_folders = @import("known-folders");
 const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Player = @import("Player.zig");
-const Game = @import("Game.zig");
+const engine = @import("engine/init.zig");
 
-const ui = @import("ui.zig");
+const ui = engine.ui;
 
 const ChatLog = struct {
     text: std.ArrayList(u8),
@@ -27,8 +27,8 @@ const Menu = struct {
         _ = allocator;
 
         const pos = rl.Vector2{
-            .x = Game.scale * @divTrunc(Game.screen_width, 2) - 64 * Game.scale + menu.x * Game.scale,
-            .y = Game.scale * @divTrunc(Game.screen_height, 2) - 64 * Game.scale + menu.y * Game.scale,
+            .x = engine.scale * @divTrunc(engine.screen_width, 2) - 64 * engine.scale + menu.x * engine.scale,
+            .y = engine.scale * @divTrunc(engine.screen_height, 2) - 64 * engine.scale + menu.y * engine.scale,
         };
 
         rl.drawTextureV(menu.texture, pos, rl.Color.white);
@@ -68,10 +68,10 @@ const DebugMenu = struct {
             \\Built with Zig {d}.{d}.{d}
         ,
             .{
-                Game.version.pre,
-                Game.version.major,
-                Game.version.minor,
-                Game.version.patch,
+                engine.version.pre,
+                engine.version.major,
+                engine.version.minor,
+                engine.version.patch,
                 try int2Dozenal(rl.getFPS(), allocator),
                 neg_x,
                 try int2Dozenal(@divTrunc(px, Tile.size), allocator),
@@ -113,15 +113,6 @@ const PathBuilder = struct {
     }
 };
 
-fn loadTextureEmbedded(comptime image_path: []const u8) !rl.Texture {
-    const image = try rl.loadImageFromMemory(
-        ".png",
-        @embedFile(image_path),
-    );
-
-    return try rl.loadTextureFromImage(image);
-}
-
 fn loadTextureFallback(img_path: [:0]const u8) !rl.Texture2D {
     const img = try rl.loadImage(img_path);
     const data_maybe: ?*anyopaque = @ptrCast(img.data);
@@ -129,7 +120,7 @@ fn loadTextureFallback(img_path: [:0]const u8) !rl.Texture2D {
         return rl.loadTextureFromImage(img);
     }
 
-    return loadTextureEmbedded("embedded_files/placeholder.png");
+    unreachable;
 }
 
 var target_x_distance: f32 = 0;
@@ -149,11 +140,11 @@ pub fn main() !void {
         &.{ exe_path, "../.." },
     );
 
-    const scale_i: i32 = @intFromFloat(Game.scale);
-    var width_i: u31 = @intFromFloat(Game.screen_width);
-    var height_i: u31 = @intFromFloat(Game.screen_height);
+    const scale_i: i32 = @intFromFloat(engine.scale);
+    var width_i: u31 = @intFromFloat(engine.screen_width);
+    var height_i: u31 = @intFromFloat(engine.screen_height);
 
-    try Game.init(allocator);
+    try engine.init(allocator);
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     Player.walk_speed = std.fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
@@ -164,7 +155,7 @@ pub fn main() !void {
         allocator,
         &.{
             data_dir,
-            Game.id,
+            engine.id,
             "saves",
             "DEVTEST",
         },
@@ -199,9 +190,7 @@ pub fn main() !void {
     // Create save directory if it doesn't already exist
     const cwd = std.fs.cwd();
     cwd.makePath(save_path) catch |err| {
-        if (err != error.PathAlreadyExists) {
-            std.debug.print("Error creating save directory: {}", .{err});
-        }
+        std.debug.print("Error creating save directory: {}", .{err});
     };
 
     var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.x, Tile.size), Chunk.size)));
@@ -222,46 +211,10 @@ pub fn main() !void {
     var it: usize = 0;
     while (x_it <= chunk_x + 1) : (x_it += 1) {
         while (y_it <= chunk_y + 1) : (y_it += 1) {
-            Game.chunks[it] = try Chunk.load(save_path, "vanilla0", x_it, y_it);
+            engine.chunks[it] = try Chunk.load(save_path, "vanilla0", x_it, y_it);
             it += 1;
         }
         y_it = chunk_y - 1;
-    }
-
-    inline for (.{
-        "placeholder",
-        "grass",
-        "dirt",
-        "sand",
-        "stone",
-        "water",
-    }) |tile_name| {
-        var buf: [std.fs.max_path_bytes]u8 = undefined;
-        const tile_id = std.meta.stringToEnum(
-            Tile.Id,
-            tile_name,
-        ) orelse unreachable;
-
-        const tile_texture = try loadTextureFallback(try std.fmt.bufPrintZ(
-            &buf,
-            "{s}/tiles/{s}.png",
-            .{
-                vanilla_dir,
-                tile_name,
-            },
-        ));
-
-        const tile_sound = try rl.loadSound(try std.fmt.bufPrintZ(
-            &buf,
-            "{s}/audio/{s}.wav",
-            .{
-                vanilla_dir,
-                tile_name,
-            },
-        ));
-
-        Tile.setTexture(tile_id, tile_texture);
-        Tile.setSound(tile_id, tile_sound);
     }
 
     // Main game loop
@@ -275,20 +228,20 @@ pub fn main() !void {
             continue;
         }
 
-        Game.delta = rl.getFrameTime();
+        engine.delta = rl.getFrameTime();
 
-        Game.screen_width = @divTrunc(
+        engine.screen_width = @divTrunc(
             @as(f32, @floatFromInt(rl.getScreenWidth())),
-            Game.scale,
+            engine.scale,
         );
 
-        Game.screen_height = @divTrunc(
+        engine.screen_height = @divTrunc(
             @as(f32, @floatFromInt(rl.getScreenHeight())),
-            Game.scale,
+            engine.scale,
         );
 
-        width_i = @intFromFloat(Game.screen_width);
-        height_i = @intFromFloat(Game.screen_height);
+        width_i = @intFromFloat(engine.screen_width);
+        height_i = @intFromFloat(engine.screen_height);
 
         player.updatePlayerFrames();
         player.reloadChunks();
@@ -316,36 +269,28 @@ pub fn main() !void {
             settings.enabled = !settings.enabled;
         }
 
-        const player_x_i: i32 = @intFromFloat(player.entity.x * Game.scale);
-        const player_y_i: i32 = @intFromFloat(player.entity.y * Game.scale);
+        const player_x_i: i32 = @intFromFloat(player.entity.x * engine.scale);
+        const player_y_i: i32 = @intFromFloat(player.entity.y * engine.scale);
 
         var player_mod_x: i32 = @mod(player_x_i, Tile.size * scale_i);
         var player_mod_y: i32 = @mod(player_y_i, Tile.size * scale_i);
-
-        if (player.entity.y < 0 and player_mod_y == 0) {
-            player_mod_y = Tile.size * scale_i;
-        }
-
-        if (player.entity.x < 0 and player_mod_x == 0) {
-            player_mod_x = Tile.size * scale_i;
-        }
 
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 16 eg:
         // active resizing
         const screen_mod_x: i32 = @intFromFloat(
-            @mod(@divTrunc(Game.screen_width, 2), Tile.size),
+            @mod(@divTrunc(engine.screen_width, 2), Tile.size),
         );
 
         const screen_mod_y: i32 = @intFromFloat(
-            @mod(@divTrunc(Game.screen_height, 2), Tile.size),
+            @mod(@divTrunc(engine.screen_height, 2), Tile.size),
         );
 
         const player_rect = rl.Rectangle{
-            .x = @divTrunc(Game.screen_width * Game.scale, 2) - 6 * Game.scale,
-            .y = @divTrunc(Game.screen_height * Game.scale, 2) + 6 * Game.scale,
-            .width = 11 * Game.scale,
-            .height = 11 * Game.scale,
+            .x = @divTrunc(engine.screen_width * engine.scale, 2) - 6 * engine.scale,
+            .y = @divTrunc(engine.screen_height * engine.scale, 2) + 6 * engine.scale,
+            .width = 11 * engine.scale,
+            .height = 11 * engine.scale,
         };
 
         // Player collision rectangle
@@ -367,13 +312,13 @@ pub fn main() !void {
         var player_tile_offset_y: u16 = @intCast(@mod(player_coordinate_y, Chunk.size));
 
         // Middle chunk
-        var target_chunk = &Game.chunks[4];
+        var target_chunk = &engine.chunks[4];
 
         if (player_tile_offset_x == 0 and player.entity.direction == .left) {
-            target_chunk = &Game.chunks[3];
+            target_chunk = &engine.chunks[3];
             player_tile_offset_x = Chunk.size;
         } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
-            target_chunk = &Game.chunks[1];
+            target_chunk = &engine.chunks[1];
             player_tile_offset_y = Chunk.size;
         }
 
@@ -385,10 +330,10 @@ pub fn main() !void {
         }
 
         if (player_tile_offset_x == Chunk.size and player.entity.direction == .right) {
-            target_chunk = &Game.chunks[5];
+            target_chunk = &engine.chunks[5];
             player_tile_offset_x = 0;
         } else if (player_tile_offset_y == Chunk.size and player.entity.direction == .down) {
-            target_chunk = &Game.chunks[7];
+            target_chunk = &engine.chunks[7];
             player_tile_offset_y = 0;
         }
 
@@ -460,7 +405,7 @@ pub fn main() !void {
         }
 
         if (player.entity.direction == .right and player.entity.remaining_x > 0 or player.entity.direction == .left and player.entity.remaining_x < 0) {
-            player.entity.x_speed = Game.tps * Player.walk_speed * Game.delta;
+            player.entity.x_speed = engine.tps * Player.walk_speed * engine.delta;
             if (player.entity.direction == .left) player.entity.x_speed = -player.entity.x_speed;
 
             player.entity.remaining_x -= player.entity.x_speed;
@@ -471,7 +416,7 @@ pub fn main() !void {
         }
 
         if (player.entity.direction == .down and player.entity.remaining_y > 0 or player.entity.direction == .up and player.entity.remaining_y < 0) {
-            player.entity.y_speed = Game.tps * Player.walk_speed * Game.delta;
+            player.entity.y_speed = engine.tps * Player.walk_speed * engine.delta;
             if (player.entity.direction == .up) player.entity.y_speed = -player.entity.y_speed;
 
             player.entity.remaining_y -= player.entity.y_speed;
@@ -501,14 +446,6 @@ pub fn main() !void {
         player_mod_x = @mod(px, Tile.size);
         player_mod_y = @mod(py, Tile.size);
 
-        if (player.entity.y < 0 and player_mod_y == 0) {
-            //player_mod_y = Tile.size;
-        }
-
-        if (player.entity.x < 0 and player_mod_x == 0) {
-            player_mod_x = Tile.size;
-        }
-
         rl.beginDrawing();
 
         rl.clearBackground(rl.Color.black);
@@ -521,7 +458,7 @@ pub fn main() !void {
         while (y * Tile.size <= height_i) : (y += 1) {
             x = -1;
             while (x * Tile.size <= width_i + Tile.size) : (x += 1) {
-                for (&Game.chunks) |*chnk| {
+                for (&engine.chunks) |*chnk| {
                     const y_pos: f32 = @floatFromInt(y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
                     const screen_width_in_tiles = width_i / (Tile.size * 2);
@@ -538,7 +475,7 @@ pub fn main() !void {
 
                     if (tile_x + tile_y < 0 or tile_x + tile_y > Chunk.size * Chunk.size) continue;
 
-                    // Only loop through the first half of chunk Game.tiles (floor level)
+                    // Only loop through the first half of chunk engine.tiles (floor level)
                     // If wall level tile exists, draw it instead
                     switch (chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).id) {
                         .air => {
@@ -550,7 +487,7 @@ pub fn main() !void {
                             }, rl.Color.light_gray);
                         },
                         else => {
-                            if (y_pos >= Game.screen_height * Game.scale / 2) continue;
+                            if (y_pos >= engine.screen_height * engine.scale / 2) continue;
 
                             const tile = chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y));
 
@@ -575,23 +512,23 @@ pub fn main() !void {
             },
             .{
                 .x = @intFromFloat(
-                    (Game.screen_width / 2) - 5,
+                    (engine.screen_width / 2) - 5,
                 ),
                 .y = @intFromFloat(
-                    (Game.screen_height / 2) - 10,
+                    (engine.screen_height / 2) - 10,
                 ),
             },
             rl.Color.white,
         );
 
-        // Now draw all raised Game.tiles that sit above the player in front to give
+        // Now draw all raised engine.tiles that sit above the player in front to give
         // an illusion of depth
         x = -1;
         y = -3;
         while (y * Tile.size <= height_i) : (y += 1) {
             x = -1;
             while (x * Tile.size <= width_i + Tile.size) : (x += 1) {
-                for (&Game.chunks) |*chnk| {
+                for (&engine.chunks) |*chnk| {
                     const y_pos: f32 = @floatFromInt(y * Tile.size * scale_i - player_mod_y + screen_mod_y + 12 * scale_i);
 
                     const screen_width_in_tiles = width_i / (Tile.size * 2);
@@ -608,10 +545,10 @@ pub fn main() !void {
 
                     if (tile_x + tile_y < 0 or tile_x + tile_y > Chunk.size * Chunk.size) continue;
 
-                    // Only draw raised Game.tiles
+                    // Only draw raised engine.tiles
                     if (chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).id == .air) continue;
 
-                    if (y_pos >= Game.screen_height * Game.scale / 2) {
+                    if (y_pos >= engine.screen_height * engine.scale / 2) {
                         const tile = chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y));
 
                         drawTexture(tile.texture(), .{
@@ -637,7 +574,7 @@ pub fn main() !void {
 
             if (player.invintory[i]) |item| {
                 drawTextureRect(
-                    Game.tileTexture(item.value.tile),
+                    engine.tileTexture(item.value.tile),
                     .{ .x = 0, .y = 0, .w = 12, .h = 12 },
                     .{ .x = hotbar_x + 2, .y = hotbar_y + 2 },
                     rl.Color.white,
@@ -679,7 +616,7 @@ pub fn main() !void {
         rl.endDrawing();
     }
 
-    for (Game.chunks) |chunk| {
+    for (engine.chunks) |chunk| {
         try chunk.save(player.save_path, "vanilla0");
     }
 
@@ -698,10 +635,10 @@ fn mainMenuLoop(allocator: std.mem.Allocator) !void {
 
     try ui.drawText(
         try std.fmt.allocPrint(arena, "YABG {?s} {d}.{d}.{d}", .{
-            Game.version.pre,
-            Game.version.major,
-            Game.version.minor,
-            Game.version.patch,
+            engine.version.pre,
+            engine.version.major,
+            engine.version.minor,
+            engine.version.patch,
         }),
         .{ .x = 2, .y = 2 },
         rl.Color.white,
@@ -716,11 +653,11 @@ fn drawTexture(texture: rl.Texture, pos: ui.NewVec, tint: rl.Color) void {
     rl.drawTextureEx(
         texture,
         .{
-            .x = @as(f32, @floatFromInt(pos.x)) * Game.scale,
-            .y = @as(f32, @floatFromInt(pos.y)) * Game.scale,
+            .x = @as(f32, @floatFromInt(pos.x)) * engine.scale,
+            .y = @as(f32, @floatFromInt(pos.y)) * engine.scale,
         },
         0,
-        Game.scale,
+        engine.scale,
         tint,
     );
 }
@@ -735,10 +672,10 @@ fn drawTextureRect(texture: rl.Texture, rect: ui.Rectangle, pos: ui.NewVec, tint
             .height = @as(f32, @floatFromInt(rect.h)),
         },
         .{
-            .x = @as(f32, @floatFromInt(pos.x)) * Game.scale,
-            .y = @as(f32, @floatFromInt(pos.y)) * Game.scale,
-            .width = @as(f32, @floatFromInt(rect.w)) * Game.scale,
-            .height = @as(f32, @floatFromInt(rect.h)) * Game.scale,
+            .x = @as(f32, @floatFromInt(pos.x)) * engine.scale,
+            .y = @as(f32, @floatFromInt(pos.y)) * engine.scale,
+            .width = @as(f32, @floatFromInt(rect.w)) * engine.scale,
+            .height = @as(f32, @floatFromInt(rect.h)) * engine.scale,
         },
         .{ .x = 0, .y = 0 },
         0,

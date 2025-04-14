@@ -1,6 +1,5 @@
 const rl = @import("raylib");
 const std = @import("std");
-const os = std.os;
 
 const known_folders = @import("known-folders");
 
@@ -8,7 +7,8 @@ const Chunk = @import("Chunk.zig");
 const Tile = @import("Tile.zig").Tile;
 const Direction = @import("enums.zig").Direction;
 const Animation = @import("enums.zig").Animation;
-const Game = @import("Game.zig");
+const engine = @import("engine/init.zig");
+const Game = engine;
 const Entity = @import("Entity.zig");
 
 const Player = @This();
@@ -55,22 +55,10 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 
     player.invintory[0] = .{ .value = .{ .tile = .stone }, .count = 12 };
 
-    inline for (@as([4]Animation, .{
-        .walk_up,
-        .walk_down,
-        .walk_left,
-        .walk_right,
-    })) |animation| {
-        const img_path = try std.fmt.allocPrintZ(
-            allocator,
-            "{s}/usr/share/io.github.mgord9518.yabg/vanilla/vanilla/entities/players/player_{s}.png",
-            .{ app_dir, @tagName(animation) },
-        );
+    inline for (std.meta.fields(Animation)) |animation| {
+        const animation_texture = engine.loadTextureEmbedded("entities/player_" ++ animation.name);
 
-        const img = try rl.loadImage(img_path);
-        player.entity.animation_texture[@intFromEnum(animation)] = try rl.loadTextureFromImage(img);
-
-        allocator.free(img_path);
+        player.entity.animation_texture[animation.value] = animation_texture;
     }
 
     // TODO: Allow saving more than one player

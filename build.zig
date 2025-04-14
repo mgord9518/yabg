@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .shared = true,
+        // TODO: fix Wayland hidpi scaling in game
         .linux_display_backend = .X11,
     });
 

@@ -1,12 +1,16 @@
 // This file exists to share variables over all areas of the game
 
+pub const ui = @import("ui.zig");
+
 const std = @import("std");
 const rl = @import("raylib");
-const Chunk = @import("Chunk.zig");
-const Tile = @import("Tile.zig").Tile;
-const Player = @import("Player.zig");
+const Chunk = @import("../Chunk.zig");
+const Tile = @import("../Tile.zig").Tile;
+const Player = @import("../Player.zig");
 
 const psf = @import("psf.zig");
+
+const known_folders = @import("known-folders");
 
 const Font = struct {
     atlas: rl.Texture,
@@ -58,6 +62,9 @@ pub fn init(allocator: std.mem.Allocator) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
 
+    var initialization_arena = std.heap.ArenaAllocator.init(allocator);
+    defer initialization_arena.deinit();
+
     // Get enviornment variables and set window size to them if they exist
     const w_env: []const u8 = env_map.get("WINDOW_WIDTH") orelse "";
     const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
@@ -76,6 +83,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
     rl.setConfigFlags(.{
         .vsync_hint = true,
         .window_resizable = true,
+        //.window_highdpi= true,
     });
 
     rl.setTraceLogLevel(.debug);
@@ -123,8 +131,42 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
     font.atlas = try rl.loadTextureFromImage(font_image);
 
+    inline for (std.meta.fields(Tile.Id)) |tile| {
+        const tile_id: Tile.Id = @enumFromInt(tile.value);
+        // Exceptions
+        switch (tile_id) {
+            .air => continue,
+            else => {},
+        }
+
+        const tile_texture = loadTextureEmbedded("tiles/" ++ tile.name);
+
+        const tile_sound = loadSoundEmbedded("tiles/" ++ tile.name);
+
+        Tile.setTexture(tile_id, tile_texture);
+        Tile.setSound(tile_id, tile_sound);
+    }
+
     // Disable exit on keypress
     rl.setExitKey(.null);
+}
+
+pub fn loadTextureEmbedded(comptime path: []const u8) rl.Texture {
+    const image = rl.loadImageFromMemory(
+        ".png",
+        @embedFile("textures/" ++ path ++ ".png"),
+    ) catch unreachable;
+
+    return rl.loadTextureFromImage(image) catch unreachable;
+}
+
+pub fn loadSoundEmbedded(comptime path: []const u8) rl.Sound {
+    const wave = rl.loadWaveFromMemory(
+        ".wav",
+        @embedFile("sounds/" ++ path ++ ".wav"),
+    ) catch unreachable;
+
+    return rl.loadSoundFromWave(wave);
 }
 
 pub fn tileTexture(tile_id: Tile.Id) rl.Texture {

@@ -1,5 +1,5 @@
 const std = @import("std");
-const Game = @import("Game.zig");
+const engine = @import("init.zig");
 const rl = @import("raylib");
 
 pub const NewVec = struct {
@@ -30,23 +30,23 @@ pub fn drawText(
     while (it.nextCodepoint()) |codepoint| {
         if (codepoint == '\n') {
             x_off = 0;
-            line_offset += font_size * Game.scale;
+            line_offset += font_size * engine.scale;
             continue;
         }
 
         rl.drawTexturePro(
-            Game.font.atlas,
+            engine.font.atlas,
             .{
-                .x = @floatFromInt(Game.font.glyph_offsets.get(codepoint) orelse 0),
+                .x = @floatFromInt(engine.font.glyph_offsets.get(codepoint) orelse 0),
                 .y = 0,
                 .width = 4 + 1,
                 .height = 8 + 1,
             },
             .{
-                .x = (@as(f32, @floatFromInt(coords.x)) + x_off) * Game.scale,
-                .y = @as(f32, @floatFromInt(coords.y)) * Game.scale + line_offset,
-                .width = (4 + 1) * Game.scale,
-                .height = (8 + 1) * Game.scale,
+                .x = (@as(f32, @floatFromInt(coords.x)) + x_off) * engine.scale,
+                .y = @as(f32, @floatFromInt(coords.y)) * engine.scale + line_offset,
+                .width = (4 + 1) * engine.scale,
+                .height = (8 + 1) * engine.scale,
             },
             .{
                 .x = 0,
@@ -69,12 +69,12 @@ pub fn button(label: []const u8, rectangle: Rectangle) !void {
 
     rl.drawRectangleLinesEx(
         .{
-            .x = @as(f32, @floatFromInt(rectangle.x)) * Game.scale,
-            .y = @as(f32, @floatFromInt(rectangle.y)) * Game.scale,
-            .width = @as(f32, @floatFromInt(rectangle.w)) * Game.scale,
-            .height = @as(f32, @floatFromInt(rectangle.h)) * Game.scale,
+            .x = @as(f32, @floatFromInt(rectangle.x)) * engine.scale,
+            .y = @as(f32, @floatFromInt(rectangle.y)) * engine.scale,
+            .width = @as(f32, @floatFromInt(rectangle.w)) * engine.scale,
+            .height = @as(f32, @floatFromInt(rectangle.h)) * engine.scale,
         },
-        Game.scale,
+        engine.scale,
         rl.Color.red,
     );
 }
