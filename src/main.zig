@@ -270,28 +270,28 @@ pub fn main() !void {
         var player_tile_offset_y: u16 = @intCast(@mod(player_coordinate_y, Chunk.size));
 
         // Middle chunk
-        var target_chunk = &engine.chunks[4];
+        var target_chunk_num: usize = 4;
 
         // Find chunk player is looking at
         if (player_tile_offset_x == 0 and player.entity.direction == .left ) {
             if (player.entity.x >= 0) {
-                target_chunk = &engine.chunks[3];
+                target_chunk_num -= 1;
             }
 
             player_tile_offset_x = Chunk.size;
         } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
             if (player.entity.y >= 0) {
-                target_chunk = &engine.chunks[1];
+                target_chunk_num -= 3;
             }
 
             player_tile_offset_y = Chunk.size;
         } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
             if (player.entity.x < 0) {
-                target_chunk = &engine.chunks[5];
+                target_chunk_num += 1;
             }
         } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
             if (player.entity.y < 0) {
-                target_chunk = &engine.chunks[7];
+                target_chunk_num += 3;
             }
         }
 
@@ -303,26 +303,32 @@ pub fn main() !void {
         }
 
         if (player_tile_offset_x == Chunk.size and player.entity.direction == .right) {
-            target_chunk = &engine.chunks[5];
+            target_chunk_num = 5;
 
             player_tile_offset_x = 0;
         } else if (player_tile_offset_y == Chunk.size and player.entity.direction == .down) {
-            target_chunk = &engine.chunks[7];
+            target_chunk_num = 7;
 
             player_tile_offset_y = 0;
-        } else if (player_tile_offset_x == 0) {
+        }
+
+        if (player_tile_offset_x == 0) {
             if (player.entity.direction == .down or player.entity.direction == .up) {
                 if (player.entity.x < 0) {
-                    target_chunk = &engine.chunks[5];
-                }
-            }
-        } else if (player_tile_offset_y == 0) {
-            if (player.entity.direction == .left or player.entity.direction == .right) {
-                if (player.entity.y < 0) {
-                    target_chunk = &engine.chunks[7];
+                    target_chunk_num += 1;
                 }
             }
         }
+
+        if (player_tile_offset_y == 0) {
+            if (player.entity.direction == .left or player.entity.direction == .right) {
+                if (player.entity.y < 0) {
+                    target_chunk_num += 3;
+                }
+            }
+        }
+
+        const target_chunk = &engine.chunks[target_chunk_num];
 
         std.debug.print("off {d} {d}\n", .{player_tile_offset_x, player_tile_offset_y});
 

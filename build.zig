@@ -5,8 +5,6 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const pie = b.option(bool, "pie", "do not build as a PIE (position independent executable) on Linux systems") orelse true;
-
     const exe = b.addExecutable(.{
         .name = "yabg",
         .root_source_file = b.path("src/main.zig"),
@@ -21,7 +19,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .shared = true,
         // TODO: fix Wayland hidpi scaling in game
-        .linux_display_backend = .X11,
+        //.linux_display_backend = .X11,
     });
 
     const known_folders_dep = b.dependency("known-folders", .{});
@@ -34,10 +32,6 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("raylib", raylib);
     exe.root_module.addImport("known-folders", known_folders_dep.module("known-folders"));
     exe.root_module.addImport("perlin", perlin_dep.module("perlin"));
-
-    if (target.result.os.tag == .linux) {
-        exe.pie = pie;
-    }
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

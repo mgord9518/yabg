@@ -16,7 +16,7 @@ jobs:
     - name: Install deps
       run: |
         sudo apt update
-        sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev zip
+        sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev libwayland-dev zip
 
     - name: Build
       run: ./resources/build.sh
