@@ -17,7 +17,7 @@ const Player = @This();
 pub var walk_speed: f32 = 2;
 
 entity: Entity,
-invintory: [6]?Game.Item,
+inventory: [6]?Game.Item,
 
 standing_on: Tile,
 
@@ -50,10 +50,10 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
             .direction = .down,
             .animation_texture = undefined,
         },
-        .invintory = .{null} ** 6,
+        .inventory = .{null} ** 6,
     };
 
-    player.invintory[0] = .{ .value = .{ .tile = .stone }, .count = 12 };
+    player.inventory[0] = .{ .value = .{ .tile = .stone }, .count = 12 };
 
     inline for (std.meta.fields(Animation)) |animation| {
         const animation_texture = engine.loadTextureEmbedded("entities/player_" ++ animation.name);

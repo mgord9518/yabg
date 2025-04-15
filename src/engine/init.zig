@@ -34,8 +34,8 @@ pub const Item = struct {
 pub var delta: f32 = 0;
 pub var screen_width: f32 = 0;
 pub var screen_height: f32 = 0;
-pub const tps = 30;
-pub var scale: f32 = 6;
+pub const tps = 24;
+pub var scale: f32 = 4;
 pub const title = "Yet Another Block Game (YABG)";
 pub const id = "io.github.mgord9518.yabg";
 
@@ -48,7 +48,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 52,
+    .patch = 54,
 };
 
 pub var chunks: [9]Chunk = undefined;
@@ -90,6 +90,8 @@ pub fn init(allocator: std.mem.Allocator) !void {
     rl.initAudioDevice();
 
     rl.initWindow(w, h, title);
+    rl.setWindowMinSize(128 * scale_i, 128 * scale_i);
+    rl.setWindowSize(160 * scale_i, 144 * scale_i);
 
     psf_font = try psf.Font.parse(allocator, font_data);
 
@@ -97,13 +99,11 @@ pub fn init(allocator: std.mem.Allocator) !void {
 
     @memset(data, 0);
 
-    //defer allocator.free(data);
-
     const font_image = rl.Image{
         .data = data.ptr,
 
         // Room for 1024 characters
-        // This should be expanded in the future if needed
+        // Should be expanded in the future as needed
         .width = 1024 * 4 + 1,
 
         // One extra pixel for the shadow

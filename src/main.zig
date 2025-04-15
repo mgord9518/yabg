@@ -43,17 +43,15 @@ const DebugMenu = struct {
     player: *Player,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
-        const neg_x = if (menu.player.entity.x < 0) "-" else " ";
-        const neg_y = if (menu.player.entity.y < 0) "-" else " ";
+        var x_num: i32 = @intFromFloat(@divTrunc(menu.player.entity.x + (Tile.size / 2), Tile.size));
+        var y_num: i32 = @intFromFloat(@divTrunc(menu.player.entity.y + (Tile.size / 2), Tile.size));
 
-        var px: i32 = @intFromFloat(menu.player.entity.x);
-        if (px < 0) {
-            px *= -1;
+        if (menu.player.entity.x < 0) {
+            x_num = @intFromFloat(@divTrunc(menu.player.entity.x - (Tile.size / 2), Tile.size));
         }
 
-        var py: i32 = @intFromFloat(menu.player.entity.y);
-        if (py < 0) {
-            py *= -1;
+        if (menu.player.entity.y < 0) {
+            y_num = @intFromFloat(@divTrunc(menu.player.entity.y - (Tile.size / 2), Tile.size));
         }
 
         // Print debug menu
@@ -62,8 +60,8 @@ const DebugMenu = struct {
             \\YABG {?s} {d}.{d}.{d}
             \\FPS: {s}; (vsync)
             \\
-            \\X:{s}{s}
-            \\Y:{s}{s}
+            \\X:{d:>3}
+            \\Y:{d:>3}
             \\
             \\Built with Zig {d}.{d}.{d}
         ,
@@ -73,10 +71,8 @@ const DebugMenu = struct {
                 engine.version.minor,
                 engine.version.patch,
                 try int2Dozenal(rl.getFPS(), allocator),
-                neg_x,
-                try int2Dozenal(@divTrunc(px, Tile.size), allocator),
-                neg_y,
-                try int2Dozenal(@divTrunc(py, Tile.size), allocator),
+                x_num,
+                y_num,
                 builtin.zig_version.major,
                 builtin.zig_version.minor,
                 builtin.zig_version.patch,
@@ -133,13 +129,6 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    const exe_path = (try known_folders.getPath(allocator, .executable_dir)).?;
-
-    const app_dir = try std.fs.path.joinZ(
-        initialization_arena.allocator(),
-        &.{ exe_path, "../.." },
-    );
-
     const scale_i: i32 = @intFromFloat(engine.scale);
     var width_i: u31 = @intFromFloat(engine.screen_width);
     var height_i: u31 = @intFromFloat(engine.screen_height);
@@ -161,31 +150,14 @@ pub fn main() !void {
         },
     );
 
-    const vanilla_dir = try std.fs.path.joinZ(
-        allocator,
-        &.{
-            app_dir,
-            "usr",
-            "share",
-            "io.github.mgord9518.yabg",
-            "vanilla",
-            "vanilla",
-        },
-    );
-
     var player = try Player.init(allocator, save_path);
     var menu = DebugMenu{ .player = &player };
 
     menu.enabled = env_map.get("DEBUG_MODE") != null;
 
-    var vanilla = PathBuilder.init(allocator, vanilla_dir);
+    const hotbar_item_texture = engine.loadTextureEmbedded("ui/hotbar_item");
 
-    const hotbar_item_texture = try loadTextureFallback(vanilla.join("ui/hotbar_item.png"));
-
-    const menu_frame_texture = try loadTextureFallback(vanilla.join("ui/menu.png"));
-
-
-    var settings = Menu{ .player = &player, .texture = menu_frame_texture };
+    //var settings = Menu{ .player = &player, .texture = menu_frame_texture };
 
     // Create save directory if it doesn't already exist
     const cwd = std.fs.cwd();
@@ -257,16 +229,12 @@ pub fn main() !void {
             player.entity.direction = .down;
         } else if (input_vec.y < 0) {
             player.entity.direction = .up;
-        } else {}
+        }
 
         player.updateAnimation();
 
         if (rl.isKeyPressed(.f3) or rl.isGamepadButtonPressed(0, .middle_left)) {
             menu.enabled = !menu.enabled;
-        }
-
-        if (rl.isKeyPressed(.escape) or rl.isGamepadButtonPressed(0, .middle_right)) {
-            settings.enabled = !settings.enabled;
         }
 
         const player_x_i: i32 = @intFromFloat(player.entity.x * engine.scale);
@@ -286,27 +254,17 @@ pub fn main() !void {
             @mod(@divTrunc(engine.screen_height, 2), Tile.size),
         );
 
-        const player_rect = rl.Rectangle{
-            .x = @divTrunc(engine.screen_width * engine.scale, 2) - 6 * engine.scale,
-            .y = @divTrunc(engine.screen_height * engine.scale, 2) + 6 * engine.scale,
-            .width = 11 * engine.scale,
-            .height = 11 * engine.scale,
-        };
-
-        // Player collision rectangle
-        const player_collision = rl.Rectangle{
-            .x = 0,
-            .y = 0,
-            .width = 0,
-            .height = 0,
-        };
-
         // Collision detection
         var player_coordinate_x: i32 = @intFromFloat(@divTrunc(player.entity.x + (Tile.size / 2), Tile.size));
         var player_coordinate_y: i32 = @intFromFloat(@divTrunc(player.entity.y + (Tile.size / 2), Tile.size));
 
-        if (player.entity.x < 0) player_coordinate_x -= 1;
-        if (player.entity.y < 0) player_coordinate_y -= 1;
+        if (player.entity.x < 0) {
+            player_coordinate_x = @intFromFloat(@divTrunc(player.entity.x - (Tile.size / 2), Tile.size));
+        }
+
+        if (player.entity.y < 0) {
+            player_coordinate_y = @intFromFloat(@divTrunc(player.entity.y - (Tile.size / 2), Tile.size));
+        }
 
         var player_tile_offset_x: u16 = @intCast(@mod(player_coordinate_x, Chunk.size));
         var player_tile_offset_y: u16 = @intCast(@mod(player_coordinate_y, Chunk.size));
@@ -314,12 +272,27 @@ pub fn main() !void {
         // Middle chunk
         var target_chunk = &engine.chunks[4];
 
-        if (player_tile_offset_x == 0 and player.entity.direction == .left) {
-            target_chunk = &engine.chunks[3];
+        // Find chunk player is looking at
+        if (player_tile_offset_x == 0 and player.entity.direction == .left ) {
+            if (player.entity.x >= 0) {
+                target_chunk = &engine.chunks[3];
+            }
+
             player_tile_offset_x = Chunk.size;
         } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
-            target_chunk = &engine.chunks[1];
+            if (player.entity.y >= 0) {
+                target_chunk = &engine.chunks[1];
+            }
+
             player_tile_offset_y = Chunk.size;
+        } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
+            if (player.entity.x < 0) {
+                target_chunk = &engine.chunks[5];
+            }
+        } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
+            if (player.entity.y < 0) {
+                target_chunk = &engine.chunks[7];
+            }
         }
 
         switch (player.entity.direction) {
@@ -331,11 +304,27 @@ pub fn main() !void {
 
         if (player_tile_offset_x == Chunk.size and player.entity.direction == .right) {
             target_chunk = &engine.chunks[5];
+
             player_tile_offset_x = 0;
         } else if (player_tile_offset_y == Chunk.size and player.entity.direction == .down) {
             target_chunk = &engine.chunks[7];
+
             player_tile_offset_y = 0;
+        } else if (player_tile_offset_x == 0) {
+            if (player.entity.direction == .down or player.entity.direction == .up) {
+                if (player.entity.x < 0) {
+                    target_chunk = &engine.chunks[5];
+                }
+            }
+        } else if (player_tile_offset_y == 0) {
+            if (player.entity.direction == .left or player.entity.direction == .right) {
+                if (player.entity.y < 0) {
+                    target_chunk = &engine.chunks[7];
+                }
+            }
         }
+
+        std.debug.print("off {d} {d}\n", .{player_tile_offset_x, player_tile_offset_y});
 
         var target_tile = target_chunk.tileNew(
             .wall,
@@ -363,7 +352,7 @@ pub fn main() !void {
                         .direction = .down,
                     };
 
-                    player.invintory[0].?.count += 1;
+                    player.inventory[0].?.count += 1;
                 },
 
                 else => {
@@ -376,18 +365,26 @@ pub fn main() !void {
             }
         }
 
-        if (rl.isKeyPressed(.slash) or rl.isGamepadButtonPressed(0, .right_face_down)) {
-            if (player.invintory[0].?.count > 0) {
-                const temp_tile = Tile.init(.{ .id = .stone });
+        if (
+            (rl.isKeyPressed(.slash) or rl.isGamepadButtonPressed(0, .right_face_down)) and
+            @abs(player.entity.remaining_x) < 6 and
+            @abs(player.entity.remaining_y) < 6
+        ) {
+            if (player.inventory[0]) |slot| {
+                if (slot.count > 0) {
+                    const temp_tile = Tile.init(.{ .id = .stone });
 
-                if (floor_tile.id == .water) {
-                    floor_tile.* = temp_tile;
-                    player.invintory[0].?.count -= 1;
-                    rl.playSound(temp_tile.sound());
-                } else if (target_tile.id == .air) {
-                    target_tile.* = temp_tile;
-                    player.invintory[0].?.count -= 1;
-                    rl.playSound(temp_tile.sound());
+                    if (floor_tile.id == .water) {
+                        floor_tile.* = temp_tile;
+                        player.inventory[0].?.count -= 1;
+                        rl.playSound(temp_tile.sound());
+                    } else if (target_tile.id == .air) {
+                        target_tile.* = temp_tile;
+                        player.inventory[0].?.count -= 1;
+                        rl.playSound(temp_tile.sound());
+                    }
+                } else {
+                    player.inventory[0] = null;
                 }
             }
         }
@@ -423,7 +420,6 @@ pub fn main() !void {
         } else {
             player.entity.y_speed = 0;
             player.entity.y = @floatFromInt((player_coordinate_y) * Tile.size);
-            player.entity.y += 3;
             player.entity.remaining_y = 0;
         }
 
@@ -434,17 +430,29 @@ pub fn main() !void {
         if (target_tile.id != .air and player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
             player.entity.frame_num = 0;
         }
-        player.entity.x += player.entity.x_speed;
-        player.entity.y += player.entity.y_speed;
 
-        const x_num: i32 = @intFromFloat(@divFloor(player.entity.x, 12));
-        const y_num: i32 = @intFromFloat(@divFloor(player.entity.y, 12));
+        var x_num: i32 = @intFromFloat(@divTrunc(player.entity.x, Tile.size));
+        var y_num: i32 = @intFromFloat(@divTrunc(player.entity.y, Tile.size));
 
         const px: i32 = @intFromFloat(player.entity.x);
         const py: i32 = @intFromFloat(player.entity.y);
 
         player_mod_x = @mod(px, Tile.size);
         player_mod_y = @mod(py, Tile.size);
+
+        player.entity.x += player.entity.x_speed;
+        player.entity.y += player.entity.y_speed;
+
+        if (player_mod_x != 0 and player.entity.x <= 0) {
+            x_num -= 1;
+        }
+
+        if (player_mod_y != 0 and player.entity.y <= 0) {
+            y_num -= 1;
+        }
+
+        // Offset tiles to player's feet
+        player_mod_y += 3;
 
         rl.beginDrawing();
 
@@ -465,7 +473,7 @@ pub fn main() !void {
                     const screen_height_in_tiles = height_i / (Tile.size * 2);
 
                     const tile_x: i32 = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    const tile_y: i32 = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
+                    const tile_y: i32 = (y_num + y - screen_height_in_tiles - chnk.y) * Chunk.size;
 
                     // Skip if tile not on screen
                     if (x + x_num - screen_width_in_tiles < chnk.x or
@@ -572,7 +580,7 @@ pub fn main() !void {
                 rl.Color.white,
             );
 
-            if (player.invintory[i]) |item| {
+            if (player.inventory[i]) |item| {
                 drawTextureRect(
                     engine.tileTexture(item.value.tile),
                     .{ .x = 0, .y = 0, .w = 12, .h = 12 },
@@ -581,9 +589,9 @@ pub fn main() !void {
                 );
 
                 try ui.drawText(
-                    try int2Dozenal(item.count, arena),
+                    try std.fmt.allocPrint(arena, "{d}", .{item.count}),
                     .{
-                        .x = hotbar_x + 3 + @as(u15, if (item.count < 12) 3 else 0),
+                        .x = hotbar_x + 3 + @as(u15, if (item.count < 10) 3 else 0),
                         .y = hotbar_y + 4,
                     },
                     rl.Color.white,
@@ -594,15 +602,22 @@ pub fn main() !void {
 
         // Draw debug menu
         if (menu.enabled) {
-            // Draws a red rectangle at the player's collision rect
-            rl.drawRectangleRec(player_collision, rl.Color{ .r = 255, .g = 0, .b = 0, .a = 0x60 });
-            rl.drawRectangleRec(player_rect, rl.Color{ .r = 255, .g = 0, .b = 255, .a = 0x60 });
+            drawRect(.{
+                .x = @intFromFloat(
+                    (engine.screen_width / 2) - 6,
+                ),
+                .y = @intFromFloat(
+                    (engine.screen_height / 2) + 7,
+                ),
+                .w = 12,
+                .h = 12,
+            }, .{ .r = 255, .g = 0, .b = 255, .a = 0x60 });
             try menu.draw(arena);
         }
 
-        if (settings.enabled) {
-            try settings.draw(arena);
-        }
+//        if (settings.enabled) {
+//            try settings.draw(arena);
+//        }
 
         try ui.drawText(
             ">This will be a chat...\n>More chat",
@@ -658,6 +673,18 @@ fn drawTexture(texture: rl.Texture, pos: ui.NewVec, tint: rl.Color) void {
         },
         0,
         engine.scale,
+        tint,
+    );
+}
+
+fn drawRect(rect: ui.Rectangle, tint: rl.Color) void {
+    rl.drawRectangleRec(
+        .{
+            .x = @as(f32, @floatFromInt(rect.x)) * engine.scale,
+            .y = @as(f32, @floatFromInt(rect.y)) * engine.scale,
+            .width = @as(f32, @floatFromInt(rect.w)) * engine.scale,
+            .height = @as(f32, @floatFromInt(rect.h)) * engine.scale,
+        },
         tint,
     );
 }
