@@ -30,7 +30,7 @@ pub fn drawText(
     while (it.nextCodepoint()) |codepoint| {
         if (codepoint == '\n') {
             x_off = 0;
-            line_offset += font_size * engine.scale;
+            line_offset += font_size * @as(f32, @floatFromInt(engine.scale));
             continue;
         }
 
@@ -43,10 +43,10 @@ pub fn drawText(
                 .height = 8 + 1,
             },
             .{
-                .x = (@as(f32, @floatFromInt(coords.x)) + x_off) * engine.scale,
-                .y = @as(f32, @floatFromInt(coords.y)) * engine.scale + line_offset,
-                .width = (4 + 1) * engine.scale,
-                .height = (8 + 1) * engine.scale,
+                .x = (@as(f32, @floatFromInt(coords.x)) + x_off) * @as(f32, @floatFromInt(engine.scale)),
+                .y = @as(f32, @floatFromInt(coords.y)) * @as(f32, @floatFromInt(engine.scale)) + line_offset,
+                .width = (4 + 1) * @as(f32, @floatFromInt(engine.scale)),
+                .height = (8 + 1) * @as(f32, @floatFromInt(engine.scale)),
             },
             .{
                 .x = 0,
@@ -58,6 +58,18 @@ pub fn drawText(
 
         x_off += 5;
     }
+}
+
+pub fn drawRect(rect: Rectangle, tint: rl.Color) void {
+    rl.drawRectangleRec(
+        .{
+            .x = @floatFromInt(rect.x * engine.scale),
+            .y = @floatFromInt(rect.y * engine.scale),
+            .width = @floatFromInt(rect.w * engine.scale),
+            .height = @floatFromInt(rect.h * engine.scale),
+        },
+        tint,
+    );
 }
 
 pub fn button(label: []const u8, rectangle: Rectangle) !void {

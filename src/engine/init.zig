@@ -24,6 +24,18 @@ const Vec = struct {
 
 pub const ItemType = union(enum) {
     tile: Tile.Id,
+
+    pub fn canStackWith(self: ItemType, other: ItemType) bool {
+        const tag = std.meta.activeTag(self);
+        if (tag != std.meta.activeTag(other)) {
+            return false;
+        }
+
+        return switch (self) {
+            .tile => self.tile == other.tile,
+        };
+        
+    }
 };
 
 pub const Item = struct {
@@ -32,10 +44,10 @@ pub const Item = struct {
 };
 
 pub var delta: f32 = 0;
-pub var screen_width: f32 = 0;
-pub var screen_height: f32 = 0;
+pub var screen_width: u15 = 160;
+pub var screen_height: u15 = 144;
 pub const tps = 24;
-pub var scale: f32 = 4;
+pub var scale: u15 = 4;
 pub const title = "Yet Another Block Game (YABG)";
 pub const id = "io.github.mgord9518.yabg";
 
@@ -48,7 +60,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 54,
+    .patch = 55,
 };
 
 pub var chunks: [9]Chunk = undefined;
@@ -70,14 +82,10 @@ pub fn init(allocator: std.mem.Allocator) !void {
     const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
     const scale_env: []const u8 = env_map.get("SCALE_FACTOR") orelse "";
 
-    scale = @floor(std.fmt.parseFloat(f32, scale_env) catch scale);
+    scale = std.fmt.parseInt(u15, scale_env, 10) catch scale;
 
-    const scale_i: i32 = @intFromFloat(scale);
-    const width_i: u31 = @intFromFloat(screen_width);
-    const height_i: u31 = @intFromFloat(screen_height);
-
-    const w = std.fmt.parseInt(i32, w_env, 10) catch width_i * scale_i;
-    const h = std.fmt.parseInt(i32, h_env, 10) catch height_i * scale_i;
+    const w = std.fmt.parseInt(u15, w_env, 10) catch screen_width * scale;
+    const h = std.fmt.parseInt(u15, h_env, 10) catch screen_height * scale;
 
     // Enable vsync, resizing and init audio devices
     rl.setConfigFlags(.{
@@ -89,9 +97,9 @@ pub fn init(allocator: std.mem.Allocator) !void {
     rl.setTraceLogLevel(.debug);
     rl.initAudioDevice();
 
-    rl.initWindow(w, h, title);
-    rl.setWindowMinSize(128 * scale_i, 128 * scale_i);
-    rl.setWindowSize(160 * scale_i, 144 * scale_i);
+    rl.initWindow(@intCast(w), @intCast(h), title);
+    rl.setWindowMinSize(@intCast(128 * scale), @intCast(128 * scale));
+    rl.setWindowSize(@intCast(w), @intCast(h));
 
     psf_font = try psf.Font.parse(allocator, font_data);
 

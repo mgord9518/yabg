@@ -19,10 +19,6 @@ icon_url='https://raw.githubusercontent.com/AppImage/AppImageKit/master/resource
 
 compression='zstd'
 
-git clone https://github.com/ryupold/raylib.zig --recursive
-git clone https://github.com/mgord9518/perlin-zig
-git clone https://github.com/mgord9518/basedirs-zig
-
 echo 'building for Windows'
 zig build -Dtarget="$ARCH"-windows # -Doptimize=ReleaseSafe
 

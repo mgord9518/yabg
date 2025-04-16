@@ -12,6 +12,7 @@ pkgs.mkShell {
     p7zip
     wayland
     wayland-scanner
+    libdrm
 
     psftools
   ];
