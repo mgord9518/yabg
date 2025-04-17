@@ -34,8 +34,6 @@ const Inventory = struct {
             if (remaining == 0) break;
 
             if (maybe_slot_stack.*) |*slot_stack| {
-                std.debug.print("slot: {} {}\n", .{slot_stack.*.value, std.meta.activeTag(item)});
-
                 if (slot_stack.*.value.canStackWith(item)) {
                     // TODO: check max stack size
                     slot_stack.*.count += remaining;
@@ -56,8 +54,8 @@ const Inventory = struct {
 };
 
 const PlayerJson = struct {
-    x: i64,
-    y: i64,
+    x: i32,
+    y: i32,
 
     //inventory: [6]?engine.Item,
 
@@ -111,8 +109,8 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 
     defer player_coords.deinit();
 
-    player.entity.x = @floatFromInt(player_coords.value.x);
-    player.entity.y = @floatFromInt(player_coords.value.y);
+    player.entity.x = player_coords.value.x;
+    player.entity.y = player_coords.value.y;
     player.entity.direction = player_coords.value.direction;
 
     return player;
@@ -123,30 +121,21 @@ pub fn updateState(player: *Player) !void {
     // Keyboard/gamepad inputs
     const input_vec = player.inputVector();
 
-    if (input_vec.x > 0) {
-        player.entity.direction = .right;
-    } else if (input_vec.x < 0) {
-        player.entity.direction = .left;
-    } else if (input_vec.y > 0) {
-        player.entity.direction = .down;
-    } else if (input_vec.y < 0) {
-        player.entity.direction = .up;
+    if (player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
+        if (input_vec.x > 0) {
+            player.entity.direction = .right;
+        } else if (input_vec.x < 0) {
+            player.entity.direction = .left;
+        } else if (input_vec.y > 0) {
+            player.entity.direction = .down;
+        } else if (input_vec.y < 0) {
+            player.entity.direction = .up;
+        }
     }
 
     // Collision detection
-    var player_coordinate_x: i32 = @intFromFloat(@divTrunc(player.entity.x + (Tile.size / 2), Tile.size));
-    var player_coordinate_y: i32 = @intFromFloat(@divTrunc(player.entity.y + (Tile.size / 2), Tile.size));
-
-    if (player.entity.x < 0) {
-        player_coordinate_x = @intFromFloat(@divTrunc(player.entity.x - (Tile.size / 2), Tile.size));
-    }
-
-    if (player.entity.y < 0) {
-        player_coordinate_y = @intFromFloat(@divTrunc(player.entity.y - (Tile.size / 2), Tile.size));
-    }
-
-    var player_tile_offset_x: u16 = @intCast(@mod(player_coordinate_x, Chunk.size));
-    var player_tile_offset_y: u16 = @intCast(@mod(player_coordinate_y, Chunk.size));
+    var player_tile_offset_x: u16 = @intCast(@mod(player.entity.x, Chunk.size));
+    var player_tile_offset_y: u16 = @intCast(@mod(player.entity.y, Chunk.size));
 
     // Middle chunk
     var target_chunk_num: usize = 4;
@@ -293,9 +282,17 @@ pub fn updateState(player: *Player) !void {
         if (player.entity.direction == .left) player.entity.x_speed = -player.entity.x_speed;
 
         player.entity.remaining_x -= player.entity.x_speed;
-    } else {
+    }
+
+    if (player.entity.direction == .right and player.entity.remaining_x < 0 or player.entity.direction == .left and player.entity.remaining_x > 0) {
         player.entity.x_speed = 0;
-        player.entity.x = @floatFromInt((player_coordinate_x) * Tile.size);
+
+        if (player.entity.direction == .right and player.entity.remaining_x < 0) {
+            player.entity.x += 1;
+        } else if (player.entity.direction == .left and player.entity.remaining_x > 0) {
+            player.entity.x -= 1;
+        }
+
         player.entity.remaining_x = 0;
     }
 
@@ -304,9 +301,17 @@ pub fn updateState(player: *Player) !void {
         if (player.entity.direction == .up) player.entity.y_speed = -player.entity.y_speed;
 
         player.entity.remaining_y -= player.entity.y_speed;
-    } else {
+    } 
+
+    if (player.entity.direction == .down and player.entity.remaining_y < 0 or player.entity.direction == .up and player.entity.remaining_y > 0) {
         player.entity.y_speed = 0;
-        player.entity.y = @floatFromInt((player_coordinate_y) * Tile.size);
+
+        if (player.entity.direction == .down and player.entity.remaining_y < 0) {
+            player.entity.y += 1;
+        } else if (player.entity.direction == .up and player.entity.remaining_y > 0) {
+            player.entity.y -= 1;
+        }
+
         player.entity.remaining_y = 0;
     }
 
@@ -338,7 +343,6 @@ pub fn updateState(player: *Player) !void {
     if (rl.isKeyPressed(.four)) player.inventory.selected_slot = 3;
     if (rl.isKeyPressed(.five)) player.inventory.selected_slot = 4;
     if (rl.isKeyPressed(.six)) player.inventory.selected_slot = 5;
-
 }
 
 pub fn save(player: *Player) !void {
@@ -363,8 +367,8 @@ pub fn save(player: *Player) !void {
 
     try std.json.stringify(
         PlayerJson{
-            .x = @intFromFloat(player.entity.x),
-            .y = @intFromFloat(player.entity.y),
+            .x = player.entity.x,
+            .y = player.entity.y,
             .direction = player.entity.direction,
         },
         .{},
@@ -413,8 +417,8 @@ pub fn updatePlayerFrames(
 // then loads new engine.chunks into their pointers
 // Not yet sure how robust this is
 pub fn reloadChunks(player: *Player) void {
-    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.x, Tile.size), Chunk.size)));
-    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.y, Tile.size), Chunk.size)));
+    var chunk_x = @divTrunc(player.entity.x, Chunk.size);
+    var chunk_y = @divTrunc(player.entity.y, Chunk.size);
 
     if (player.entity.x < 0) {
         chunk_x = chunk_x - 1;

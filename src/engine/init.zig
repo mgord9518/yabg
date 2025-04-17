@@ -60,7 +60,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 55,
+    .patch = 56,
 };
 
 pub var chunks: [9]Chunk = undefined;

@@ -30,17 +30,6 @@ const DebugMenu = struct {
     player: *Player,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
-        var x_num: i32 = @intFromFloat(@divTrunc(menu.player.entity.x + (Tile.size / 2), Tile.size));
-        var y_num: i32 = @intFromFloat(@divTrunc(menu.player.entity.y + (Tile.size / 2), Tile.size));
-
-        if (menu.player.entity.x < 0) {
-            x_num = @intFromFloat(@divTrunc(menu.player.entity.x - (Tile.size / 2), Tile.size));
-        }
-
-        if (menu.player.entity.y < 0) {
-            y_num = @intFromFloat(@divTrunc(menu.player.entity.y - (Tile.size / 2), Tile.size));
-        }
-
         // Print debug menu
         const string = try std.fmt.allocPrintZ(
             allocator,
@@ -58,8 +47,8 @@ const DebugMenu = struct {
                 engine.version.minor,
                 engine.version.patch,
                 try int2Dozenal(rl.getFPS(), allocator),
-                x_num,
-                y_num,
+                menu.player.entity.x,
+                menu.player.entity.y,
                 builtin.zig_version.major,
                 builtin.zig_version.minor,
                 builtin.zig_version.patch,
@@ -123,8 +112,8 @@ pub fn main() !void {
         std.debug.print("Error creating save directory: {}", .{err});
     };
 
-    var chunk_x = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.x, Tile.size), Chunk.size)));
-    var chunk_y = @as(i32, @intFromFloat(@divTrunc(@divTrunc(player.entity.y, Tile.size), Chunk.size)));
+    var chunk_x = @divTrunc(player.entity.x, Chunk.size);
+    var chunk_y = @divTrunc(player.entity.y, Chunk.size);
 
     if (player.entity.x < 0) {
         chunk_x = chunk_x - 1;
@@ -172,9 +161,10 @@ pub fn main() !void {
 
         player.updatePlayerFrames();
         player.reloadChunks();
-        try player.updateState();
 
         player.updateAnimation();
+
+        try player.updateState();
 
         if (rl.isKeyPressed(.f3) or rl.isGamepadButtonPressed(0, .middle_left)) {
             menu.enabled = !menu.enabled;
@@ -187,28 +177,25 @@ pub fn main() !void {
 
         const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), Tile.size);
 
-        const camera_origin_x: i32 = @intFromFloat(player.entity.x);
-        const camera_origin_y: i32 = @intFromFloat(player.entity.y);
-
         // Tile coordinate of player
-        var x_num = @divTrunc(camera_origin_x, Tile.size);
-        var y_num = @divTrunc(camera_origin_y, Tile.size);
+        var x_num = player.entity.x;
+        var y_num = player.entity.y;
 
-        const camera_tile_offset_x = @mod(camera_origin_x, Tile.size);
-
-        // Offset tiles to player's feet
-        const camera_tile_offset_y = @mod(camera_origin_y, Tile.size) + 3;
-
-        player.entity.x += player.entity.x_speed;
-        player.entity.y += player.entity.y_speed;
-
-        if (camera_tile_offset_x != 0 and player.entity.x <= 0) {
+        if (player.entity.remaining_x < 0) {
             x_num -= 1;
         }
 
-        if (camera_tile_offset_y != 3 and player.entity.y <= 0) {
+        if (player.entity.remaining_y < 0) {
             y_num -= 1;
         }
+
+        const remaining_x_mask: i32 = @intFromFloat(Tile.size - player.entity.remaining_x);
+        const remaining_y_mask: i32 = @intFromFloat(Tile.size - player.entity.remaining_y);
+
+        const camera_tile_offset_x: i32 = @mod(remaining_x_mask, Tile.size);
+
+        // Offset tiles to player's feet
+        const camera_tile_offset_y: i32 = @mod(remaining_y_mask, Tile.size) + 3;
 
         rl.beginDrawing();
         rl.clearBackground(rl.Color.black);

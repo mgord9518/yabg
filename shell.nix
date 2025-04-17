@@ -13,6 +13,7 @@ pkgs.mkShell {
     wayland
     wayland-scanner
     libdrm
+    emscripten
 
     psftools
   ];

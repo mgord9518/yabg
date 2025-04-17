@@ -8,8 +8,8 @@ const Entity = @This();
 // The max speed at which the player is allowed to walk
 pub var walk_speed: f32 = 2;
 
-x: f32 = 0,
-y: f32 = 0,
+x: i32 = 0,
+y: i32 = 0,
 
 remaining_x: f32 = 0,
 remaining_y: f32 = 0,

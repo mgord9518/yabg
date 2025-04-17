@@ -10,6 +10,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        // <https://github.com/Not-Nik/raylib-zig/issues/219>
+        .use_lld = false,
     });
 
     exe.linkLibC();
@@ -17,9 +19,7 @@ pub fn build(b: *std.Build) void {
     const raylib_dep = b.dependency("raylib", .{
         .target = target,
         .optimize = optimize,
-        .shared = true,
         // TODO: fix Wayland hidpi scaling in game
-        //.linux_display_backend = .X11,
     });
 
     const known_folders_dep = b.dependency("known-folders", .{});
