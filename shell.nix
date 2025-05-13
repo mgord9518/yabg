@@ -2,6 +2,7 @@
 
 pkgs.mkShell {
   nativeBuildInputs = with pkgs.buildPackages; [
+    zig_0_14
     xorg.libXcursor
     xorg.libXrandr
     xorg.libXinerama
@@ -12,9 +13,16 @@ pkgs.mkShell {
     p7zip
     wayland
     wayland-scanner
+    SDL2
+    pkg-config
     libdrm
-    emscripten
+    libgbm
 
     psftools
   ];
+    shellHook = ''
+        export LD_LIBRARY_PATH=${pkgs.libdrm}/lib:$LD_LIBRARY_PATH
+        export PKG_CONFIG_PATH=${pkgs.libdrm}/lib/pkgconfig:$PKG_CONFIG_PATH
+        pkg-config --cflags --libs libdrm
+        '';
 }

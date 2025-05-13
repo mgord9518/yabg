@@ -3,10 +3,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const known_folders = @import("known-folders");
 
-const Chunk = @import("Chunk.zig");
-const Tile = @import("Tile.zig").Tile;
-const Player = @import("Player.zig");
-const engine = @import("engine/init.zig");
+const engine = engine2.init;
+const engine2 = @import("engine");
 
 const ui = engine.ui;
 
@@ -27,14 +25,14 @@ const DebugMenu = struct {
 
     x: f32 = 0,
     y: f32 = 0,
-    player: *Player,
+    player: *engine2.Player,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
         // Print debug menu
         const string = try std.fmt.allocPrintZ(
             allocator,
             \\YABG {?s} {d}.{d}.{d}
-            \\FPS: {s}; (vsync)
+            \\FPS: {d}; (vsync)
             \\
             \\X:{d:>3}
             \\Y:{d:>3}
@@ -46,7 +44,7 @@ const DebugMenu = struct {
                 engine.version.major,
                 engine.version.minor,
                 engine.version.patch,
-                try int2Dozenal(rl.getFPS(), allocator),
+                engine2.getFps(),
                 menu.player.entity.x,
                 menu.player.entity.y,
                 builtin.zig_version.major,
@@ -83,7 +81,7 @@ pub fn main() !void {
     try engine.init(allocator);
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
-    Player.walk_speed = std.fmt.parseFloat(f32, speed_env) catch Player.walk_speed;
+    engine2.Player.walk_speed = std.fmt.parseFloat(f32, speed_env) catch engine2.Player.walk_speed;
 
     const data_dir = (try known_folders.getPath(allocator, .data)).?;
 
@@ -97,12 +95,12 @@ pub fn main() !void {
         },
     );
 
-    var player = try Player.init(allocator, save_path);
+    var player = try engine2.Player.init(allocator, save_path);
     var menu = DebugMenu{ .player = &player };
 
     menu.enabled = env_map.get("DEBUG_MODE") != null;
 
-    const hotbar_item_texture = engine.loadTextureEmbedded("ui/hotbar_item");
+    const hotbar_item_texture = engine2.loadTextureEmbedded("ui/hotbar_item");
 
     //var settings = Menu{ .player = &player, .texture = menu_frame_texture };
 
@@ -112,8 +110,8 @@ pub fn main() !void {
         std.debug.print("Error creating save directory: {}", .{err});
     };
 
-    var chunk_x = @divTrunc(player.entity.x, Chunk.size);
-    var chunk_y = @divTrunc(player.entity.y, Chunk.size);
+    var chunk_x = @divTrunc(player.entity.x, engine2.Chunk.size);
+    var chunk_y = @divTrunc(player.entity.y, engine2.Chunk.size);
 
     if (player.entity.x < 0) {
         chunk_x = chunk_x - 1;
@@ -130,14 +128,14 @@ pub fn main() !void {
     var it: usize = 0;
     while (x_it <= chunk_x + 1) : (x_it += 1) {
         while (y_it <= chunk_y + 1) : (y_it += 1) {
-            engine.chunks[it] = try Chunk.load(save_path, "vanilla0", x_it, y_it);
+            engine2.chunks[it] = try engine2.Chunk.load(save_path, "vanilla0", x_it, y_it);
             it += 1;
         }
         y_it = chunk_y - 1;
     }
 
     // Main game loop
-    while (!rl.windowShouldClose()) {
+    while (engine2.shouldContinueRunning()) {
         var arena_allocator = std.heap.ArenaAllocator.init(allocator);
         defer arena_allocator.deinit();
         const arena = arena_allocator.allocator();
@@ -147,7 +145,7 @@ pub fn main() !void {
             continue;
         }
 
-        engine.delta = rl.getFrameTime();
+        engine2.delta = rl.getFrameTime();
 
         engine.screen_width = @divTrunc(
             @as(u15, @intCast(rl.getScreenWidth())),
@@ -173,9 +171,9 @@ pub fn main() !void {
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 12
         // pixels, which may happen if the player resized the window
-        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), Tile.size);
+        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), engine2.Tile.size);
 
-        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), Tile.size);
+        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), engine2.Tile.size);
 
         // Tile coordinate of player
         var x_num = player.entity.x;
@@ -189,41 +187,41 @@ pub fn main() !void {
             y_num -= 1;
         }
 
-        const remaining_x_mask: i32 = @intFromFloat(Tile.size - player.entity.remaining_x);
-        const remaining_y_mask: i32 = @intFromFloat(Tile.size - player.entity.remaining_y);
+        const remaining_x_mask: i32 = @intFromFloat(engine2.Tile.size - player.entity.remaining_x);
+        const remaining_y_mask: i32 = @intFromFloat(engine2.Tile.size - player.entity.remaining_y);
 
-        const camera_tile_offset_x: i32 = @mod(remaining_x_mask, Tile.size);
+        const camera_tile_offset_x: i32 = @mod(remaining_x_mask, engine2.Tile.size);
 
         // Offset tiles to player's feet
-        const camera_tile_offset_y: i32 = @mod(remaining_y_mask, Tile.size) + 3;
+        const camera_tile_offset_y: i32 = @mod(remaining_y_mask, engine2.Tile.size) + 3;
 
         rl.beginDrawing();
         rl.clearBackground(rl.Color.black);
 
         // TODO: refactor
-        var x: i32 = (engine.screen_width / Tile.size / 2) - 2;
-        var y: i32 = (engine.screen_height / Tile.size / 2) - 2;
+        var x: i32 = (engine.screen_width / engine2.Tile.size / 2) - 2;
+        var y: i32 = (engine.screen_height / engine2.Tile.size / 2) - 2;
         x = -1;
         y = -3;
-        while (y * Tile.size <= engine.screen_height) : (y += 1) {
+        while (y * engine2.Tile.size <= engine.screen_height) : (y += 1) {
             x = -1;
-            while (x * Tile.size <= engine.screen_width + Tile.size) : (x += 1) {
-                for (&engine.chunks) |*chnk| {
-                    const y_pos = y * Tile.size - camera_tile_offset_y + screen_mod_y + 12;
+            while (x * engine2.Tile.size <= engine.screen_width + engine2.Tile.size) : (x += 1) {
+                for (&engine2.chunks) |*chnk| {
+                    const y_pos = y * engine2.Tile.size - camera_tile_offset_y + screen_mod_y + 12;
 
-                    const screen_width_in_tiles = engine.screen_width / (Tile.size * 2);
-                    const screen_height_in_tiles = engine.screen_height / (Tile.size * 2);
+                    const screen_width_in_tiles = engine.screen_width / (engine2.Tile.size * 2);
+                    const screen_height_in_tiles = engine.screen_height / (engine2.Tile.size * 2);
 
-                    const tile_x: i32 = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    const tile_y: i32 = (y_num + y - screen_height_in_tiles - chnk.y) * Chunk.size;
+                    const tile_x: i32 = @mod(x_num + x - screen_width_in_tiles, engine2.Chunk.size);
+                    const tile_y: i32 = (y_num + y - screen_height_in_tiles - chnk.y) * engine2.Chunk.size;
 
                     // Skip if tile not on screen
                     if (x + x_num - screen_width_in_tiles < chnk.x or
-                        x + x_num - screen_width_in_tiles >= chnk.x + Chunk.size or
+                        x + x_num - screen_width_in_tiles >= chnk.x + engine2.Chunk.size or
                         y + y_num - screen_height_in_tiles < chnk.y or
-                        y + y_num - screen_height_in_tiles >= chnk.y + Chunk.size) continue;
+                        y + y_num - screen_height_in_tiles >= chnk.y + engine2.Chunk.size) continue;
 
-                    if (tile_x + tile_y < 0 or tile_x + tile_y > Chunk.size * Chunk.size) continue;
+                    if (tile_x + tile_y < 0 or tile_x + tile_y > engine2.Chunk.size * engine2.Chunk.size) continue;
 
                     // Only loop through the first half of chunk engine.tiles (floor level)
                     // If wall level tile exists, draw it instead
@@ -232,8 +230,8 @@ pub fn main() !void {
                             const tile = chnk.tile(.floor, @intCast(tile_x), @intCast(tile_y));
 
                             drawTexture(tile.texture(), .{
-                                .x = @intCast((x * Tile.size) - camera_tile_offset_x + screen_mod_x - (Tile.size / 2)),
-                                .y = @intCast(y * Tile.size - camera_tile_offset_y + screen_mod_y + 4 + (Tile.size / 2)),
+                                .x = @intCast((x * engine2.Tile.size) - camera_tile_offset_x + screen_mod_x - (engine2.Tile.size / 2)),
+                                .y = @intCast(y * engine2.Tile.size - camera_tile_offset_y + screen_mod_y + 4 + (engine2.Tile.size / 2)),
                             }, rl.Color.light_gray);
                         },
                         else => {
@@ -242,8 +240,8 @@ pub fn main() !void {
                             const tile = chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y));
 
                             drawTexture(tile.texture(), .{
-                                .x = @intCast((x * Tile.size) - camera_tile_offset_x + screen_mod_x - (Tile.size / 2)),
-                                .y = @intCast(y * Tile.size - camera_tile_offset_y + screen_mod_y - 4 + (Tile.size / 2)),
+                                .x = @intCast((x * engine2.Tile.size) - camera_tile_offset_x + screen_mod_x - (engine2.Tile.size / 2)),
+                                .y = @intCast(y * engine2.Tile.size - camera_tile_offset_y + screen_mod_y - 4 + (engine2.Tile.size / 2)),
                             }, rl.Color.white);
                         },
                     }
@@ -263,7 +261,7 @@ pub fn main() !void {
                 .h = 24,
             },
             .{
-                .x = @intCast((engine.screen_width / 2) - 5),
+                .x = @intCast((engine.screen_width / 2) - 6),
                 .y = @intCast((engine.screen_height / 2) - 10),
             },
             .white,
@@ -273,25 +271,25 @@ pub fn main() !void {
         // an illusion of depth
         x = -1;
         y = -3;
-        while (y * Tile.size <= engine.screen_height) : (y += 1) {
+        while (y * engine2.Tile.size <= engine.screen_height) : (y += 1) {
             x = -1;
-            while (x * Tile.size <= engine.screen_width + Tile.size) : (x += 1) {
-                for (&engine.chunks) |*chnk| {
-                    const y_pos = y * Tile.size - camera_tile_offset_y + screen_mod_y + 12;
+            while (x * engine2.Tile.size <= engine.screen_width + engine2.Tile.size) : (x += 1) {
+                for (&engine2.chunks) |*chnk| {
+                    const y_pos = y * engine2.Tile.size - camera_tile_offset_y + screen_mod_y + 12;
 
-                    const screen_width_in_tiles = engine.screen_width / (Tile.size * 2);
-                    const screen_height_in_tiles = engine.screen_height / (Tile.size * 2);
+                    const screen_width_in_tiles = engine.screen_width / (engine2.Tile.size * 2);
+                    const screen_height_in_tiles = engine.screen_height / (engine2.Tile.size * 2);
 
-                    const tile_x = @mod(x_num + x - screen_width_in_tiles, Chunk.size);
-                    const tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * Chunk.size;
+                    const tile_x = @mod(x_num + x - screen_width_in_tiles, engine2.Chunk.size);
+                    const tile_y = ((y_num + y) - screen_height_in_tiles - chnk.y) * engine2.Chunk.size;
 
                     // Skip if tile not on screen
                     if (x + x_num - screen_width_in_tiles < chnk.x or
-                        x + x_num - screen_width_in_tiles >= chnk.x + Chunk.size or
+                        x + x_num - screen_width_in_tiles >= chnk.x + engine2.Chunk.size or
                         y + y_num - screen_height_in_tiles < chnk.y or
-                        y + y_num - screen_height_in_tiles >= chnk.y + Chunk.size) continue;
+                        y + y_num - screen_height_in_tiles >= chnk.y + engine2.Chunk.size) continue;
 
-                    if (tile_x + tile_y < 0 or tile_x + tile_y > Chunk.size * Chunk.size) continue;
+                    if (tile_x + tile_y < 0 or tile_x + tile_y > engine2.Chunk.size * engine2.Chunk.size) continue;
 
                     // Only draw raised engine.tiles
                     if (chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y)).id == .air) continue;
@@ -300,8 +298,8 @@ pub fn main() !void {
                         const tile = chnk.tile(.wall, @intCast(tile_x), @intCast(tile_y));
 
                         drawTexture(tile.texture(), .{
-                            .x = @intCast((x * Tile.size) - camera_tile_offset_x + screen_mod_x - (Tile.size / 2)),
-                            .y = @intCast(y * Tile.size - camera_tile_offset_y + screen_mod_y - 4 + (Tile.size / 2)),
+                            .x = @intCast((x * engine2.Tile.size) - camera_tile_offset_x + screen_mod_x - (engine2.Tile.size / 2)),
+                            .y = @intCast(y * engine2.Tile.size - camera_tile_offset_y + screen_mod_y - 4 + (engine2.Tile.size / 2)),
                         }, .white);
                     }
                 }
@@ -328,7 +326,7 @@ pub fn main() !void {
 
             if (player.inventory.items[i]) |item| {
                 drawTextureRect(
-                    engine.tileTexture(item.value.tile),
+                    item.value.tile.texture(),
                     .{ .x = 0, .y = 0, .w = 12, .h = 12 },
                     .{ .x = hotbar_x + 2, .y = hotbar_y + 2 },
                     .white,
@@ -369,7 +367,7 @@ pub fn main() !void {
         rl.endDrawing();
     }
 
-    for (engine.chunks) |chunk| {
+    for (engine2.chunks) |chunk| {
         try chunk.save(player.save_path, "vanilla0");
     }
 
@@ -435,42 +433,4 @@ fn drawTextureRect(texture: rl.Texture, rect: ui.Rectangle, pos: ui.NewVec, tint
         0,
         tint,
     );
-}
-
-fn int2Dozenal(i: isize, allocator: std.mem.Allocator) ![]const u8 {
-    if (i == 0) return "0";
-
-    // Digits to extend the arabic number set
-    // If your font has trouble reading the last 2, they are "TURNED DIGIT 2"
-    // and "TURNED DIGIT 3" from Unicode 8.
-    const digits = [_][]const u8{
-        "0", "1", "2",   "3",
-        "4", "5", "6",   "7",
-        "8", "9", "↊", "↋",
-    };
-
-    var buf = try allocator.alloc(u8, 32);
-
-    var n = @abs(i);
-
-    var idx: usize = buf.len;
-    while (n > 0) {
-        const rem: u16 = @intCast(@mod(n, 12));
-        const digit = digits[rem];
-
-        // As UTF8 has variable codepoint length, some digits may be longer
-        // than one byte, which is the case in dozenal.
-        idx -= digit.len;
-
-        std.mem.copyForwards(u8, buf[idx..], digit);
-        n = @divFloor(n, 12);
-    }
-
-    // Finally, prepend a minus symbol if the number is negative
-    if (i < 0) {
-        idx -= 1;
-        buf[idx] = '-';
-    }
-
-    return buf[idx..];
 }

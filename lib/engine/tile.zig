@@ -1,9 +1,8 @@
 const std = @import("std");
 
 const rl = @import("raylib");
-const enums = @import("enums.zig");
-const Direction = enums.Direction;
-const Game = @import("engine/init.zig");
+const Entity = @import("Entity.zig");
+const engine = @import("../engine.zig");
 
 pub const Tile = packed struct(u16) {
     pub const size = 12;
@@ -26,14 +25,14 @@ pub const Tile = packed struct(u16) {
     damage: u3,
 
     // The direction the tile is facing
-    direction: Direction,
+    direction: Entity.Direction,
 
     pub const Options = struct {
         id: Id,
         naturally_generated: bool = false,
         grade: u2 = 0,
         damage: u3 = 0,
-        direction: Direction = .down,
+        direction: Entity.Direction = .down,
     };
 
     pub fn init(opts: Options) Tile {
@@ -47,19 +46,17 @@ pub const Tile = packed struct(u16) {
     }
 
     pub fn texture(self: *const Tile) rl.Texture2D {
-        return Game.tileTextures[@intFromEnum(self.id)];
-    }
-
-    pub fn setTexture(id: Id, tex: rl.Texture2D) void {
-        Game.tileTextures[@intFromEnum(id)] = tex;
+        return engine.tileTextures[@intFromEnum(self.id)];
     }
 
     pub fn sound(self: *const Tile) rl.Sound {
-        return Game.tileSounds[@intFromEnum(self.id)];
+        return engine.tileSounds[@intFromEnum(self.id)];
     }
+    
+    pub fn playSound(self: *const Tile) void {
+        const snd = self.sound();
 
-    pub fn setSound(id: Id, snd: rl.Sound) void {
-        Game.tileSounds[@intFromEnum(id)] = snd;
+        engine.playSound(snd);
     }
 
     /// Categories should denote the basic qualities of a specific tile.
@@ -91,5 +88,13 @@ pub const Tile = packed struct(u16) {
 
         // Tile dedicated to the `placeholder` texture
         placeholder = 255,
+
+        pub fn texture(self: Id) rl.Texture2D {
+            return engine.tileTextures[@intFromEnum(self)];
+        }
+
+        pub fn sound(self: Id) rl.Sound {
+            return engine.tileSounds[@intFromEnum(self)];
+        }
     };
 };

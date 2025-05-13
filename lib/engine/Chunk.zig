@@ -1,10 +1,7 @@
 const std = @import("std");
-const fmt = std.fmt;
-const print = std.debug.print;
-const fs = std.fs;
 const perlin = @import("perlin");
-const builtin = @import("builtin");
-const Tile = @import("Tile.zig").Tile;
+const engine = @import("../engine.zig");
+const Tile = engine.Tile;
 const Chunk = @This();
 
 x: i32,
@@ -28,7 +25,7 @@ pub const size = 24;
 
 pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !void {
     var buf: [256]u8 = undefined;
-    const path = try fmt.bufPrint(
+    const path = try std.fmt.bufPrint(
         &buf,
         "{s}/{x}_{x}.{s}",
         .{
@@ -76,7 +73,7 @@ pub fn tile(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
 
 pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {
     var buf: [256]u8 = undefined;
-    const path = try fmt.bufPrint(
+    const path = try std.fmt.bufPrint(
         &buf,
         "{s}/{x}_{x}.{s}",
         .{

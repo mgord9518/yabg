@@ -1,11 +1,23 @@
 const rl = @import("raylib");
 
-const Direction = @import("enums.zig").Direction;
-const Animation = @import("enums.zig").Animation;
-
 const Entity = @This();
 
-// The max speed at which the player is allowed to walk
+pub const Direction = enum(u2) {
+    down,
+    left,
+    up,
+    right,
+};
+
+pub const Animation = enum {
+    idle,
+    walk_down,
+    walk_left,
+    walk_up,
+    walk_right,
+};
+
+// Texels per tick
 pub var walk_speed: f32 = 2;
 
 x: i32 = 0,

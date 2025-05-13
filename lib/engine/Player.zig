@@ -3,11 +3,8 @@ const std = @import("std");
 
 const known_folders = @import("known-folders");
 
-const Chunk = @import("Chunk.zig");
-const Tile = @import("Tile.zig").Tile;
-const Direction = @import("enums.zig").Direction;
-const Animation = @import("enums.zig").Animation;
-const engine = @import("engine/init.zig");
+const Chunk  = @import("Chunk.zig");
+const engine = @import("../engine.zig");
 const Entity = @import("Entity.zig");
 
 const Player = @This();
@@ -16,50 +13,19 @@ const Player = @This();
 pub var walk_speed: f32 = 2;
 
 entity: Entity,
-inventory: Inventory,
+inventory: engine.Inventory,
 
-standing_on: Tile,
+standing_on: ?*const engine.Tile = null,
 
 save_path: []const u8,
-
-const Inventory = struct {
-    items: [6]?engine.Item = .{null} ** 6,
-    selected_slot: usize = 0,
-
-    // Returns `true` if items were successfully added to inventory
-    pub fn add(self: *Inventory, item: engine.ItemType, count: u8) bool {
-        var remaining = count;
-
-        for (&self.items) |*maybe_slot_stack| {
-            if (remaining == 0) break;
-
-            if (maybe_slot_stack.*) |*slot_stack| {
-                if (slot_stack.*.value.canStackWith(item)) {
-                    // TODO: check max stack size
-                    slot_stack.*.count += remaining;
-                    remaining -= remaining;
-                }
-            } else {
-                maybe_slot_stack.* = .{ .value = item, .count = remaining };
-                remaining -= remaining;
-            }
-        }
-
-        if (remaining != 0) {
-            return false;
-        }
-
-        return true;
-    }
-};
 
 const PlayerJson = struct {
     x: i32,
     y: i32,
 
-    //inventory: [6]?engine.Item,
+    inventory: engine.Inventory,
 
-    direction: Direction,
+    direction: Entity.Direction,
 };
 
 pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
@@ -68,15 +34,14 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 
     var player = Player{
         .save_path = save_path,
-        .standing_on = Tile.init(.{ .id = .grass }),
         .entity = .{
             .direction = .down,
             .animation_texture = undefined,
         },
-        .inventory = Inventory{},
+        .inventory = engine.Inventory{},
     };
 
-    inline for (std.meta.fields(Animation)) |animation| {
+    inline for (std.meta.fields(Entity.Animation)) |animation| {
         const animation_texture = engine.loadTextureEmbedded("entities/player_" ++ animation.name);
 
         player.entity.animation_texture[animation.value] = animation_texture;
@@ -112,6 +77,7 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
     player.entity.x = player_coords.value.x;
     player.entity.y = player_coords.value.y;
     player.entity.direction = player_coords.value.direction;
+    player.inventory = player_coords.value.inventory;
 
     return player;
 }
@@ -210,8 +176,14 @@ pub fn updateState(player: *Player) !void {
         player_tile_offset_y,
     );
 
+    player.standing_on = target_chunk.tileNew(
+        .floor,
+        player_tile_offset_x,
+        player_tile_offset_y,
+    );
+
     if (rl.isKeyPressed(.period) or rl.isGamepadButtonPressed(0, .right_face_left)) {
-        rl.playSound(target_tile.sound());
+        target_tile.playSound();
 
         // Apply damage to tile, break olnce it hits 3
         switch (target_tile.damage) {
@@ -246,16 +218,16 @@ pub fn updateState(player: *Player) !void {
     ) {
         if (player.inventory.items[player.inventory.selected_slot]) |*slot| {
             if (slot.value == .tile) {
-                const temp_tile = Tile.init(.{ .id = slot.value.tile } );
+                const temp_tile = engine.Tile.init(.{ .id = slot.value.tile } );
 
                 if (floor_tile.id == .water) {
                     floor_tile.* = temp_tile;
                     slot.*.count -= 1;
-                    rl.playSound(temp_tile.sound());
+                    temp_tile.playSound();
                 } else if (target_tile.id == .air) {
                     target_tile.* = temp_tile;
                     slot.*.count -= 1;
-                    rl.playSound(temp_tile.sound());
+                    temp_tile.playSound();
                 }
 
                 if (slot.*.count == 0) {
@@ -266,13 +238,13 @@ pub fn updateState(player: *Player) !void {
     }
 
     if (input_vec.x != 0 and player.entity.remaining_x == 0 and player.entity.remaining_y == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-        player.entity.remaining_x = Tile.size;
+        player.entity.remaining_x = engine.Tile.size;
 
         if (player.entity.direction == .left) player.entity.remaining_x = -player.entity.remaining_x;
     }
 
     if (input_vec.y != 0 and player.entity.remaining_y == 0 and player.entity.remaining_x == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-        player.entity.remaining_y = Tile.size;
+        player.entity.remaining_y = engine.Tile.size;
 
         if (player.entity.direction == .up) player.entity.remaining_y = -player.entity.remaining_y;
     }
@@ -370,6 +342,7 @@ pub fn save(player: *Player) !void {
             .x = player.entity.x,
             .y = player.entity.y,
             .direction = player.entity.direction,
+            .inventory = player.inventory,
         },
         .{},
         fbs.writer(),
@@ -408,7 +381,9 @@ pub fn updatePlayerFrames(
         player.entity.frame_num +%= 1;
 
         if (player.entity.frame_num == 2 or player.entity.frame_num == 6) {
-            rl.playSound(player.standing_on.sound());
+            if (player.standing_on) |tile| {
+                engine.playSound(tile.sound());
+            }
         }
     }
 }
