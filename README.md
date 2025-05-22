@@ -1,6 +1,6 @@
 # YABG (Yet Another Block Game)
 
-<p align="center"><img src="resources/yabg.png"/></p>
+<p align="center"><img src="docs/yabg.png"/></p>
 
 ## Play instructions:
 
