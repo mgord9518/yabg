@@ -1,4 +1,5 @@
 const rl = @import("raylib");
+const engine = @import("../engine.zig");
 
 const Entity = @This();
 
@@ -17,11 +18,11 @@ pub const Animation = enum {
     walk_right,
 };
 
-// Texels per tick
-pub var walk_speed: f32 = 2;
+// Texels per game tick
+//pub var walk_speed: f32 = 2;
+pub var walk_speed: f32 = 0.1;
 
-x: i32 = 0,
-y: i32 = 0,
+pos: engine.Coordinate = .{ .x = 0, .y = 0 },
 
 remaining_x: f32 = 0,
 remaining_y: f32 = 0,

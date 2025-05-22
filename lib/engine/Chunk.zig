@@ -24,10 +24,20 @@ pub const max_supported_version = 0;
 pub const size = 24;
 
 pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !void {
+    const cwd = std.fs.cwd();
+
     var buf: [256]u8 = undefined;
-    const path = try std.fmt.bufPrint(
+    var path = try std.fmt.bufPrint(
         &buf,
-        "{s}/{x}_{x}.{s}",
+        "{s}/chunks",
+        .{ save_path },
+    );
+
+    try cwd.makePath(path);
+
+    path = try std.fmt.bufPrint(
+        &buf,
+        "{s}/chunks/{x}_{x}.{s}",
         .{
             save_path,
             @divTrunc(self.x, size),
@@ -75,7 +85,7 @@ pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk 
     var buf: [256]u8 = undefined;
     const path = try std.fmt.bufPrint(
         &buf,
-        "{s}/{x}_{x}.{s}",
+        "{s}/chunks/{x}_{x}.{s}",
         .{
             save_path,
             x,
@@ -199,8 +209,6 @@ pub fn init(x: i32, y: i32) !Chunk {
             t.id = .water;
         }
     }
-
-    std.debug.print("Chunk generated: {any}\n", .{chunk.tiles[size * size + 3]});
 
     return chunk;
 }

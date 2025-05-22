@@ -10,6 +10,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .strip = true,
         // <https://github.com/Not-Nik/raylib-zig/issues/219>
         .use_lld = false,
     });
@@ -18,6 +19,31 @@ pub fn build(b: *std.Build) void {
 
     const known_folders_dep = b.dependency("known-folders", .{});
     const perlin_dep = b.dependency("perlin", .{});
+
+//    const psftools_dep = b.dependency("psftools", .{
+//        .target = target,
+//        .optimize = optimize,
+//    });
+
+    // Only needed for building font
+//    const txt2psf = b.addExecutable(.{
+//        .name = "txt2psf",
+//        .target = target,
+//        .optimize = optimize,
+//    });
+//
+//    txt2psf.addCSourceFiles(.{
+//        .root = b.path("tools/psftools-1.1.2"),
+//        .files = &.{
+//            "tools/txt2psf.c",
+//            "lib/psflib.c",
+//            "lib/psfucs.c",
+//            "lib/psfio.c",
+//            "lib/psferror.c",
+//        },
+//    });
+//
+//    txt2psf.linkLibC();
 
     const raylib_dep = b.dependency("raylib", .{
         .target = target,
@@ -53,6 +79,13 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addImport("known-folders", known_folders_dep.module("known-folders"));
     exe.root_module.addImport("perlin", perlin_dep.module("perlin"));
+
+    const font_step = b.step("font", "Build font (requires psftools)");
+    const run_txt2psf = b.addSystemCommand(&.{
+        "txt2psf", "lib/engine/fonts/font.txt", "lib/engine/fonts/font.psfu"
+    });
+
+    font_step.dependOn(&run_txt2psf.step);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

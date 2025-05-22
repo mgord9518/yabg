@@ -19,7 +19,7 @@ jobs:
         sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev libxkbcommon-dev libegl-dev libwayland-dev zip
 
     - name: Build
-      run: ./resources/build.sh
+      run: make
 
     - name: Upload build
       uses: "marvinpinto/action-automatic-releases@latest"
@@ -29,7 +29,4 @@ jobs:
         prerelease: true
         title: "Continuous Build"
         files: |
-          *.AppImage
-          *.shImg
-          *.zsync
           *.zip

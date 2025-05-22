@@ -9,9 +9,6 @@ const Entity = @import("Entity.zig");
 
 const Player = @This();
 
-// The max speed at which the player is allowed to walk
-pub var walk_speed: f32 = 2;
-
 entity: Entity,
 inventory: engine.Inventory,
 
@@ -20,8 +17,7 @@ standing_on: ?*const engine.Tile = null,
 save_path: []const u8,
 
 const PlayerJson = struct {
-    x: i32,
-    y: i32,
+    pos: engine.Coordinate,
 
     inventory: engine.Inventory,
 
@@ -74,8 +70,7 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 
     defer player_coords.deinit();
 
-    player.entity.x = player_coords.value.x;
-    player.entity.y = player_coords.value.y;
+    player.entity.pos = player_coords.value.pos;
     player.entity.direction = player_coords.value.direction;
     player.inventory = player_coords.value.inventory;
 
@@ -86,6 +81,8 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
 pub fn updateState(player: *Player) !void {
     // Keyboard/gamepad inputs
     const input_vec = player.inputVector();
+
+    const previous_direction = player.entity.direction;
 
     if (player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
         if (input_vec.x > 0) {
@@ -99,32 +96,36 @@ pub fn updateState(player: *Player) !void {
         }
     }
 
+    if (previous_direction != player.entity.direction) {
+        return;
+    }
+
     // Collision detection
-    var player_tile_offset_x: u16 = @intCast(@mod(player.entity.x, Chunk.size));
-    var player_tile_offset_y: u16 = @intCast(@mod(player.entity.y, Chunk.size));
+    var player_tile_offset_x: u16 = @intCast(@mod(player.entity.pos.x, Chunk.size));
+    var player_tile_offset_y: u16 = @intCast(@mod(player.entity.pos.y, Chunk.size));
 
     // Middle chunk
     var target_chunk_num: usize = 4;
 
     // Find chunk player is looking at
     if (player_tile_offset_x == 0 and player.entity.direction == .left ) {
-        if (player.entity.x >= 0) {
+        if (player.entity.pos.x >= 0) {
             target_chunk_num -= 1;
         }
 
         player_tile_offset_x = Chunk.size;
     } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
-        if (player.entity.y >= 0) {
+        if (player.entity.pos.y >= 0) {
             target_chunk_num -= 3;
         }
 
         player_tile_offset_y = Chunk.size;
     } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
-        if (player.entity.x < 0) {
+        if (player.entity.pos.x < 0) {
             target_chunk_num += 1;
         }
     } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
-        if (player.entity.y < 0) {
+        if (player.entity.pos.y < 0) {
             target_chunk_num += 3;
         }
     }
@@ -148,7 +149,7 @@ pub fn updateState(player: *Player) !void {
 
     if (player_tile_offset_x == 0) {
         if (player.entity.direction == .down or player.entity.direction == .up) {
-            if (player.entity.x < 0) {
+            if (player.entity.pos.x < 0) {
                 target_chunk_num += 1;
             }
         }
@@ -156,7 +157,7 @@ pub fn updateState(player: *Player) !void {
 
     if (player_tile_offset_y == 0) {
         if (player.entity.direction == .left or player.entity.direction == .right) {
-            if (player.entity.y < 0) {
+            if (player.entity.pos.y < 0) {
                 target_chunk_num += 3;
             }
         }
@@ -188,7 +189,10 @@ pub fn updateState(player: *Player) !void {
         // Apply damage to tile, break olnce it hits 3
         switch (target_tile.damage) {
             3 => {
-                _ = player.inventory.add(.{ .tile = target_tile.*.id }, 1);
+                const added = player.inventory.add(.{ .tile = target_tile.*.id }, 1);
+                if (!added) {
+                    std.debug.print("failed to add item ({s}) to inventory!\n", .{@tagName(target_tile.*.id)});
+                }
 
                 target_tile.* = .{
                     .id = .air,
@@ -213,8 +217,8 @@ pub fn updateState(player: *Player) !void {
 
     if (
         (rl.isKeyPressed(.slash) or rl.isGamepadButtonPressed(0, .right_face_down)) and
-        @abs(player.entity.remaining_x) < 6 and
-        @abs(player.entity.remaining_y) < 6
+        @abs(player.entity.remaining_x) == 0 and
+        @abs(player.entity.remaining_y) == 0
     ) {
         if (player.inventory.items[player.inventory.selected_slot]) |*slot| {
             if (slot.value == .tile) {
@@ -238,38 +242,38 @@ pub fn updateState(player: *Player) !void {
     }
 
     if (input_vec.x != 0 and player.entity.remaining_x == 0 and player.entity.remaining_y == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-        player.entity.remaining_x = engine.Tile.size;
+        player.entity.remaining_x = 1;
 
         if (player.entity.direction == .left) player.entity.remaining_x = -player.entity.remaining_x;
     }
 
     if (input_vec.y != 0 and player.entity.remaining_y == 0 and player.entity.remaining_x == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-        player.entity.remaining_y = engine.Tile.size;
+        player.entity.remaining_y = 1;
 
         if (player.entity.direction == .up) player.entity.remaining_y = -player.entity.remaining_y;
     }
 
     if (player.entity.direction == .right and player.entity.remaining_x > 0 or player.entity.direction == .left and player.entity.remaining_x < 0) {
-        player.entity.x_speed = engine.tps * Player.walk_speed * engine.delta;
-        if (player.entity.direction == .left) player.entity.x_speed = -player.entity.x_speed;
+        var x_speed = engine.tps * Entity.walk_speed * engine.delta;
+        if (player.entity.direction == .left) x_speed = -x_speed;
 
-        player.entity.remaining_x -= player.entity.x_speed;
+        player.entity.remaining_x -= x_speed;
     }
 
     if (player.entity.direction == .right and player.entity.remaining_x < 0 or player.entity.direction == .left and player.entity.remaining_x > 0) {
         player.entity.x_speed = 0;
 
         if (player.entity.direction == .right and player.entity.remaining_x < 0) {
-            player.entity.x += 1;
+            player.entity.pos.x += 1;
         } else if (player.entity.direction == .left and player.entity.remaining_x > 0) {
-            player.entity.x -= 1;
+            player.entity.pos.x -= 1;
         }
 
         player.entity.remaining_x = 0;
     }
 
     if (player.entity.direction == .down and player.entity.remaining_y > 0 or player.entity.direction == .up and player.entity.remaining_y < 0) {
-        player.entity.y_speed = engine.tps * Player.walk_speed * engine.delta;
+        player.entity.y_speed = engine.tps * Entity.walk_speed * engine.delta;
         if (player.entity.direction == .up) player.entity.y_speed = -player.entity.y_speed;
 
         player.entity.remaining_y -= player.entity.y_speed;
@@ -279,9 +283,9 @@ pub fn updateState(player: *Player) !void {
         player.entity.y_speed = 0;
 
         if (player.entity.direction == .down and player.entity.remaining_y < 0) {
-            player.entity.y += 1;
+            player.entity.pos.y += 1;
         } else if (player.entity.direction == .up and player.entity.remaining_y > 0) {
-            player.entity.y -= 1;
+            player.entity.pos.y -= 1;
         }
 
         player.entity.remaining_y = 0;
@@ -339,8 +343,7 @@ pub fn save(player: *Player) !void {
 
     try std.json.stringify(
         PlayerJson{
-            .x = player.entity.x,
-            .y = player.entity.y,
+            .pos = player.entity.pos,
             .direction = player.entity.direction,
             .inventory = player.inventory,
         },
@@ -388,18 +391,18 @@ pub fn updatePlayerFrames(
     }
 }
 
-// Checks and unloads any engine.chunks not surrounding the player in a 9x9 area
-// then loads new engine.chunks into their pointers
+// Checks and unloads any engine.chunks not surrounding the player in a 3x3 area
+// then loads new chunks into their pointers
 // Not yet sure how robust this is
 pub fn reloadChunks(player: *Player) void {
-    var chunk_x = @divTrunc(player.entity.x, Chunk.size);
-    var chunk_y = @divTrunc(player.entity.y, Chunk.size);
+    var chunk_x: i32 = @intCast(@divTrunc(player.entity.pos.x, Chunk.size));
+    var chunk_y: i32 = @intCast(@divTrunc(player.entity.pos.y, Chunk.size));
 
-    if (player.entity.x < 0) {
+    if (player.entity.pos.x < 0) {
         chunk_x = chunk_x - 1;
     }
 
-    if (player.entity.y < 0) {
+    if (player.entity.pos.y < 0) {
         chunk_y = chunk_y - 1;
     }
 

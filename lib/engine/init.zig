@@ -5,45 +5,24 @@ pub const ui = @import("ui.zig");
 const std = @import("std");
 const rl = @import("raylib");
 
+const engine = @import("../engine.zig");
 const Chunk = @import("Chunk.zig");
 const Player = @import("Player.zig");
-const engine = @import("../engine.zig");
+const textures = @import("textures.zig");
+const tick = @import("tick.zig");
 
 const psf = @import("psf.zig");
 
-const Font = struct {
-    atlas: rl.Texture,
-    glyph_offsets: std.AutoHashMap(u21, usize),
-};
-
-const Vec = struct {
-    x: u16,
-    y: u16,
-};
-
-pub var screen_width: u15 = 160;
-pub var screen_height: u15 = 144;
-pub var scale: u15 = 4;
-pub const title = "Yet Another Block Game (YABG)";
-pub const id = "io.github.mgord9518.yabg";
-
-pub const font_data = @embedFile("fonts/font.psfu");
-pub var font: Font = undefined;
-
-pub const version = std.SemanticVersion{
-    .pre = "pre-alpha",
-
-    .major = 0,
-    .minor = 0,
-    .patch = 57,
-};
-
-pub fn init(allocator: std.mem.Allocator) !void {
+pub fn init(allocator: std.mem.Allocator, comptime onEveryTickFn: fn() anyerror!void) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
 
     var initialization_arena = std.heap.ArenaAllocator.init(allocator);
     defer initialization_arena.deinit();
+
+    engine.entities = std.SegmentedList(engine.Entity, 0){};
+
+    _ = try std.Thread.spawn(.{}, tick.tickMainThread, .{onEveryTickFn});
 
     engine.rand = std.Random.DefaultPrng.init(0);
 
@@ -52,10 +31,10 @@ pub fn init(allocator: std.mem.Allocator) !void {
     const h_env: []const u8 = env_map.get("WINDOW_HEIGHT") orelse "";
     const scale_env: []const u8 = env_map.get("SCALE_FACTOR") orelse "";
 
-    scale = std.fmt.parseInt(u15, scale_env, 10) catch scale;
+    engine.scale = std.fmt.parseInt(u15, scale_env, 10) catch engine.scale;
 
-    const w = std.fmt.parseInt(u15, w_env, 10) catch screen_width * scale;
-    const h = std.fmt.parseInt(u15, h_env, 10) catch screen_height * scale;
+    const w = std.fmt.parseInt(u15, w_env, 10) catch engine.screen_width * engine.scale;
+    const h = std.fmt.parseInt(u15, h_env, 10) catch engine.screen_height * engine.scale;
 
     // Enable vsync, resizing and init audio devices
     rl.setConfigFlags(.{
@@ -67,11 +46,13 @@ pub fn init(allocator: std.mem.Allocator) !void {
     rl.setTraceLogLevel(.debug);
     rl.initAudioDevice();
 
+    const title = try std.fmt.allocPrintZ(initialization_arena.allocator(), "YABG {}", .{engine.version});
+
     rl.initWindow(@intCast(w), @intCast(h), title);
-    rl.setWindowMinSize(@intCast(128 * scale), @intCast(128 * scale));
+    rl.setWindowMinSize(@intCast(128 * engine.scale), @intCast(128 * engine.scale));
     rl.setWindowSize(@intCast(w), @intCast(h));
 
-    engine.psf_font = try psf.Font.parse(allocator, font_data);
+    engine.psf_font = try psf.Font.parse(allocator, engine.font_data);
 
     const data = try allocator.alloc(u16, 9 * (1024 * 4) + 1);
 
@@ -90,7 +71,7 @@ pub fn init(allocator: std.mem.Allocator) !void {
         .format = .uncompressed_gray_alpha,
     };
 
-    font = .{
+    engine.font = .{
         .atlas = undefined,
         .glyph_offsets = std.AutoHashMap(u21, usize).init(allocator),
     };
@@ -104,11 +85,23 @@ pub fn init(allocator: std.mem.Allocator) !void {
             .y = 0,
         });
 
-        try font.glyph_offsets.put(key.*, off);
+        try engine.font.glyph_offsets.put(key.*, off);
     }
 
-    font.atlas = try rl.loadTextureFromImage(font_image);
+    engine.font.atlas = try rl.loadTextureFromImage(font_image);
 
+    try initTextures();
+    try initSounds();
+
+    // Disable exit on keypress
+    //rl.setExitKey(.null);
+}
+
+fn initTextures() !void {
+    // UI elements
+    textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
+
+    // Tiles
     inline for (std.meta.fields(engine.Tile.Id)) |tile| {
         const tile_id: engine.Tile.Id = @enumFromInt(tile.value);
 
@@ -119,12 +112,24 @@ pub fn init(allocator: std.mem.Allocator) !void {
         }
 
         const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
-        const tile_sound = engine.loadSoundEmbedded("tiles/" ++ tile.name);
 
         engine.tileTextures[tile.value] = tile_texture;
+    }
+}
+
+fn initSounds() !void {
+    // Tiles
+    inline for (std.meta.fields(engine.Tile.Id)) |tile| {
+        const tile_id: engine.Tile.Id = @enumFromInt(tile.value);
+
+        // Exceptions
+        switch (tile_id) {
+            .air => continue,
+            else => {},
+        }
+
+        const tile_sound = engine.loadSoundEmbedded("tiles/" ++ tile.name);
+
         engine.tileSounds[tile.value] = tile_sound;
     }
-
-    // Disable exit on keypress
-    //rl.setExitKey(.null);
 }

@@ -4,23 +4,24 @@
 
 ## Play instructions:
 
-As of now, the game has no real content, but it will be added once I consider
-the engine good-enough. A couple of environment variables can be set for
-testing purposes:
+As of now, the game has no real content, just a procedurally-generated world
+that can be walked around, break and place tiles. I've been working on a
+large refactor of the engine, and once I deem it "good-nuff", I will work
+on adding stuff to do
+
+The following environment variables are currently supported:
 ```
-SCALE_FACTOR  # Must be set to an integer, this will change the scaling of the
-              # game (default=6)
+SCALE_FACTOR <uint> # Scaling factor, changes the size of game pixels relative
+                    # to the system's native resolution (default=4)
 
-PLAYER_SPEED  # Changes the speed of the player per tick. Each game tick is
-              # 1/30th of a second, so if you want to move one pixel per tick,
-			  # the speed would be set to 2 (default)
+WINDOW_WIDTH  <uint> # Sets the window width in pixels
+WINDOW_HEIGHT <uint> # Sets the window height in pixels
 
-WINDOW_WIDTH  # Must be set to an integer, sets the window width in pixels
-WINDOW_HEIGHT # Same as WINDOW_WIDTH but for height
-
-DEBUG_MODE    # Start the game in debug mode (F3 menu)
+DEBUG_MODE <bool> # Start the game in debug mode (F3 menu)
 ```
 
+### Controls
+```
 Keyboard controls:
  W:          Walk up
  A:          Walk left
@@ -29,17 +30,21 @@ Keyboard controls:
  , (comma):  Break block
  . (period): Place stone
 
+ ← (left):  Select previous item in hotbar
+ → (right): Select next item in hotbar
+
 Gamepad controls:
  Left stick:  Move
  TODO: break, place blocks
+```
 
 In the future I will likely make both placing and breaking use the same button
 and depend on the item currently highlighted.
 
 ## Dependency installation:
 ```sh
-# Regardless of distro, Zig 0.14 is required, so just install that using zigup
-# unless your distro has it in their repo
+# Zig 0.14 is required, so just install that using zigup or your OS's package
+# manager (probably isn't present if you don't use a rolling release)
 
 # Nix:
 nix develop # Flake-enabled
@@ -53,7 +58,7 @@ libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev mesa-gl mesa-d
 ```
 
 ## Building instructions:
-```
+```sh
 git clone https://github.com/mgord9518/yabg
 cd yabg
 

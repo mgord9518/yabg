@@ -1,5 +1,5 @@
 const std = @import("std");
-const engine = @import("init.zig");
+const engine = @import("../engine.zig");
 const rl = @import("raylib");
 
 pub const NewVec = struct {

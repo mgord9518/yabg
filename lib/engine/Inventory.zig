@@ -2,6 +2,8 @@ pub const Inventory = @This();
 
 const engine = @import("../engine.zig");
 
+const stack_size = 96;
+
 items: [6]?ItemStack = .{null} ** 6,
 selected_slot: usize = 0,
 
@@ -19,9 +21,12 @@ pub fn add(self: *Inventory, item: engine.Item, count: u8) bool {
 
         if (maybe_slot_stack.*) |*slot_stack| {
             if (slot_stack.*.value.canStackWith(item)) {
-                // TODO: check max stack size
-                slot_stack.*.count += remaining;
-                remaining -= remaining;
+                const extra_slots = stack_size - slot_stack.*.count;
+
+                const take = @min(extra_slots, count);
+
+                slot_stack.*.count += take;
+                remaining -= take;
             }
         } else {
             maybe_slot_stack.* = .{ .value = item, .count = remaining };
