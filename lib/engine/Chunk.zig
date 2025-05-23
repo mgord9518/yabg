@@ -61,7 +61,7 @@ pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !vo
         @as([size * size * 2 * 2]u8, @bitCast(self.tiles[0 .. size * size * 2].*))[0..],
     );
 
-    _ = try file.write(&save_buf);
+    _ = try file.writeAll(&save_buf);
 }
 
 pub const Layer = enum {
@@ -69,16 +69,10 @@ pub const Layer = enum {
     wall,
 };
 
-pub fn tileNew(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
+pub fn getTileAtOffset(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
     const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
 
     return &self.tiles[@as(usize, x) + (@as(usize, y) * Chunk.size) + offset];
-}
-
-pub fn tile(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
-    const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
-
-    return &self.tiles[@as(usize, x) + y + offset];
 }
 
 pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk {

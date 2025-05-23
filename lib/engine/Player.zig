@@ -165,19 +165,19 @@ pub fn updateState(player: *Player) !void {
 
     const target_chunk = &engine.chunks[target_chunk_num];
 
-    var target_tile = target_chunk.tileNew(
+    var target_tile = target_chunk.getTileAtOffset(
         .wall,
         player_tile_offset_x,
         player_tile_offset_y,
     );
 
-    var floor_tile = target_chunk.tileNew(
+    var floor_tile = target_chunk.getTileAtOffset(
         .floor,
         player_tile_offset_x,
         player_tile_offset_y,
     );
 
-    player.standing_on = target_chunk.tileNew(
+    player.standing_on = target_chunk.getTileAtOffset(
         .floor,
         player_tile_offset_x,
         player_tile_offset_y,
