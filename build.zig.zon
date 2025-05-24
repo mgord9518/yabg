@@ -1,6 +1,6 @@
 .{
     .name = .yabg,
-    .version = "0.0.58",
+    .version = "0.0.59",
 
     .paths = [][]const u8{
         "build.zig",
@@ -13,16 +13,16 @@
 
     .dependencies = .{
         .raylib = .{
-            .url = "git+https://github.com/Not-Nik/raylib-zig.git#d6c77762cbdebbf56d3ff101142048dfae2496c4",
-            .hash = "raylib_zig-5.6.0-dev-KE8REBMyBQCnQ9RBhHsoSKr97XmDHF84wx3g0UiMRDxj",
+            .url = "git+https://github.com/Not-Nik/raylib-zig.git#3bf08a304cfe2baf839705063ff999b8d8bc8c54",
+            .hash = "raylib_zig-5.6.0-dev-KE8REKAqBQAQugfCOjYYVRFOi7iaEJK1EMDcRUq8AOm2",
         },
         .@"known-folders" = .{
             .url = "git+https://github.com/ziglibs/known-folders.git#aa24df42183ad415d10bc0a33e6238c437fc0f59",
             .hash = "known_folders-0.0.0-Fy-PJtLDAADGDOwYwMkVydMSTp_aN-nfjCZw6qPQ2ECL",
         },
         .perlin = .{
-            .url = "git+https://github.com/mgord9518/perlin-zig.git#73a69cdd2a42483a2138aed9725e61791d07b58d",
-            .hash = "12208b3a835f168e660e826f82d36a2b0ff3a1060fdeebd2b238bf2bd24a8d1faaff",
+            .url = "git+https://github.com/mgord9518/perlin-zig.git#ccf62ddcbde9fd3b1572c5385e15062c72201f0a",
+            .hash = "perlin-0.1.1-hiqlWGcZAABIllyOKMo6AM9TRX19iq_k6joT3fvRCFja",
         },
         // TODO: Why does Zig say it has a bad GZip header?
 //        .psftools = .{

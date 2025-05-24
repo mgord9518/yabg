@@ -40,10 +40,11 @@ pub fn init(allocator: std.mem.Allocator, comptime onEveryTickFn: fn() anyerror!
     rl.setConfigFlags(.{
         .vsync_hint = true,
         .window_resizable = true,
-        //.window_highdpi= true,
+        //.window_undecorated = true,
+        //.window_highdpi = true,
     });
 
-    rl.setTraceLogLevel(.debug);
+    //rl.setTraceLogLevel(.debug);
     rl.initAudioDevice();
 
     const title = try std.fmt.allocPrintZ(initialization_arena.allocator(), "YABG {}", .{engine.version});

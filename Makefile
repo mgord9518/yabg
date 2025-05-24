@@ -4,7 +4,7 @@
 # If you're testing, you should probably just run `zig build`
 
 prefix  = zig-out
-version = 0.0.57
+version = 0.0.59
 
 ZIGFLAGS = --release=safe
 

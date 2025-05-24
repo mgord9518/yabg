@@ -10,9 +10,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .strip = true,
         // <https://github.com/Not-Nik/raylib-zig/issues/219>
-        .use_lld = false,
+        //.use_lld = false,
     });
 
     exe.linkLibC();
@@ -50,8 +49,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         //.platform = .drm,
         //.shared = true,
-        // TODO: fix Wayland hidpi scaling in game
-        .linux_display_backend = .X11,
+        // TODO: fix hidpi scaling (currently appears to be an issue with Raylib)
     });
 
     const yabg_engine_module = b.addModule("engine", .{
@@ -81,9 +79,10 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("perlin", perlin_dep.module("perlin"));
 
     const font_step = b.step("font", "Build font (requires psftools)");
-    const run_txt2psf = b.addSystemCommand(&.{
-        "txt2psf", "lib/engine/fonts/font.txt", "lib/engine/fonts/font.psfu"
-    });
+    const run_txt2psf = b.addSystemCommand(&.{ "txt2psf"});
+
+    run_txt2psf.addFileArg(b.path("lib/engine/fonts/font.txt"));
+    run_txt2psf.addFileArg(b.path("lib/engine/fonts/font.psfu"));
 
     font_step.dependOn(&run_txt2psf.step);
 

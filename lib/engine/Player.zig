@@ -77,6 +77,12 @@ pub fn init(allocator: std.mem.Allocator, save_path: []const u8) !Player {
     return player;
 }
 
+// ms since last changed direction
+var last_changed_direction: isize = 0;
+
+// 1/8th of a second
+const direction_change_timeout = 125;
+
 // Updates player state based on input
 pub fn updateState(player: *Player) !void {
     // Keyboard/gamepad inputs
@@ -96,7 +102,13 @@ pub fn updateState(player: *Player) !void {
         }
     }
 
-    if (previous_direction != player.entity.direction) {
+    if (rl.isKeyDown(.w) or rl.isKeyDown(.a) or rl.isKeyDown(.s) or rl.isKeyDown(.d)) {
+        if (previous_direction != player.entity.direction) {
+            last_changed_direction = std.time.milliTimestamp();
+        }
+    }
+
+    if (std.time.milliTimestamp() - last_changed_direction < direction_change_timeout) {
         return;
     }
 

@@ -172,17 +172,17 @@ pub fn init(x: i32, y: i32) !Chunk {
         // TODO: Allow the world directory to control world gen
         const s = 1.5;
 
-        var val = perlin.noise(f64, .{
+        var val = perlin.noise(f64, perlin.permutation, .{
             .x = @as(f32, @floatFromInt(t_x)) * 0.02 * s,
             .y = @as(f32, @floatFromInt(t_y)) * 0.02 * s,
         });
 
-        val += perlin.noise(f64, .{
+        val += perlin.noise(f64, perlin.permutation, .{
             .x = @as(f32, @floatFromInt(t_x)) * 0.05 * s,
             .y = @as(f32, @floatFromInt(t_y)) * 0.05 * s,
         });
 
-        val += perlin.noise(f64, .{
+        val += perlin.noise(f64, perlin.permutation, .{
             .x = @as(f32, @floatFromInt(t_x)) * 0.10 * s,
             .y = @as(f32, @floatFromInt(t_y)) * 0.10 * s,
             //}) / 2;
