@@ -1,14 +1,13 @@
 const std = @import("std");
 const perlin = @import("perlin");
-const engine = @import("../engine.zig");
-const Tile = engine.Tile;
+const engine = @import("../../engine.zig");
 const Chunk = @This();
 
 x: i32,
 y: i32,
 
 level: i32 = 0x80,
-tiles: [size * size * 2]Tile,
+tiles: [size * size * 2]engine.world.Tile,
 
 version: u8,
 
@@ -30,7 +29,7 @@ pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !vo
     var path = try std.fmt.bufPrint(
         &buf,
         "{s}/chunks",
-        .{ save_path },
+        .{save_path},
     );
 
     try cwd.makePath(path);
@@ -52,11 +51,15 @@ pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !vo
     );
 
     var save_buf: [6 + size * size * 2 * 2]u8 = undefined;
-    @memset(&save_buf, 0);
-    std.mem.copyForwards(u8, &save_buf, "YABGc");
+    //@memset(&save_buf, 0);
+
+    @memcpy(save_buf[0..5], "YABGc");
+
+    //std.mem.copyForwards(u8, &save_buf, "YABGc");
+
     save_buf[5] = self.version;
-    std.mem.copyForwards(
-        u8,
+
+    @memcpy(
         save_buf[6..],
         @as([size * size * 2 * 2]u8, @bitCast(self.tiles[0 .. size * size * 2].*))[0..],
     );
@@ -69,7 +72,7 @@ pub const Layer = enum {
     wall,
 };
 
-pub fn getTileAtOffset(self: *Chunk, layer: Layer, x: u16, y: u16) *Tile {
+pub fn getTileAtOffset(self: *Chunk, layer: Layer, x: u16, y: u16) *engine.world.Tile {
     const offset: usize = if (layer == .wall) (Chunk.size * Chunk.size) else 0;
 
     return &self.tiles[@as(usize, x) + (@as(usize, y) * Chunk.size) + offset];
@@ -124,9 +127,9 @@ pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk 
 
     // TODO: do this without copying
     std.mem.copyForwards(
-        Tile,
+        engine.world.Tile,
         chunk.tiles[0..],
-        @as([size * size * 2]Tile, @bitCast(tile_buf))[0..],
+        @as([size * size * 2]engine.world.Tile, @bitCast(tile_buf))[0..],
     );
 
     return chunk;
@@ -152,19 +155,12 @@ pub fn init(x: i32, y: i32) !Chunk {
     var t_y: i32 = undefined;
 
     for (chunk.tiles[0 .. size * size * 2]) |*t| {
-        t.* = Tile{
-            .naturally_generated = true,
-            .grade = 0,
-            .damage = 0,
-            .direction = .down,
-            .id = .air,
-        };
+        t.* = engine.world.Tile{ .id = .air };
     }
 
-    for (&chunk.tiles, 0..) |*t, idx| {
-        if (idx >= size * size) {
-            break;
-        }
+    var idx: usize = 0;
+    while (idx < size * size) : (idx += 1) {
+        var t = &chunk.tiles[idx];
 
         t_x = chunk.x + @as(i32, @intCast(@mod(idx, size)));
         t_y = chunk.y + @as(i32, @intCast(@divTrunc(idx, size)));

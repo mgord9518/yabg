@@ -1,19 +1,17 @@
-// This file exists to share variables over all areas of the game
-
 pub const ui = @import("ui.zig");
 
 const std = @import("std");
 const rl = @import("raylib");
 
 const engine = @import("../engine.zig");
-const Chunk = @import("Chunk.zig");
-const Player = @import("Player.zig");
-const textures = @import("textures.zig");
 const tick = @import("tick.zig");
 
 const psf = @import("psf.zig");
 
-pub fn init(allocator: std.mem.Allocator, comptime onEveryTickFn: fn() anyerror!void) !void {
+pub fn init(
+    allocator: std.mem.Allocator,
+    comptime onEveryTickFn: fn () anyerror!void,
+) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
 
@@ -36,38 +34,34 @@ pub fn init(allocator: std.mem.Allocator, comptime onEveryTickFn: fn() anyerror!
     const w = std.fmt.parseInt(u15, w_env, 10) catch engine.screen_width * engine.scale;
     const h = std.fmt.parseInt(u15, h_env, 10) catch engine.screen_height * engine.scale;
 
-    // Enable vsync, resizing and init audio devices
-    rl.setConfigFlags(.{
-        .vsync_hint = true,
-        .window_resizable = true,
-        //.window_undecorated = true,
-        //.window_highdpi = true,
-    });
+    try engine.backend.init(allocator, w, h);
 
-    //rl.setTraceLogLevel(.debug);
-    rl.initAudioDevice();
+    try initFonts(allocator);
+    try initTextures();
+    try initSounds();
 
-    const title = try std.fmt.allocPrintZ(initialization_arena.allocator(), "YABG {}", .{engine.version});
+    // Disable exit on keypress
+    //rl.setExitKey(.null);
+}
 
-    rl.initWindow(@intCast(w), @intCast(h), title);
-    rl.setWindowMinSize(@intCast(128 * engine.scale), @intCast(128 * engine.scale));
-    rl.setWindowSize(@intCast(w), @intCast(h));
+fn initFonts(allocator: std.mem.Allocator) !void {
+    const psf_font = try psf.Font.parse(allocator, engine.font_data);
 
-    engine.psf_font = try psf.Font.parse(allocator, engine.font_data);
+    // One extra pixel for the shadow
+    const font_image_w = psf_font.glyphs.count() * (psf_font.w + 1);
+    const font_image_h = psf_font.h + 1;
 
-    const data = try allocator.alloc(u16, 9 * (1024 * 4) + 1);
-
+    // Won't need this after the texture has been loaded from the image
+    const data = try allocator.alloc(u16, font_image_w * font_image_h);
+    defer allocator.free(data);
     @memset(data, 0);
 
     const font_image = rl.Image{
         .data = data.ptr,
 
-        // Room for 1024 characters
-        // Should be expanded in the future as needed
-        .width = 1024 * 4 + 1,
+        .width = @intCast(font_image_w),
+        .height = @intCast(font_image_h),
 
-        // One extra pixel for the shadow
-        .height = 8 + 1,
         .mipmaps = 1,
         .format = .uncompressed_gray_alpha,
     };
@@ -77,34 +71,27 @@ pub fn init(allocator: std.mem.Allocator, comptime onEveryTickFn: fn() anyerror!
         .glyph_offsets = std.AutoHashMap(u21, usize).init(allocator),
     };
 
-    var off: usize = 0;
+    var x_off: u15 = 0;
 
-    var key_it = engine.psf_font.glyphs.keyIterator();
-    while (key_it.next()) |key| : (off += (engine.psf_font.w + 1)) {
-        try engine.drawCharToImage(font_image, key.*, .{
-            .x = @intCast(off),
+    var key_it = psf_font.glyphs.keyIterator();
+    while (key_it.next()) |key| : (x_off += (@as(u15, @truncate(psf_font.w)) + 1)) {
+        try engine.drawCharToImage(psf_font, font_image, key.*, .{
+            .x = x_off,
             .y = 0,
         });
 
-        try engine.font.glyph_offsets.put(key.*, off);
+        try engine.font.glyph_offsets.put(key.*, x_off);
     }
-
     engine.font.atlas = try rl.loadTextureFromImage(font_image);
-
-    try initTextures();
-    try initSounds();
-
-    // Disable exit on keypress
-    //rl.setExitKey(.null);
 }
 
 fn initTextures() !void {
     // UI elements
-    textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
+    engine.textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
 
     // Tiles
-    inline for (std.meta.fields(engine.Tile.Id)) |tile| {
-        const tile_id: engine.Tile.Id = @enumFromInt(tile.value);
+    inline for (std.meta.fields(engine.world.Tile.Id)) |tile| {
+        const tile_id: engine.world.Tile.Id = @enumFromInt(tile.value);
 
         // Exceptions
         switch (tile_id) {
@@ -114,14 +101,14 @@ fn initTextures() !void {
 
         const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
 
-        engine.tileTextures[tile.value] = tile_texture;
+        engine.textures.tiles[tile.value] = tile_texture;
     }
 }
 
 fn initSounds() !void {
     // Tiles
-    inline for (std.meta.fields(engine.Tile.Id)) |tile| {
-        const tile_id: engine.Tile.Id = @enumFromInt(tile.value);
+    inline for (std.meta.fields(engine.world.Tile.Id)) |tile| {
+        const tile_id: engine.world.Tile.Id = @enumFromInt(tile.value);
 
         // Exceptions
         switch (tile_id) {

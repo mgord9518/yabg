@@ -26,8 +26,8 @@ const Camera = struct {
         const x_pos: i64 = @intFromFloat(@floor(camera.pos.x));
         const y_pos: i64 = @intFromFloat(@floor(camera.pos.y));
 
-        const x_subtile = (camera.pos.x - @floor(camera.pos.x)) * engine.Tile.size;
-        const y_subtile = (camera.pos.y - @floor(camera.pos.y)) * engine.Tile.size;
+        const x_subtile = (camera.pos.x - @floor(camera.pos.x)) * engine.world.Tile.size;
+        const y_subtile = (camera.pos.y - @floor(camera.pos.y)) * engine.world.Tile.size;
 
         const remaining_x: i32 = @intFromFloat(x_subtile);
 
@@ -36,11 +36,11 @@ const Camera = struct {
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 12
         // pixels, which may happen if the player resized the window
-        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), engine.Tile.size);
-        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), engine.Tile.size);
+        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), engine.world.Tile.size);
+        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), engine.world.Tile.size);
 
-        const screen_width_in_tiles = engine.screen_width / engine.Tile.size;
-        const screen_height_in_tiles = engine.screen_height / engine.Tile.size;
+        const screen_width_in_tiles = engine.screen_width / engine.world.Tile.size;
+        const screen_height_in_tiles = engine.screen_height / engine.world.Tile.size;
 
         // TODO: refactor
         var x: i32 = undefined;
@@ -55,9 +55,9 @@ const Camera = struct {
 
                     // Skip if tile not on screen
                     if (x + x_pos - (screen_width_in_tiles / 2) < chunk.x or
-                        x + x_pos - (screen_width_in_tiles / 2) >= chunk.x + engine.Chunk.size or
+                        x + x_pos - (screen_width_in_tiles / 2) >= chunk.x + engine.world.Chunk.size or
                         y + y_pos - (screen_height_in_tiles / 2) < chunk.y or
-                        y + y_pos - (screen_height_in_tiles / 2) >= chunk.y + engine.Chunk.size) continue;
+                        y + y_pos - (screen_height_in_tiles / 2) >= chunk.y + engine.world.Chunk.size) continue;
 
                     // Only loop through the first half of chunk engine.tiles (floor level)
                     // If wall level tile exists, draw it instead
@@ -66,18 +66,18 @@ const Camera = struct {
                             const tile = chunk.getTileAtOffset(.floor, @intCast(tile_x), @intCast(tile_y));
 
                             drawTexture(tile.texture(), .{
-                                .x = @intCast((x * engine.Tile.size) - remaining_x + screen_mod_x - (engine.Tile.size / 2)),
-                                .y = @intCast(y * engine.Tile.size - remaining_y + screen_mod_y + 4 - (engine.Tile.size / 2)),
+                                .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
+                                .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y + 4 - (engine.world.Tile.size / 2)),
                             }, rl.Color.light_gray);
                         },
                         else => {
-                            if ((y * engine.Tile.size) - 1 >= engine.screen_height / 2) continue;
+                            if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) continue;
 
                             const tile = chunk.getTileAtOffset(.wall, @intCast(tile_x), @intCast(tile_y));
 
                             drawTexture(tile.texture(), .{
-                                .x = @intCast((x * engine.Tile.size) - remaining_x + screen_mod_x - (engine.Tile.size / 2)),
-                                .y = @intCast(y * engine.Tile.size - remaining_y + screen_mod_y - 4 - (engine.Tile.size / 2)),
+                                .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
+                                .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2)),
                             }, rl.Color.white);
                         },
                     }
@@ -115,31 +115,30 @@ const Camera = struct {
 
         // Now draw all raised tiles that sit above the player in front to give
         // an illusion of depth
-        x = -1;
         y = -1;
         while (y <= screen_height_in_tiles + 1) : (y += 1) {
             x = -1;
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
                 for (&engine.chunks) |*chunk| {
                     // Camera pos is in middle of the screen, so shift back half a screen
-                    const tile_x_off: i64 = (x_pos - (screen_width_in_tiles / 2) + x);
-                    const tile_y_off: i64 = (y_pos - (screen_height_in_tiles / 2) + y);
+                    const tile_x_world_pos: i64 = (x_pos - (screen_width_in_tiles / 2) + x);
+                    const tile_y_world_pos: i64 = (y_pos - (screen_height_in_tiles / 2) + y);
 
-                    // Skip if tile not on screen
-                    if (tile_x_off < chunk.x or tile_x_off >= chunk.x + engine.Chunk.size) continue;
-                    if (tile_y_off < chunk.y or tile_y_off >= chunk.y + engine.Chunk.size) continue;
+                    const tile_x_chunk_off = std.math.cast(u16, tile_x_world_pos - chunk.x) orelse continue;
+                    const tile_y_chunk_off = std.math.cast(u16, tile_y_world_pos - chunk.y) orelse continue;
 
-                    const x_tile_chunk_offset: u16 = @intCast(tile_x_off - chunk.x);
-                    const y_tile_chunk_offset: u16 = @intCast(tile_y_off - chunk.y);
+                    // Skip if tile is beyond chunk border (negatives skipped with the math cast above)
+                    if (tile_x_chunk_off >= engine.world.Chunk.size) continue;
+                    if (tile_y_chunk_off >= engine.world.Chunk.size) continue;
 
                     // Only draw raised tiles
-                    const wall_tile = chunk.getTileAtOffset(.wall, x_tile_chunk_offset, y_tile_chunk_offset);
+                    const wall_tile = chunk.getTileAtOffset(.wall, tile_x_chunk_off, tile_y_chunk_off);
                     if (wall_tile.id == .air) continue;
 
-                    if ((y * engine.Tile.size) - 1 >= engine.screen_height / 2) {
+                    if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) {
                         drawTexture(wall_tile.texture(), .{
-                            .x = @intCast((x * engine.Tile.size) - remaining_x + screen_mod_x - (engine.Tile.size / 2)),
-                            .y = @intCast(y * engine.Tile.size - remaining_y + screen_mod_y - 4 - (engine.Tile.size / 2)),
+                            .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
+                            .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2)),
                         }, .white);
                     }
                 }
@@ -263,21 +262,18 @@ fn mainLoop(allocator: std.mem.Allocator) !void {
 
     try onEveryFrame(allocator);
 
-
-
     //const hotbar_y: i16 = @intCast(engine.screen_height - 17);
 
-//    try ui.drawText(
-//        ">This will be a chat...\n>More chat",
-//        .{
-//            .x = 2,
-//            .y = hotbar_y - 4,
-//        },
-//        .white,
-//    );
+    //    try ui.drawText(
+    //        ">This will be a chat...\n>More chat",
+    //        .{
+    //            .x = 2,
+    //            .y = hotbar_y - 4,
+    //        },
+    //        .white,
+    //    );
 
     rl.endDrawing();
-
 }
 
 fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
@@ -359,8 +355,8 @@ pub fn main() !void {
         std.debug.print("Error creating save directory: {}", .{err});
     };
 
-    var chunk_x = @divTrunc(player.entity.pos.x, engine.Chunk.size);
-    var chunk_y = @divTrunc(player.entity.pos.y, engine.Chunk.size);
+    var chunk_x = @divTrunc(player.entity.pos.x, engine.world.Chunk.size);
+    var chunk_y = @divTrunc(player.entity.pos.y, engine.world.Chunk.size);
 
     if (player.entity.pos.x < 0) {
         chunk_x = chunk_x - 1;
@@ -377,7 +373,7 @@ pub fn main() !void {
     var it: usize = 0;
     while (x_it <= chunk_x + 1) : (x_it += 1) {
         while (y_it <= chunk_y + 1) : (y_it += 1) {
-            engine.chunks[it] = try engine.Chunk.load(save_path, "vanilla0", x_it, y_it);
+            engine.chunks[it] = try engine.world.Chunk.load(save_path, "vanilla0", x_it, y_it);
             it += 1;
         }
         y_it = @intCast(chunk_y - 1);

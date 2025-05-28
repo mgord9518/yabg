@@ -14,9 +14,14 @@ pkgs.mkShell {
     libxkbcommon
     pulseaudio
     wayland
+    #emscripten
   ];
 
   LD_LIBRARY_PATH = with pkgs; pkgs.lib.makeLibraryPath [
     libdecor
   ];
+
+  shellHook = ''
+    #export EMSDK_PATH="${pkgs.emscripten}"
+  '';
 }

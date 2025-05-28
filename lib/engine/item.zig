@@ -2,7 +2,7 @@ const std = @import("std");
 const engine = @import("../engine.zig");
 
 pub const Item = union(enum) {
-    tile: engine.Tile.Id,
+    tile: engine.world.Tile.Id,
 
     pub fn canStackWith(self: Item, other: Item) bool {
         const tag = std.meta.activeTag(self);
@@ -13,6 +13,5 @@ pub const Item = union(enum) {
         return switch (self) {
             .tile => self.tile == other.tile,
         };
-        
     }
 };
