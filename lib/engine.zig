@@ -38,7 +38,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 60,
+    .patch = 61,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
@@ -52,6 +52,7 @@ pub const Sound = backend.Sound;
 
 pub var tileSounds: [256]Sound = undefined;
 
+pub var chunk_mutex = std.Thread.Mutex{};
 pub var chunks: [9]world.Chunk = undefined;
 
 pub const getFps = backend.getFps;
@@ -68,7 +69,60 @@ pub fn playSound(sound: Sound) void {
     );
 }
 
-pub fn drawCharToImage(psf_font: psf.Font, image: Image, char: u21, pos: ui.NewVec) !void {
+pub const ColorName = enum(u8) {
+    reset = 0,
+    default = 39,
+
+    black = 30,
+    red = 31,
+    green = 32,
+    yellow = 33,
+    blue = 34,
+    magenta = 35,
+    cyan = 36,
+    white = 37,
+
+    bright_black = 90,
+    bright_red = 91,
+    bright_green = 92,
+    bright_yellow = 93,
+    bright_blue = 94,
+    bright_magenta = 95,
+    bright_cyan = 96,
+    bright_white = 97,
+
+    pub fn format(
+        self: ColorName,
+        comptime fmt: []const u8,
+        options: std.fmt.FormatOptions,
+        out_stream: anytype,
+    ) !void {
+        _ = fmt;
+        _ = options;
+
+        return out_stream.print(
+            "\x1b[;{d}m",
+            .{@intFromEnum(self)},
+        );
+    }
+};
+
+pub fn debug(level: u2, str: []const u8) void {
+    switch (level) {
+        0 => {},
+        3 => {
+            std.debug.print("{}::{} {s}{}\n", .{ ColorName.cyan, ColorName.default, str, ColorName.default });
+        },
+        2 => {
+            std.debug.print("{}::{} {s}{}\n", .{ ColorName.yellow, ColorName.default, str, ColorName.default });
+        },
+        1 => {
+            std.debug.print("{}::{} {s}{}\n", .{ ColorName.red, ColorName.default, str, ColorName.default });
+        },
+    }
+}
+
+pub fn drawCharToImage(psf_font: psf.Font, image: Image, char: u21, pos: ui.Vec) !void {
     const bitmap = psf_font.glyphs.get(char) orelse return;
 
     const imgw: usize = @intCast(image.width);

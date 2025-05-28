@@ -4,11 +4,12 @@
 # If you're testing, you should probably just run `zig build`
 
 prefix  = zig-out
-version = 0.0.60
+version = 0.0.61
+arch    = x86_64
 
 ZIGFLAGS = --release=safe
 
-all: YABG-$(version)-x86_64.zip
+all: YABG-$(version)-$(arch).zip
 
 clean:
 	rm -r $(prefix)
@@ -17,14 +18,13 @@ clean:
 YABG-$(version)-x86_64.zip: $(prefix)/bin/yabg.exe $(prefix)/bin/yabg
 	cd $(prefix); zip -r9 ../YABG-$(version)-x86_64.zip ./
 
-zig-out/bin/yabg.exe: build.zig lib/engine/fonts/font.psfu
+zig-out/bin/yabg.exe: build.zig lib/engine/fonts/5x8.psfu
 	zig build -Dtarget=x86_64-windows $(ZIGFLAGS)
 
 # TODO: Do not assume Linux host
-zig-out/bin/yabg: build.zig lib/engine/fonts/font.psfu
+zig-out/bin/yabg: build.zig lib/engine/fonts/5x8.psfu
 	zig build $(ZIGFLAGS)
 	strip -s $(prefix)/bin/yabg
 
-lib/engine/fonts/font.psfu: build.zig lib/engine/fonts/font.txt
+lib/engine/fonts/5x8.psfu: build.zig lib/engine/fonts/5x8.txt
 	zig build font
-

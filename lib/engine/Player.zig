@@ -113,86 +113,27 @@ pub fn updateState(player: *Player) !void {
     }
 
     // Collision detection
-    var player_tile_offset_x: u16 = @intCast(@mod(player.entity.pos.x, engine.world.Chunk.size));
-    var player_tile_offset_y: u16 = @intCast(@mod(player.entity.pos.y, engine.world.Chunk.size));
+    //const player_tile_offset_x: u16 = @intCast(@mod(player.entity.pos.x, engine.world.Chunk.size));
+    //const player_tile_offset_y: u16 = @intCast(@mod(player.entity.pos.y, engine.world.Chunk.size));
 
-    // Middle chunk
-    var target_chunk_num: usize = 4;
+    const target = player.targetTile();
 
-    // Find chunk player is looking at
-    if (player_tile_offset_x == 0 and player.entity.direction == .left) {
-        if (player.entity.pos.x >= 0) {
-            target_chunk_num -= 1;
-        }
-
-        player_tile_offset_x = engine.world.Chunk.size;
-    } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
-        if (player.entity.pos.y >= 0) {
-            target_chunk_num -= 3;
-        }
-
-        player_tile_offset_y = engine.world.Chunk.size;
-    } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
-        if (player.entity.pos.x < 0) {
-            target_chunk_num += 1;
-        }
-    } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
-        if (player.entity.pos.y < 0) {
-            target_chunk_num += 3;
-        }
-    }
-
-    switch (player.entity.direction) {
-        .left => player_tile_offset_x -= 1,
-        .right => player_tile_offset_x += 1,
-        .up => player_tile_offset_y -= 1,
-        .down => player_tile_offset_y += 1,
-    }
-
-    if (player_tile_offset_x == engine.world.Chunk.size and player.entity.direction == .right) {
-        target_chunk_num = 5;
-
-        player_tile_offset_x = 0;
-    } else if (player_tile_offset_y == engine.world.Chunk.size and player.entity.direction == .down) {
-        target_chunk_num = 7;
-
-        player_tile_offset_y = 0;
-    }
-
-    if (player_tile_offset_x == 0) {
-        if (player.entity.direction == .down or player.entity.direction == .up) {
-            if (player.entity.pos.x < 0) {
-                target_chunk_num += 1;
-            }
-        }
-    }
-
-    if (player_tile_offset_y == 0) {
-        if (player.entity.direction == .left or player.entity.direction == .right) {
-            if (player.entity.pos.y < 0) {
-                target_chunk_num += 3;
-            }
-        }
-    }
-
-    const target_chunk = &engine.chunks[target_chunk_num];
-
-    var target_tile = target_chunk.getTileAtOffset(
+    var target_tile = target.chunk.getTileAtOffset(
         .wall,
-        player_tile_offset_x,
-        player_tile_offset_y,
+        target.tile_x,
+        target.tile_y,
     );
 
-    var floor_tile = target_chunk.getTileAtOffset(
+    var floor_tile = target.chunk.getTileAtOffset(
         .floor,
-        player_tile_offset_x,
-        player_tile_offset_y,
+        target.tile_x,
+        target.tile_y,
     );
 
-    player.standing_on = target_chunk.getTileAtOffset(
+    player.standing_on = target.chunk.getTileAtOffset(
         .floor,
-        player_tile_offset_x,
-        player_tile_offset_y,
+        target.tile_x,
+        target.tile_y,
     );
 
     if (rl.isKeyPressed(.period) or rl.isGamepadButtonPressed(0, .right_face_left)) {
@@ -329,6 +270,83 @@ pub fn updateState(player: *Player) !void {
     if (rl.isKeyPressed(.six)) player.inventory.selected_slot = 5;
 }
 
+pub const TargetTile = struct {
+    tile_x: u15,
+    tile_y: u15,
+    chunk: *engine.world.Chunk,
+};
+
+pub fn targetTile(player: *Player) TargetTile {
+    // Collision detection
+    var player_tile_offset_x: u15 = @intCast(@mod(player.entity.pos.x, engine.world.Chunk.size));
+    var player_tile_offset_y: u15 = @intCast(@mod(player.entity.pos.y, engine.world.Chunk.size));
+
+    // Middle chunk
+    var target_chunk_num: usize = 4;
+
+    // Find chunk player is looking at
+    if (player_tile_offset_x == 0 and player.entity.direction == .left) {
+        if (player.entity.pos.x >= 0) {
+            target_chunk_num -= 1;
+        }
+
+        player_tile_offset_x = engine.world.Chunk.size;
+    } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
+        if (player.entity.pos.y >= 0) {
+            target_chunk_num -= 3;
+        }
+
+        player_tile_offset_y = engine.world.Chunk.size;
+    } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
+        if (player.entity.pos.x < 0) {
+            target_chunk_num += 1;
+        }
+    } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
+        if (player.entity.pos.y < 0) {
+            target_chunk_num += 3;
+        }
+    }
+
+    switch (player.entity.direction) {
+        .left => player_tile_offset_x -= 1,
+        .right => player_tile_offset_x += 1,
+        .up => player_tile_offset_y -= 1,
+        .down => player_tile_offset_y += 1,
+    }
+
+    if (player_tile_offset_x == engine.world.Chunk.size and player.entity.direction == .right) {
+        target_chunk_num = 5;
+
+        player_tile_offset_x = 0;
+    } else if (player_tile_offset_y == engine.world.Chunk.size and player.entity.direction == .down) {
+        target_chunk_num = 7;
+
+        player_tile_offset_y = 0;
+    }
+
+    if (player_tile_offset_x == 0) {
+        if (player.entity.direction == .down or player.entity.direction == .up) {
+            if (player.entity.pos.x < 0) {
+                target_chunk_num += 1;
+            }
+        }
+    }
+
+    if (player_tile_offset_y == 0) {
+        if (player.entity.direction == .left or player.entity.direction == .right) {
+            if (player.entity.pos.y < 0) {
+                target_chunk_num += 3;
+            }
+        }
+    }
+
+    return .{
+        .chunk = &engine.chunks[target_chunk_num],
+        .tile_x = player_tile_offset_x,
+        .tile_y = player_tile_offset_y,
+    };
+}
+
 pub fn save(player: *Player) !void {
     const cwd = std.fs.cwd();
 
@@ -402,7 +420,7 @@ pub fn updatePlayerFrames(
 // Checks and unloads any engine.chunks not surrounding the player in a 3x3 area
 // then loads new chunks into their pointers
 // Not yet sure how robust this is
-pub fn reloadChunks(player: *Player) void {
+pub fn reloadChunks(player: *Player) !void {
     var chunk_x: i32 = @intCast(@divTrunc(player.entity.pos.x, engine.world.Chunk.size));
     var chunk_y: i32 = @intCast(@divTrunc(player.entity.pos.y, engine.world.Chunk.size));
 
@@ -414,21 +432,30 @@ pub fn reloadChunks(player: *Player) void {
         chunk_y = chunk_y - 1;
     }
 
+    const allocator = std.heap.page_allocator;
+
+    var chunk_list_to_save = std.ArrayList(*engine.world.Chunk).init(allocator);
+    defer chunk_list_to_save.deinit();
+
+    engine.chunk_mutex.lock();
+
+    // TODO: also load chunks in seperate thread
     for (&engine.chunks) |*chnk| {
         const cx = @divTrunc(chnk.x, engine.world.Chunk.size);
         const cy = @divTrunc(chnk.y, engine.world.Chunk.size);
 
         if (@divTrunc(chnk.x, engine.world.Chunk.size) > chunk_x + 1) {
-            chnk.save(player.save_path, "vanilla0") catch unreachable;
+            try chunk_list_to_save.append(chnk);
+
             chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", chunk_x - 1, cy) catch unreachable;
         } else if (@divTrunc(chnk.x, engine.world.Chunk.size) < chunk_x - 1) {
-            chnk.save(player.save_path, "vanilla0") catch unreachable;
+            try chunk_list_to_save.append(chnk);
             chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", chunk_x + 1, cy) catch unreachable;
         } else if (@divTrunc(chnk.y, engine.world.Chunk.size) > chunk_y + 1) {
-            chnk.save(player.save_path, "vanilla0") catch unreachable;
+            try chunk_list_to_save.append(chnk);
             chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", cx, chunk_y - 1) catch unreachable;
         } else if (@divTrunc(chnk.y, engine.world.Chunk.size) < chunk_y - 1) {
-            chnk.save(player.save_path, "vanilla0") catch unreachable;
+            try chunk_list_to_save.append(chnk);
             chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", cx, chunk_y + 1) catch unreachable;
         }
     }
@@ -451,6 +478,21 @@ pub fn reloadChunks(player: *Player) void {
                 swap_chunk.* = tmp;
             }
         }
+    }
+
+    engine.chunk_mutex.unlock();
+
+    for (chunk_list_to_save.items) |chunk| {
+        std.debug.print("{}::{} saving chunk {d}x{d}{}\n", .{
+            engine.ColorName.cyan,
+            engine.ColorName.default,
+            chunk.x,
+            chunk.y,
+            engine.ColorName.default,
+        });
+
+        //std.time.sleep(100 * std.time.ns_per_ms);
+        //chunk.save(player.save_path, "vanilla0") catch unreachable;
     }
 }
 

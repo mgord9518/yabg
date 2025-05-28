@@ -1,9 +1,10 @@
 const std = @import("std");
+const engine = @import("../engine.zig");
 
 pub const ticks_per_second = 24;
 const ns_per_tick = std.time.ns_per_s / ticks_per_second;
 
-pub fn tickMainThread(comptime onEveryTickFn: fn() anyerror!void) !void {
+pub fn tickMainThread(comptime onEveryTickFn: fn () anyerror!void) !void {
     while (true) {
         const time_before = std.time.nanoTimestamp();
         try onEveryTickFn();
@@ -16,9 +17,12 @@ pub fn tickMainThread(comptime onEveryTickFn: fn() anyerror!void) !void {
             //std.debug.print("remaining time = {d}\n", .{ns_remaining});
             std.time.sleep(@intCast(ns_remaining));
         } else {
-            std.debug.print("game tick took too long! {d} nanoseconds greater than tick rate\n", .{@abs(ns_remaining)});
+            std.debug.print("{}::{} game tick took too long! {d} milliseconds longer than tick rate{}\n", .{
+                engine.ColorName.yellow,
+                engine.ColorName.default,
+                @divTrunc(ns_remaining, std.time.ns_per_ms),
+                engine.ColorName.default,
+            });
         }
-
     }
-
 }

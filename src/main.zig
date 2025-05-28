@@ -23,6 +23,8 @@ const Camera = struct {
     };
 
     pub fn draw(camera: *const Camera) !void {
+        engine.chunk_mutex.lock();
+
         const x_pos: i64 = @intFromFloat(@floor(camera.pos.x));
         const y_pos: i64 = @intFromFloat(@floor(camera.pos.y));
 
@@ -65,7 +67,7 @@ const Camera = struct {
                         .air => {
                             const tile = chunk.getTileAtOffset(.floor, @intCast(tile_x), @intCast(tile_y));
 
-                            drawTexture(tile.texture(), .{
+                            ui.drawTexture(tile.texture(), .{
                                 .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
                                 .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y + 4 - (engine.world.Tile.size / 2)),
                             }, rl.Color.light_gray);
@@ -75,7 +77,7 @@ const Camera = struct {
 
                             const tile = chunk.getTileAtOffset(.wall, @intCast(tile_x), @intCast(tile_y));
 
-                            drawTexture(tile.texture(), .{
+                            ui.drawTexture(tile.texture(), .{
                                 .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
                                 .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2)),
                             }, rl.Color.white);
@@ -86,7 +88,7 @@ const Camera = struct {
         }
 
         // Draw player in the center of the screen
-        drawTextureRect(
+        ui.drawTextureRect(
             player.entity.animation_texture[@intFromEnum(player.entity.animation)],
             .{
                 // Multiply by 12 to shift to the current frame in the player's
@@ -136,7 +138,7 @@ const Camera = struct {
                     if (wall_tile.id == .air) continue;
 
                     if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) {
-                        drawTexture(wall_tile.texture(), .{
+                        ui.drawTexture(wall_tile.texture(), .{
                             .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
                             .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2)),
                         }, .white);
@@ -144,6 +146,8 @@ const Camera = struct {
                 }
             }
         }
+
+        engine.chunk_mutex.unlock();
     }
 };
 
@@ -193,6 +197,9 @@ const DebugMenu = struct {
 };
 
 pub fn onEveryTick() !void {
+    //engine.chunk_mutex.lock();
+    try player.reloadChunks();
+    //engine.chunk_mutex.unlock();
     //std.debug.print("debug {}\n", .{debug_button_pressed});
 }
 
@@ -251,7 +258,6 @@ fn mainLoop(allocator: std.mem.Allocator) !void {
     );
 
     player.updatePlayerFrames();
-    player.reloadChunks();
 
     player.updateAnimation();
 
@@ -291,7 +297,7 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
             tint = .sky_blue;
         }
 
-        drawTexture(
+        ui.drawTexture(
             engine.textures.hotbar_item,
             .{ .x = hotbar_x, .y = hotbar_y },
             tint,
@@ -299,7 +305,7 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
 
         const item = maybe_item orelse continue;
 
-        drawTextureRect(
+        ui.drawTextureRect(
             item.value.tile.texture(),
             .{ .x = 0, .y = 0, .w = 12, .h = 12 },
             .{ .x = hotbar_x + 2, .y = hotbar_y + 2 },
@@ -414,38 +420,4 @@ fn mainMenuLoop(allocator: std.mem.Allocator) !void {
     try ui.button("Save 1", .{ .x = 2, .y = 40, .w = 38, .h = 17 });
 
     rl.endDrawing();
-}
-
-fn drawTexture(texture: rl.Texture, pos: ui.NewVec, tint: rl.Color) void {
-    rl.drawTextureEx(
-        texture,
-        .{
-            .x = @floatFromInt(pos.x * engine.scale),
-            .y = @floatFromInt(pos.y * engine.scale),
-        },
-        0,
-        @floatFromInt(engine.scale),
-        tint,
-    );
-}
-
-fn drawTextureRect(texture: rl.Texture, rect: ui.Rectangle, pos: ui.NewVec, tint: rl.Color) void {
-    rl.drawTexturePro(
-        texture,
-        .{
-            .x = @as(f32, @floatFromInt(rect.x)),
-            .y = @as(f32, @floatFromInt(rect.y)),
-            .width = @as(f32, @floatFromInt(rect.w)),
-            .height = @as(f32, @floatFromInt(rect.h)),
-        },
-        .{
-            .x = @floatFromInt(pos.x * engine.scale),
-            .y = @floatFromInt(pos.y * engine.scale),
-            .width = @floatFromInt(rect.w * engine.scale),
-            .height = @floatFromInt(rect.h * engine.scale),
-        },
-        .{ .x = 0, .y = 0 },
-        0,
-        tint,
-    );
 }
