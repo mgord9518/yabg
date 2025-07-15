@@ -5,7 +5,7 @@
 ## Play instructions:
 
 As of now, the game has no real content, just a procedurally-generated world
-that can be walked around, break and place tiles. I've been working on a
+that you can walk around, break and place tiles. I've been working on a
 large refactor of the engine, and once I deem it "good-nuff", I will work
 on adding stuff to do
 
@@ -23,15 +23,16 @@ DEBUG_MODE <bool> # Start the game in debug mode (F3 menu)
 ### Controls
 ```
 Keyboard controls:
- W:          Walk up
- A:          Walk left
- S:          Walk down
- D:          Walk right
- , (comma):  Break block
- . (period): Place stone
+ w:          Walk up
+ a:          Walk left
+ s:          Walk down
+ d:          Walk right
+ . (period): Break tile
+ / (slash):  Place tile
 
  ← (left):  Select previous item in hotbar
  → (right): Select next item in hotbar
+ 1-6:       Jump to hotbar item
 
 Gamepad controls:
  Left stick:  Move
@@ -47,14 +48,11 @@ and depend on the item currently highlighted.
 # manager (probably isn't present if you don't use a rolling release)
 
 # Nix:
-nix develop # Flake-enabled
-nix-shell   # No flake
+nix develop     # Flake-enabled
+nix-shell ./nix # No flake
 
 # Ubuntu/Debian:
-libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev
-
-# Alpine:
-libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev mesa-gl mesa-dev libc-dev pipewire
+sudo apt install libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev libgl-dev libxkbcommon-dev libegl-dev libwayland-dev
 ```
 
 ## Building instructions:
