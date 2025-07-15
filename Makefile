@@ -1,5 +1,3 @@
-# TODO: Finish Makefile
-#
 # This Makefile is primarily intended for CI
 # If you're testing, you should probably just run `zig build`
 
@@ -13,17 +11,17 @@ all: YABG-$(version)-$(arch).zip
 
 clean:
 	rm -r $(prefix)
-	rm YABG-$(version)-x86_64.zip
+	rm YABG-$(version)-$(arch).zip
 
-YABG-$(version)-x86_64.zip: $(prefix)/bin/yabg.exe $(prefix)/bin/yabg
-	cd $(prefix); zip -r9 ../YABG-$(version)-x86_64.zip ./
+YABG-$(version)-$(arch).zip: $(prefix)/bin/yabg.exe $(prefix)/bin/yabg
+	cd $(prefix); zip -r9 ../YABG-$(version)-$(arch).zip ./
 
-zig-out/bin/yabg.exe: build.zig lib/engine/fonts/5x8.psfu
-	zig build -Dtarget=x86_64-windows $(ZIGFLAGS)
+$(prefix)/bin/yabg.exe: build.zig lib/engine/fonts/5x8.psfu
+	zig build -Dtarget=$(arch)-windows $(ZIGFLAGS) -p $(prefix)
 
 # TODO: Do not assume Linux host
-zig-out/bin/yabg: build.zig lib/engine/fonts/5x8.psfu
-	zig build $(ZIGFLAGS)
+$(prefix)/bin/yabg: build.zig lib/engine/fonts/5x8.psfu
+	zig build $(ZIGFLAGS) -p $(prefix)
 	strip -s $(prefix)/bin/yabg
 
 lib/engine/fonts/5x8.psfu: build.zig lib/engine/fonts/5x8.txt

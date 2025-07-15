@@ -7,10 +7,25 @@
 
   outputs = { self, nixpkgs }:
   let
-    system = "x86_64-linux";
-    pkgs = nixpkgs.legacyPackages.${system};
+    systems = [
+      "x86_64-linux"
+      "i686-linux"
+      "x86_64-darwin"
+      "aarch64-linux"
+      "armv6l-linux"
+      "armv7l-linux"
+    ];
+
+    pkgs = nixpkgs.legacyPackages;
+
+    forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
   in {
-    packages.x86_64-linux.default =
-      import ./shell.nix { inherit pkgs; };
+    devShells = forAllSystems (system: {
+      default = import ./shell.nix { pkgs = pkgs.${system}; };
+    });
+
+    packages = forAllSystems (system: {
+      default = pkgs.${system}.callPackage ./nix/default.nix {};
+    });
   };
 }
