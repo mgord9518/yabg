@@ -3,6 +3,8 @@ const perlin = @import("perlin");
 const engine = @import("../../engine.zig");
 const Chunk = @This();
 
+valid: bool = true,
+
 x: i32,
 y: i32,
 
@@ -11,60 +13,58 @@ tiles: [size * size * 2]engine.world.Tile,
 
 version: u8,
 
+pub const Coordinate = struct {
+    x: i32,
+    y: i32,
+};
+
 const LoadError = error{
     BadMagic,
     InvalidFileSize,
     UnknownVersion,
 };
 
+const magic = "YABGc";
 pub const max_supported_version = 0;
 
 /// Width / height of chunk measured in tiles
 pub const size = 24;
 
-pub fn save(self: *const Chunk, save_path: []const u8, mod_pack: []const u8) !void {
+pub fn save(self: *const Chunk, allocator: std.mem.Allocator, save_path: []const u8, mod_pack: []const u8) !void {
     const cwd = std.fs.cwd();
 
-    var buf: [256]u8 = undefined;
-    var path = try std.fmt.bufPrint(
-        &buf,
+    const chunk_save_path = try std.fmt.allocPrint(
+        allocator,
         "{s}/chunks",
         .{save_path},
     );
+    defer allocator.free(chunk_save_path);
 
-    try cwd.makePath(path);
+    try cwd.makePath(chunk_save_path);
 
-    path = try std.fmt.bufPrint(
-        &buf,
-        "{s}/chunks/{x}_{x}.{s}",
+    var chunk_save_dir = try cwd.openDir(chunk_save_path, .{});
+    defer chunk_save_dir.close();
+
+    const chunk_file_name = try std.fmt.allocPrint(
+        allocator,
+        "{x}_{x}.{s}",
         .{
-            save_path,
-            @divTrunc(self.x, size),
-            @divTrunc(self.y, size),
+            self.x,
+            self.y,
             mod_pack,
         },
     );
+    defer allocator.free(chunk_file_name);
 
-    const file = try std.fs.cwd().createFile(
-        path,
+    const file = try chunk_save_dir.createFile(
+        chunk_file_name,
         .{ .read = true },
     );
+    defer file.close();
 
-    var save_buf: [6 + size * size * 2 * 2]u8 = undefined;
-    //@memset(&save_buf, 0);
-
-    @memcpy(save_buf[0..5], "YABGc");
-
-    //std.mem.copyForwards(u8, &save_buf, "YABGc");
-
-    save_buf[5] = self.version;
-
-    @memcpy(
-        save_buf[6..],
-        @as([size * size * 2 * 2]u8, @bitCast(self.tiles[0 .. size * size * 2].*))[0..],
-    );
-
-    _ = try file.writeAll(&save_buf);
+    try file.writer().writeAll(magic);
+    try file.writer().writeByte(self.version);
+    try file.writer().writeAll(@ptrCast(&self.tiles));
 }
 
 pub const Layer = enum {
@@ -95,42 +95,33 @@ pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Chunk 
     var file = cwd.openFile(path, .{}) catch {
         return Chunk.init(x, y);
     };
-
-    var header_buf: [6]u8 = undefined;
-    var byte_count = try file.read(&header_buf);
+    defer file.close();
 
     // Ensure magic number is valid
-    if (!std.mem.eql(u8, header_buf[0..5], "YABGc")) {
+    if (!std.mem.eql(
+        u8,
+        &(try file.reader().readBytesNoEof(5)),
+        magic,
+    )) {
         return LoadError.BadMagic;
     }
 
-    if (byte_count < 6) unreachable;
+    const version = try file.reader().readByte();
 
     var chunk = Chunk{
         .tiles = undefined,
 
-        .x = x * size,
-        .y = y * size,
+        .x = x,
+        .y = y,
 
-        .version = header_buf[5],
+        .version = version,
     };
 
     if (chunk.version > max_supported_version) {
-        std.debug.print("ver {d}\n", .{chunk.version});
         return LoadError.UnknownVersion;
     }
 
-    var tile_buf: [size * size * 2 * 2]u8 = @bitCast(chunk.tiles);
-
-    // Read tile data
-    byte_count = try file.read(&tile_buf);
-
-    // TODO: do this without copying
-    std.mem.copyForwards(
-        engine.world.Tile,
-        chunk.tiles[0..],
-        @as([size * size * 2]engine.world.Tile, @bitCast(tile_buf))[0..],
-    );
+    try file.reader().readNoEof(@ptrCast(&chunk.tiles));
 
     return chunk;
 }
@@ -145,8 +136,8 @@ pub fn init(x: i32, y: i32) !Chunk {
     var chunk = Chunk{
         .tiles = undefined,
 
-        .x = x * size,
-        .y = y * size,
+        .x = x,
+        .y = y,
 
         .version = version,
     };
@@ -162,8 +153,8 @@ pub fn init(x: i32, y: i32) !Chunk {
     while (idx < size * size) : (idx += 1) {
         var t = &chunk.tiles[idx];
 
-        t_x = chunk.x + @as(i32, @intCast(@mod(idx, size)));
-        t_y = chunk.y + @as(i32, @intCast(@divTrunc(idx, size)));
+        t_x = (chunk.x * size) + @as(i32, @intCast(@mod(idx, size)));
+        t_y = (chunk.y * size) + @as(i32, @intCast(@divTrunc(idx, size)));
 
         // TODO: Allow the world directory to control world gen
         const s = 1.5;

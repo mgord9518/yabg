@@ -1,4 +1,3 @@
-const rl = @import("raylib");
 const std = @import("std");
 
 const known_folders = @import("known-folders");
@@ -84,37 +83,27 @@ const direction_change_timeout = 125;
 
 // Updates player state based on input
 pub fn updateState(player: *Player) !void {
-    //std.debug.print("standing on: {?}\n", .{player.standing_on});
-    // Keyboard/gamepad inputs
-    const input_vec = player.inputVector();
-
     const previous_direction = player.entity.direction;
 
     if (player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
-        if (input_vec.x > 0) {
+        if (engine.isButtonDown(.right)) {
             player.entity.direction = .right;
-        } else if (input_vec.x < 0) {
+        } else if (engine.isButtonDown(.left)) {
             player.entity.direction = .left;
-        } else if (input_vec.y > 0) {
+        } else if (engine.isButtonDown(.down)) {
             player.entity.direction = .down;
-        } else if (input_vec.y < 0) {
+        } else if (engine.isButtonDown(.up)) {
             player.entity.direction = .up;
         }
     }
 
-    if (rl.isKeyDown(.w) or rl.isKeyDown(.a) or rl.isKeyDown(.s) or rl.isKeyDown(.d)) {
-        if (previous_direction != player.entity.direction) {
-            last_changed_direction = std.time.milliTimestamp();
-        }
+    if (previous_direction != player.entity.direction) {
+        last_changed_direction = std.time.milliTimestamp();
     }
 
     if (std.time.milliTimestamp() - last_changed_direction < direction_change_timeout) {
         return;
     }
-
-    // Collision detection
-    //const player_tile_offset_x: u16 = @intCast(@mod(player.entity.pos.x, engine.world.Chunk.size));
-    //const player_tile_offset_y: u16 = @intCast(@mod(player.entity.pos.y, engine.world.Chunk.size));
 
     const target = player.targetTile();
 
@@ -136,7 +125,7 @@ pub fn updateState(player: *Player) !void {
         target.tile_y,
     );
 
-    if (rl.isKeyPressed(.period) or rl.isGamepadButtonPressed(0, .right_face_left)) {
+    if (engine.isButtonPressed(.primary)) {
         target_tile.playSound();
 
         // Apply damage to tile, break olnce it hits 3
@@ -165,7 +154,7 @@ pub fn updateState(player: *Player) !void {
         }
     }
 
-    if ((rl.isKeyPressed(.slash) or rl.isGamepadButtonPressed(0, .right_face_down)) and
+    if (engine.isButtonPressed(.secondary) and
         @abs(player.entity.remaining_x) == 0 and
         @abs(player.entity.remaining_y) == 0)
     {
@@ -190,16 +179,24 @@ pub fn updateState(player: *Player) !void {
         }
     }
 
-    if (input_vec.x != 0 and player.entity.remaining_x == 0 and player.entity.remaining_y == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-        player.entity.remaining_x = 1;
+    if ((player.entity.remaining_x + player.entity.remaining_y == 0) and (target_tile.id == .air and floor_tile.id != .water)) {
+        if (engine.isButtonDown(.left)) {
+            player.entity.remaining_x = -1;
+        } else if (engine.isButtonDown(.right)) {
+            player.entity.remaining_x = 1;
+        } else if (engine.isButtonDown(.up)) {
+            player.entity.remaining_y = -1;
+        } else if (engine.isButtonDown(.down)) {
+            player.entity.remaining_y = 1;
+        }
 
-        if (player.entity.direction == .left) player.entity.remaining_x = -player.entity.remaining_x;
+        if (!engine.isButtonDown(.right) and !engine.isButtonDown(.left) and !engine.isButtonDown(.up) and !engine.isButtonDown(.down)) {
+            player.entity.frame_num = 0;
+        }
     }
 
-    if (input_vec.y != 0 and player.entity.remaining_y == 0 and player.entity.remaining_x == 0 and (target_tile.id == .air and floor_tile.id != .water)) {
-        player.entity.remaining_y = 1;
-
-        if (player.entity.direction == .up) player.entity.remaining_y = -player.entity.remaining_y;
+    if (target_tile.id != .air and player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
+        player.entity.frame_num = 0;
     }
 
     if (player.entity.direction == .right and player.entity.remaining_x > 0 or player.entity.direction == .left and player.entity.remaining_x < 0) {
@@ -240,21 +237,13 @@ pub fn updateState(player: *Player) !void {
         player.entity.remaining_y = 0;
     }
 
-    if (input_vec.x == 0 and input_vec.y == 0 and player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
-        player.entity.frame_num = 0;
-    }
-
-    if (target_tile.id != .air and player.entity.remaining_x == 0 and player.entity.remaining_y == 0) {
-        player.entity.frame_num = 0;
-    }
-
-    if (rl.isKeyPressed(.right)) {
+    if (engine.isButtonPressed(.inventory_next)) {
         if (player.inventory.selected_slot == player.inventory.items.len - 1) {
             player.inventory.selected_slot = 0;
         } else {
             player.inventory.selected_slot += 1;
         }
-    } else if (rl.isKeyPressed(.left)) {
+    } else if (engine.isButtonPressed(.inventory_previous)) {
         if (player.inventory.selected_slot == 0) {
             player.inventory.selected_slot = player.inventory.items.len - 1;
         } else {
@@ -262,12 +251,12 @@ pub fn updateState(player: *Player) !void {
         }
     }
 
-    if (rl.isKeyPressed(.one)) player.inventory.selected_slot = 0;
-    if (rl.isKeyPressed(.two)) player.inventory.selected_slot = 1;
-    if (rl.isKeyPressed(.three)) player.inventory.selected_slot = 2;
-    if (rl.isKeyPressed(.four)) player.inventory.selected_slot = 3;
-    if (rl.isKeyPressed(.five)) player.inventory.selected_slot = 4;
-    if (rl.isKeyPressed(.six)) player.inventory.selected_slot = 5;
+    if (engine.isButtonPressed(.inventory_0)) player.inventory.selected_slot = 0;
+    if (engine.isButtonPressed(.inventory_1)) player.inventory.selected_slot = 1;
+    if (engine.isButtonPressed(.inventory_2)) player.inventory.selected_slot = 2;
+    if (engine.isButtonPressed(.inventory_3)) player.inventory.selected_slot = 3;
+    if (engine.isButtonPressed(.inventory_4)) player.inventory.selected_slot = 4;
+    if (engine.isButtonPressed(.inventory_5)) player.inventory.selected_slot = 5;
 }
 
 pub const TargetTile = struct {
@@ -419,44 +408,78 @@ pub fn updatePlayerFrames(
 
 // Checks and unloads any engine.chunks not surrounding the player in a 3x3 area
 // then loads new chunks into their pointers
-// Not yet sure how robust this is
 pub fn reloadChunks(player: *Player) !void {
     var chunk_x: i32 = @intCast(@divTrunc(player.entity.pos.x, engine.world.Chunk.size));
     var chunk_y: i32 = @intCast(@divTrunc(player.entity.pos.y, engine.world.Chunk.size));
 
     if (player.entity.pos.x < 0) {
-        chunk_x = chunk_x - 1;
+        chunk_x -= 1;
     }
 
     if (player.entity.pos.y < 0) {
-        chunk_y = chunk_y - 1;
+        chunk_y -= 1;
     }
 
     const allocator = std.heap.page_allocator;
 
-    var chunk_list_to_save = std.ArrayList(*engine.world.Chunk).init(allocator);
-    defer chunk_list_to_save.deinit();
+    var chunk_list_to_load = std.ArrayList(engine.world.Chunk.Coordinate).init(allocator);
+    defer chunk_list_to_load.deinit();
+
+    var chunk_list_to_unload = std.ArrayList(*engine.world.Chunk).init(allocator);
+    defer chunk_list_to_unload.deinit();
+
+    var chunk_list_loaded = std.ArrayList(engine.world.Chunk).init(allocator);
+    defer chunk_list_loaded.deinit();
 
     engine.chunk_mutex.lock();
 
     // TODO: also load chunks in seperate thread
-    for (&engine.chunks) |*chnk| {
-        const cx = @divTrunc(chnk.x, engine.world.Chunk.size);
-        const cy = @divTrunc(chnk.y, engine.world.Chunk.size);
+    for (&engine.chunks) |*chunk| {
+        if (chunk.x > chunk_x + 1) {
+            try chunk_list_to_load.append(.{ .x = chunk_x - 1, .y = chunk.y });
+            try chunk_list_to_unload.append(chunk);
+            chunk.*.valid = false;
+        } else if (chunk.x < chunk_x - 1) {
+            try chunk_list_to_load.append(.{ .x = chunk_x + 1, .y = chunk.y });
+            try chunk_list_to_unload.append(chunk);
+            chunk.*.valid = false;
+        } else if (chunk.y > chunk_y + 1) {
+            try chunk_list_to_load.append(.{ .x = chunk.x, .y = chunk_y - 1 });
+            try chunk_list_to_unload.append(chunk);
+            chunk.*.valid = false;
+        } else if (chunk.y < chunk_y - 1) {
+            try chunk_list_to_load.append(.{ .x = chunk.x, .y = chunk_y + 1 });
+            try chunk_list_to_unload.append(chunk);
+            chunk.*.valid = false;
+        }
+    }
 
-        if (@divTrunc(chnk.x, engine.world.Chunk.size) > chunk_x + 1) {
-            try chunk_list_to_save.append(chnk);
+    engine.chunk_mutex.unlock();
 
-            chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", chunk_x - 1, cy) catch unreachable;
-        } else if (@divTrunc(chnk.x, engine.world.Chunk.size) < chunk_x - 1) {
-            try chunk_list_to_save.append(chnk);
-            chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", chunk_x + 1, cy) catch unreachable;
-        } else if (@divTrunc(chnk.y, engine.world.Chunk.size) > chunk_y + 1) {
-            try chunk_list_to_save.append(chnk);
-            chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", cx, chunk_y - 1) catch unreachable;
-        } else if (@divTrunc(chnk.y, engine.world.Chunk.size) < chunk_y - 1) {
-            try chunk_list_to_save.append(chnk);
-            chnk.* = engine.world.Chunk.load(player.save_path, "vanilla0", cx, chunk_y + 1) catch unreachable;
+    for (chunk_list_to_load.items) |chunk_coords| {
+        std.debug.print("{}::{} loading chunk {d}x{d}{}\n", .{
+            engine.ColorName.magenta,
+            engine.ColorName.default,
+            chunk_coords.x,
+            chunk_coords.y,
+            engine.ColorName.default,
+        });
+
+        const chunk = try engine.world.Chunk.load(
+            player.save_path,
+            "vanilla0",
+            chunk_coords.x,
+            chunk_coords.y,
+        );
+        try chunk_list_loaded.append(chunk);
+    }
+
+    engine.chunk_mutex.lock();
+
+    for (&engine.chunks) |*chunk| {
+        if (!chunk.*.valid) {
+            chunk.* = chunk_list_loaded.pop() orelse break;
+            chunk.*.valid = true;
         }
     }
 
@@ -482,7 +505,7 @@ pub fn reloadChunks(player: *Player) !void {
 
     engine.chunk_mutex.unlock();
 
-    for (chunk_list_to_save.items) |chunk| {
+    for (chunk_list_to_unload.items) |chunk| {
         std.debug.print("{}::{} saving chunk {d}x{d}{}\n", .{
             engine.ColorName.cyan,
             engine.ColorName.default,
@@ -492,37 +515,6 @@ pub fn reloadChunks(player: *Player) !void {
         });
 
         //std.time.sleep(100 * std.time.ns_per_ms);
-        //chunk.save(player.save_path, "vanilla0") catch unreachable;
+        chunk.save(allocator, player.save_path, "vanilla0") catch unreachable;
     }
-}
-
-pub fn inputVector(player: *Player) rl.Vector2 {
-    _ = player;
-
-    if (rl.isKeyDown(.a)) {
-        return .{ .x = -1, .y = 0 };
-    } else if (rl.isKeyDown(.d)) {
-        return .{ .x = 1, .y = 0 };
-    } else if (rl.isKeyDown(.w)) {
-        return .{ .x = 0, .y = -1 };
-    } else if (rl.isKeyDown(.s)) {
-        return .{ .x = 0, .y = 1 };
-    }
-
-    const axis_x = rl.getGamepadAxisMovement(0, .left_x);
-    const axis_y = rl.getGamepadAxisMovement(0, .left_y);
-
-    const threashold = 0.25;
-
-    if (axis_x < -threashold) {
-        return .{ .x = -1, .y = 0 };
-    } else if (axis_x > threashold) {
-        return .{ .x = 1, .y = 0 };
-    } else if (axis_y < -threashold) {
-        return .{ .x = 0, .y = -1 };
-    } else if (axis_y > threashold) {
-        return .{ .x = 0, .y = 1 };
-    }
-
-    return .{ .x = 0, .y = 0 };
 }

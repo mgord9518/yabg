@@ -13,6 +13,24 @@ pub const Item = @import("engine/item.zig").Item;
 
 pub const init = @import("engine/init.zig").init;
 
+pub const Button = enum {
+    left,
+    right,
+    up,
+    down,
+    debug,
+    primary,
+    secondary,
+    inventory_next,
+    inventory_previous,
+    inventory_0,
+    inventory_1,
+    inventory_2,
+    inventory_3,
+    inventory_4,
+    inventory_5,
+};
+
 const Font = struct {
     atlas: Texture,
     glyph_offsets: std.AutoHashMap(u21, usize),
@@ -34,11 +52,11 @@ pub var font: Font = undefined;
 pub var entities: std.SegmentedList(Entity, 0) = undefined;
 
 pub const version = std.SemanticVersion{
-    .pre = "pre-alpha",
+    .pre = "alpha",
 
     .major = 0,
     .minor = 0,
-    .patch = 61,
+    .patch = 62,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
@@ -49,6 +67,14 @@ pub var delta: f32 = 0;
 pub const Image = backend.Image;
 pub const Texture = backend.Texture;
 pub const Sound = backend.Sound;
+pub const Color = backend.Color;
+
+pub const Rectangle = struct {
+    x: i16,
+    y: i16,
+    w: u15,
+    h: u15,
+};
 
 pub var tileSounds: [256]Sound = undefined;
 
@@ -59,6 +85,39 @@ pub const getFps = backend.getFps;
 pub const shouldContinueRunning = backend.shouldContinueRunning;
 pub const loadTextureEmbedded = backend.loadTextureEmbedded;
 pub const loadSoundEmbedded = backend.loadSoundEmbedded;
+pub const beginDrawing = backend.beginDrawing;
+pub const endDrawing = backend.endDrawing;
+pub const deltaTime = backend.deltaTime;
+pub const screenWidth = backend.screenWidth;
+pub const screenHeight = backend.screenHeight;
+pub const loadTextureFromImage = backend.loadTextureFromImage;
+pub const isButtonPressed = backend.isButtonPressed;
+pub const isButtonDown = backend.isButtonDown;
+pub const drawTexture = backend.drawTexture;
+pub const drawTextureRect = backend.drawTextureRect;
+pub const drawRect = backend.drawRect;
+pub const closeWindow = backend.closeWindow;
+
+pub fn run(
+    allocator: std.mem.Allocator,
+    comptime onEveryTickFn: fn (allocator: std.mem.Allocator) anyerror!void,
+) !void {
+    while (shouldContinueRunning()) {
+        delta = deltaTime();
+
+        screen_width = @divTrunc(
+            @as(u15, @intCast(screenWidth())),
+            scale,
+        );
+
+        screen_height = @divTrunc(
+            @as(u15, @intCast(screenHeight())),
+            scale,
+        );
+
+        try onEveryTickFn(allocator);
+    }
+}
 
 pub fn playSound(sound: Sound) void {
     const pitch_offset = rand.random().float(f32) / 4;

@@ -1,4 +1,3 @@
-const rl = @import("raylib");
 const std = @import("std");
 const known_folders = @import("known-folders");
 const assert = std.debug.assert;
@@ -52,14 +51,17 @@ const Camera = struct {
 
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
                 for (&engine.chunks) |*chunk| {
-                    const tile_x: i64 = (x_pos + x - (screen_width_in_tiles / 2) - chunk.x);
-                    const tile_y: i64 = (y_pos + y - (screen_height_in_tiles / 2) - chunk.y);
+                    const chunk_coord_x = chunk.x * engine.world.Chunk.size;
+                    const chunk_coord_y = chunk.y * engine.world.Chunk.size;
+
+                    const tile_x: i64 = (x_pos + x - (screen_width_in_tiles / 2) - chunk_coord_x);
+                    const tile_y: i64 = (y_pos + y - (screen_height_in_tiles / 2) - chunk_coord_y);
 
                     // Skip if tile not on screen
-                    if (x + x_pos - (screen_width_in_tiles / 2) < chunk.x or
-                        x + x_pos - (screen_width_in_tiles / 2) >= chunk.x + engine.world.Chunk.size or
-                        y + y_pos - (screen_height_in_tiles / 2) < chunk.y or
-                        y + y_pos - (screen_height_in_tiles / 2) >= chunk.y + engine.world.Chunk.size) continue;
+                    if (x + x_pos - (screen_width_in_tiles / 2) < chunk_coord_x or
+                        x + x_pos - (screen_width_in_tiles / 2) >= chunk_coord_x + engine.world.Chunk.size or
+                        y + y_pos - (screen_height_in_tiles / 2) < chunk_coord_y or
+                        y + y_pos - (screen_height_in_tiles / 2) >= chunk_coord_y + engine.world.Chunk.size) continue;
 
                     // Only loop through the first half of chunk engine.tiles (floor level)
                     // If wall level tile exists, draw it instead
@@ -67,20 +69,20 @@ const Camera = struct {
                         .air => {
                             const tile = chunk.getTileAtOffset(.floor, @intCast(tile_x), @intCast(tile_y));
 
-                            ui.drawTexture(tile.texture(), .{
-                                .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
-                                .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y + 4 - (engine.world.Tile.size / 2)),
-                            }, rl.Color.light_gray);
+                            engine.drawTexture(tile.texture(), .{
+                                .x = (x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2),
+                                .y = (y * engine.world.Tile.size) - remaining_y + screen_mod_y + 4 - (engine.world.Tile.size / 2),
+                            }, .{ .r = 200, .g = 200, .b = 200, .a = 255 });
                         },
                         else => {
                             if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) continue;
 
                             const tile = chunk.getTileAtOffset(.wall, @intCast(tile_x), @intCast(tile_y));
 
-                            ui.drawTexture(tile.texture(), .{
-                                .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
-                                .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2)),
-                            }, rl.Color.white);
+                            engine.drawTexture(tile.texture(), .{
+                                .x = (x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2),
+                                .y = (y * engine.world.Tile.size) - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2),
+                            }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                         },
                     }
                 }
@@ -88,7 +90,7 @@ const Camera = struct {
         }
 
         // Draw player in the center of the screen
-        ui.drawTextureRect(
+        engine.drawTextureRect(
             player.entity.animation_texture[@intFromEnum(player.entity.animation)],
             .{
                 // Multiply by 12 to shift to the current frame in the player's
@@ -102,12 +104,12 @@ const Camera = struct {
                 .x = @intCast((engine.screen_width / 2) - 6),
                 .y = @intCast((engine.screen_height / 2) - 10),
             },
-            .white,
+            .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         );
 
         if (debug_menu.enabled) {
             // Collision area around player's feet
-            ui.drawRect(.{
+            engine.drawRect(.{
                 .x = @intCast((engine.screen_width / 2) - 6),
                 .y = @intCast((engine.screen_height / 2) + 7),
                 .w = 12,
@@ -122,12 +124,15 @@ const Camera = struct {
             x = -1;
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
                 for (&engine.chunks) |*chunk| {
+                    const chunk_coord_x = chunk.x * engine.world.Chunk.size;
+                    const chunk_coord_y = chunk.y * engine.world.Chunk.size;
+
                     // Camera pos is in middle of the screen, so shift back half a screen
                     const tile_x_world_pos: i64 = (x_pos - (screen_width_in_tiles / 2) + x);
                     const tile_y_world_pos: i64 = (y_pos - (screen_height_in_tiles / 2) + y);
 
-                    const tile_x_chunk_off = std.math.cast(u16, tile_x_world_pos - chunk.x) orelse continue;
-                    const tile_y_chunk_off = std.math.cast(u16, tile_y_world_pos - chunk.y) orelse continue;
+                    const tile_x_chunk_off = std.math.cast(u16, tile_x_world_pos - chunk_coord_x) orelse continue;
+                    const tile_y_chunk_off = std.math.cast(u16, tile_y_world_pos - chunk_coord_y) orelse continue;
 
                     // Skip if tile is beyond chunk border (negatives skipped with the math cast above)
                     if (tile_x_chunk_off >= engine.world.Chunk.size) continue;
@@ -138,10 +143,10 @@ const Camera = struct {
                     if (wall_tile.id == .air) continue;
 
                     if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) {
-                        ui.drawTexture(wall_tile.texture(), .{
-                            .x = @intCast((x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2)),
-                            .y = @intCast(y * engine.world.Tile.size - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2)),
-                        }, .white);
+                        engine.drawTexture(wall_tile.texture(), .{
+                            .x = (x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2),
+                            .y = (y * engine.world.Tile.size) - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2),
+                        }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                     }
                 }
             }
@@ -162,17 +167,14 @@ const DebugMenu = struct {
         // Print debug menu
         const string = try std.fmt.allocPrintZ(
             allocator,
-            \\YABG {?s} {d}.{d}.{d}
+            \\YABG {}
             \\FPS: {d}
             \\
             \\X:{d:>3}
             \\Y:{d:>3}
         ,
             .{
-                engine.version.pre,
-                engine.version.major,
-                engine.version.minor,
-                engine.version.patch,
+                engine.version,
                 engine.getFps(),
                 menu.player.entity.pos.x,
                 menu.player.entity.pos.y,
@@ -191,24 +193,22 @@ const DebugMenu = struct {
                 .x = 2,
                 .y = @intFromFloat(menu.y + 1),
             },
-            rl.Color.white,
+            .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         );
     }
 };
 
+pub fn onChunkReload() !void {
+    //try player.reloadChunks();
+}
+
 pub fn onEveryTick() !void {
-    //engine.chunk_mutex.lock();
     try player.reloadChunks();
-    //engine.chunk_mutex.unlock();
-    //std.debug.print("debug {}\n", .{debug_button_pressed});
 }
 
 pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
     var arena_allocator = std.heap.ArenaAllocator.init(allocator);
     defer arena_allocator.deinit();
-
-    rl.beginDrawing();
-    rl.clearBackground(rl.Color.black);
 
     // Tile coordinate of player
     var x_num: f64 = @floatFromInt(player.entity.pos.x);
@@ -231,6 +231,8 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
         },
     };
 
+    engine.beginDrawing();
+
     try camera.draw();
 
     if (debug_menu.enabled) {
@@ -239,47 +241,21 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
 
     try drawHotbar(arena_allocator.allocator(), player.inventory);
 
-    if (rl.isKeyPressed(.f3) or rl.isGamepadButtonPressed(0, .middle_left)) {
+    if (engine.isButtonPressed(.debug)) {
         debug_menu.enabled = !debug_menu.enabled;
     }
+
+    engine.endDrawing();
 }
 
 fn mainLoop(allocator: std.mem.Allocator) !void {
-    engine.delta = rl.getFrameTime();
-
-    engine.screen_width = @divTrunc(
-        @as(u15, @intCast(rl.getScreenWidth())),
-        engine.scale,
-    );
-
-    engine.screen_height = @divTrunc(
-        @as(u15, @intCast(rl.getScreenHeight())),
-        engine.scale,
-    );
-
     player.updatePlayerFrames();
 
     player.updateAnimation();
 
     try player.updateState();
 
-    //const remaining_x_mask: i32 = @intFromFloat(engine.Tile.size - player.entity.remaining_x);
-    //const remaining_y_mask: i32 = @intFromFloat(engine.Tile.size - player.entity.remaining_y);
-
     try onEveryFrame(allocator);
-
-    //const hotbar_y: i16 = @intCast(engine.screen_height - 17);
-
-    //    try ui.drawText(
-    //        ">This will be a chat...\n>More chat",
-    //        .{
-    //            .x = 2,
-    //            .y = hotbar_y - 4,
-    //        },
-    //        .white,
-    //    );
-
-    rl.endDrawing();
 }
 
 fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
@@ -292,12 +268,12 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
     for (inventory.items, 0..) |maybe_item, idx| {
         const hotbar_x: i16 = @intCast(hotbar_begin + idx * (hotbar_item_width + hotbar_item_spacing));
 
-        var tint = rl.Color.white;
+        var tint = engine.Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
         if (idx == inventory.selected_slot) {
-            tint = .sky_blue;
+            tint = .{ .r = 102, .g = 191, .b = 255, .a = 255 };
         }
 
-        ui.drawTexture(
+        engine.drawTexture(
             engine.textures.hotbar_item,
             .{ .x = hotbar_x, .y = hotbar_y },
             tint,
@@ -305,11 +281,11 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
 
         const item = maybe_item orelse continue;
 
-        ui.drawTextureRect(
+        engine.drawTextureRect(
             item.value.tile.texture(),
             .{ .x = 0, .y = 0, .w = 12, .h = 12 },
             .{ .x = hotbar_x + 2, .y = hotbar_y + 2 },
-            .white,
+            .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         );
 
         try ui.drawText(
@@ -318,7 +294,7 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
                 .x = hotbar_x + 3 + @as(u15, if (item.count < 10) 3 else 0),
                 .y = hotbar_y + 4,
             },
-            .white,
+            .{ .r = 255, .g = 255, .b = 255, .a = 255 },
         );
     }
 }
@@ -331,7 +307,7 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    try engine.init(allocator, onEveryTick);
+    try engine.init(allocator, onEveryTick, onChunkReload);
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     engine.Entity.walk_speed = std.fmt.parseFloat(f32, speed_env) catch engine.Entity.walk_speed;
@@ -385,17 +361,15 @@ pub fn main() !void {
         y_it = @intCast(chunk_y - 1);
     }
 
-    while (engine.shouldContinueRunning()) {
-        try mainLoop(allocator);
-    }
+    try engine.run(allocator, mainLoop);
 
     for (engine.chunks) |chunk| {
-        try chunk.save(player.save_path, "vanilla0");
+        try chunk.save(allocator, player.save_path, "vanilla0");
     }
 
     try player.save();
 
-    rl.closeWindow();
+    engine.closeWindow();
 }
 
 fn mainMenuLoop(allocator: std.mem.Allocator) !void {
@@ -403,21 +377,17 @@ fn mainMenuLoop(allocator: std.mem.Allocator) !void {
     defer arena_allocator.deinit();
     const arena = arena_allocator.allocator();
 
-    rl.beginDrawing();
-    rl.clearBackground(rl.Color.dark_gray);
+    engine.beginDrawing();
 
     try ui.drawText(
-        try std.fmt.allocPrint(arena, "YABG {?s} {d}.{d}.{d}", .{
-            engine.version.pre,
-            engine.version.major,
-            engine.version.minor,
-            engine.version.patch,
+        try std.fmt.allocPrint(arena, "YABG {}", .{
+            engine.version,
         }),
         .{ .x = 2, .y = 2 },
-        rl.Color.white,
+        .{ .r = 255, .g = 255, .b = 255, .a = 255 },
     );
 
     try ui.button("Save 1", .{ .x = 2, .y = 40, .w = 38, .h = 17 });
 
-    rl.endDrawing();
+    engine.endDrawing();
 }

@@ -1,7 +1,6 @@
 pub const ui = @import("ui.zig");
 
 const std = @import("std");
-const rl = @import("raylib");
 
 const engine = @import("../engine.zig");
 const tick = @import("tick.zig");
@@ -11,6 +10,7 @@ const psf = @import("psf.zig");
 pub fn init(
     allocator: std.mem.Allocator,
     comptime onEveryTickFn: fn () anyerror!void,
+    comptime onChunkReloadFn: fn () anyerror!void,
 ) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
@@ -21,6 +21,7 @@ pub fn init(
     engine.entities = std.SegmentedList(engine.Entity, 0){};
 
     _ = try std.Thread.spawn(.{}, tick.tickMainThread, .{onEveryTickFn});
+    _ = try std.Thread.spawn(.{}, engine.world.load.loadChunksMainThread, .{onChunkReloadFn});
 
     engine.rand = std.Random.DefaultPrng.init(0);
 
@@ -56,14 +57,14 @@ fn initFonts(allocator: std.mem.Allocator) !void {
     defer allocator.free(data);
     @memset(data, 0);
 
-    const font_image = rl.Image{
+    const font_image = engine.Image{
         .data = data.ptr,
 
         .width = @intCast(font_image_w),
         .height = @intCast(font_image_h),
 
         .mipmaps = 1,
-        .format = .uncompressed_gray_alpha,
+        .format = @intFromEnum(engine.backend.ImageFormat.uncompressed_gray_alpha),
     };
 
     engine.font = .{
@@ -82,7 +83,7 @@ fn initFonts(allocator: std.mem.Allocator) !void {
 
         try engine.font.glyph_offsets.put(key.*, x_off);
     }
-    engine.font.atlas = try rl.loadTextureFromImage(font_image);
+    engine.font.atlas = engine.loadTextureFromImage(font_image);
 }
 
 fn initTextures() !void {

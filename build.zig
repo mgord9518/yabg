@@ -49,16 +49,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         //.platform = .drm,
         //.shared = true,
-        // TODO: fix hidpi scaling (currently appears to be an issue with Raylib)
     });
 
     const yabg_engine_module = b.addModule("engine", .{
         .root_source_file = b.path("lib/engine.zig"),
         .imports = &.{
-            .{
-                .name = "raylib",
-                .module = raylib_dep.module("raylib"),
-            },
             .{
                 .name = "perlin",
                 .module = perlin_dep.module("perlin"),
@@ -68,12 +63,9 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addImport("engine", yabg_engine_module);
 
-    const raylib = raylib_dep.module("raylib");
     const raylib_artifact = raylib_dep.artifact("raylib");
 
-    exe.linkLibrary(raylib_artifact);
-    exe.root_module.addImport("raylib", raylib);
-    exe.root_module.addImport("raygui", raylib);
+    yabg_engine_module.linkLibrary(raylib_artifact);
 
     exe.root_module.addImport("known-folders", known_folders_dep.module("known-folders"));
     exe.root_module.addImport("perlin", perlin_dep.module("perlin"));

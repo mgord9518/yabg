@@ -4,7 +4,7 @@
 # If you're testing, you should probably just run `zig build`
 
 prefix  = zig-out
-version = 0.0.61
+version = $(shell cat build.zig.zon | grep '.version' | cut -d'"' -f2)
 arch    = x86_64
 
 ZIGFLAGS = --release=safe

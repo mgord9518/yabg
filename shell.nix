@@ -22,6 +22,5 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-    #export EMSDK_PATH="${pkgs.emscripten}"
   '';
 }

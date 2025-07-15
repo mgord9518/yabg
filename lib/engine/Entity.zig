@@ -1,4 +1,3 @@
-const rl = @import("raylib");
 const engine = @import("../engine.zig");
 
 const Entity = @This();
@@ -31,7 +30,7 @@ remaining_y: f32 = 0,
 x_speed: f32 = 0,
 y_speed: f32 = 0,
 
-animation_texture: [5]rl.Texture,
+animation_texture: [5]engine.Texture,
 
 frame_num: u3 = 0,
 frame_sub: f32 = 0,

@@ -1,8 +1,2 @@
 zig-out
-*.AppImage
-*.shImg
-*.zsync
-*.exe
-*.pdb
 *.zip
-usr/bin/yabg
