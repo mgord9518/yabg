@@ -6,9 +6,9 @@ const psf = @import("engine/psf.zig");
 pub const textures = @import("engine/textures.zig");
 pub const ui = @import("engine/ui.zig");
 pub const world = @import("engine/world.zig");
-pub const Player = @import("engine/Player.zig");
+pub const Player = @import("engine/Player.zig").Player;
 pub const Entity = @import("engine/Entity.zig");
-pub const Inventory = @import("engine/Inventory.zig");
+pub const Inventory = @import("engine/inventory.zig").Inventory;
 pub const Item = @import("engine/item.zig").Item;
 
 pub const init = @import("engine/init.zig").init;
@@ -56,7 +56,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 62,
+    .patch = 63,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
@@ -65,21 +65,49 @@ pub const tps = 24;
 pub var delta: f32 = 0;
 
 pub const Image = backend.Image;
+
+// Opaque types specific to the backend
 pub const Texture = backend.Texture;
 pub const Sound = backend.Sound;
-pub const Color = backend.Color;
+//pub const Color = backend.Color;
 
 pub const Rectangle = struct {
-    x: i16,
-    y: i16,
-    w: u15,
-    h: u15,
+    x: i32,
+    y: i32,
+    w: u31,
+    h: u31,
+};
+
+pub const ImageNew = struct {
+    data: []u2,
+    palette: [4]Color,
+    w: u8,
+    h: u8,
+
+    pub fn toTexture(self: ImageNew) !Texture {
+        // TODO
+        return try backend.textureFromImage(std.heap.page_allocator, self);
+    }
+};
+
+pub const Color = packed struct(u16) {
+    r: u4,
+    g: u4,
+    b: u4,
+    _12: u3 = 0,
+    a: u1 = 1,
 };
 
 pub var tileSounds: [256]Sound = undefined;
 
 pub var chunk_mutex = std.Thread.Mutex{};
-pub var chunks: [9]world.Chunk = undefined;
+pub fn chunks(comptime IdType: type) *[9]world.Chunk(IdType) {
+    const Temp = struct {
+        var chunks: [9]world.Chunk(IdType) = undefined;
+    };
+
+    return &Temp.chunks;
+}
 
 pub const getFps = backend.getFps;
 pub const shouldContinueRunning = backend.shouldContinueRunning;
@@ -97,6 +125,7 @@ pub const drawTexture = backend.drawTexture;
 pub const drawTextureRect = backend.drawTextureRect;
 pub const drawRect = backend.drawRect;
 pub const closeWindow = backend.closeWindow;
+pub const mousePosition = backend.mousePosition;
 
 pub fn run(
     allocator: std.mem.Allocator,

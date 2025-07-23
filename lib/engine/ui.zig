@@ -16,7 +16,7 @@ pub const Rectangle = struct {
 pub fn drawText(
     string: []const u8,
     coords: Vec,
-    shade: engine.Color,
+    shade: engine.backend.Color,
 ) !void {
     const font_w = 5;
     const font_h = 8;

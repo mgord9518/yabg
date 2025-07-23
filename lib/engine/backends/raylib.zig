@@ -23,9 +23,48 @@ pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32)
     raylib.InitAudioDevice();
 
     const title = try std.fmt.allocPrintZ(allocator, "YABG {}", .{engine.version});
+    defer allocator.free(title);
 
     raylib.InitWindow(@intCast(window_width), @intCast(window_height), title);
     raylib.SetWindowMinSize(@intCast(128 * engine.scale), @intCast(128 * engine.scale));
+    raylib.HideCursor();
+}
+
+const Rgba4 = packed struct(u16) {
+    a: u4,
+    b: u4,
+    g: u4,
+    r: u4,
+};
+
+pub fn textureFromImage(allocator: std.mem.Allocator, image: engine.ImageNew) !Texture {
+    // Won't need this after the texture has been loaded from the image
+    const data = try allocator.alloc(Rgba4, image.w * image.h);
+    defer allocator.free(data);
+
+    const temp_image = Image{
+        .data = data.ptr,
+
+        .width = image.w,
+        .height = image.h,
+
+        .mipmaps = 1,
+        .format = raylib.PIXELFORMAT_UNCOMPRESSED_R4G4B4A4,
+    };
+
+    for (image.data, 0..) |_, idx| {
+        const palette_idx = image.data[idx];
+        const palette_color = image.palette[palette_idx];
+
+        data[idx] = .{
+            .r = palette_color.r,
+            .g = palette_color.g,
+            .b = palette_color.b,
+            .a = @as(u4, palette_color.a) * 15,
+        };
+    }
+
+    return loadTextureFromImage(temp_image);
 }
 
 pub fn beginDrawing() void {
@@ -138,7 +177,20 @@ pub fn loadSoundEmbedded(comptime path: []const u8) Sound {
     return raylib.LoadSoundFromWave(wave);
 }
 
-pub fn drawTexture(texture: engine.Texture, pos: engine.Coordinate, tint: engine.Color) void {
+pub fn mousePosition() engine.Coordinate {
+    const pos = raylib.GetMousePosition();
+    const unscaled_pos = engine.Coordinate{
+        .x = @intFromFloat(pos.x),
+        .y = @intFromFloat(pos.y),
+    };
+
+    return .{
+        .x = @divTrunc(unscaled_pos.x, engine.scale),
+        .y = @divTrunc(unscaled_pos.y, engine.scale),
+    };
+}
+
+pub fn drawTexture(texture: engine.Texture, pos: engine.Coordinate, tint: Color) void {
     raylib.DrawTextureEx(
         @bitCast(texture),
         .{
@@ -151,7 +203,7 @@ pub fn drawTexture(texture: engine.Texture, pos: engine.Coordinate, tint: engine
     );
 }
 
-pub fn drawTextureRect(texture: engine.Texture, rect: engine.ui.Rectangle, pos: engine.Coordinate, tint: engine.Color) void {
+pub fn drawTextureRect(texture: engine.Texture, rect: engine.ui.Rectangle, pos: engine.Coordinate, tint: Color) void {
     raylib.DrawTexturePro(
         @bitCast(texture),
         .{
@@ -172,7 +224,7 @@ pub fn drawTextureRect(texture: engine.Texture, rect: engine.ui.Rectangle, pos: 
     );
 }
 
-pub fn drawRect(rect: engine.Rectangle, tint: engine.Color) void {
+pub fn drawRect(rect: engine.Rectangle, tint: Color) void {
     raylib.DrawRectangleRec(
         .{
             .x = @floatFromInt(rect.x * engine.scale),

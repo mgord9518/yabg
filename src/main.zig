@@ -3,6 +3,7 @@ const known_folders = @import("known-folders");
 const assert = std.debug.assert;
 
 const engine = @import("engine");
+const init = @import("init.zig");
 
 const ui = engine.ui;
 
@@ -11,7 +12,7 @@ const ChatLog = struct {
 };
 
 var debug_menu: DebugMenu = undefined;
-var player: engine.Player = undefined;
+var player: engine.Player(TileIdType) = undefined;
 
 const Camera = struct {
     pos: Coordinate,
@@ -27,8 +28,8 @@ const Camera = struct {
         const x_pos: i64 = @intFromFloat(@floor(camera.pos.x));
         const y_pos: i64 = @intFromFloat(@floor(camera.pos.y));
 
-        const x_subtile = (camera.pos.x - @floor(camera.pos.x)) * engine.world.Tile.size;
-        const y_subtile = (camera.pos.y - @floor(camera.pos.y)) * engine.world.Tile.size;
+        const x_subtile = (camera.pos.x - @floor(camera.pos.x)) * engine.world.tile_size;
+        const y_subtile = (camera.pos.y - @floor(camera.pos.y)) * engine.world.tile_size;
 
         const remaining_x: i32 = @intFromFloat(x_subtile);
 
@@ -37,11 +38,11 @@ const Camera = struct {
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 12
         // pixels, which may happen if the player resized the window
-        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), engine.world.Tile.size);
-        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), engine.world.Tile.size);
+        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), engine.world.tile_size);
+        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), engine.world.tile_size);
 
-        const screen_width_in_tiles = engine.screen_width / engine.world.Tile.size;
-        const screen_height_in_tiles = engine.screen_height / engine.world.Tile.size;
+        const screen_width_in_tiles = engine.screen_width / engine.world.tile_size;
+        const screen_height_in_tiles = engine.screen_height / engine.world.tile_size;
 
         // TODO: refactor
         var x: i32 = undefined;
@@ -50,18 +51,18 @@ const Camera = struct {
             x = -1;
 
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
-                for (&engine.chunks) |*chunk| {
-                    const chunk_coord_x = chunk.x * engine.world.Chunk.size;
-                    const chunk_coord_y = chunk.y * engine.world.Chunk.size;
+                for (engine.chunks(TileIdType)) |*chunk| {
+                    const chunk_coord_x = chunk.x * engine.world.chunk_size;
+                    const chunk_coord_y = chunk.y * engine.world.chunk_size;
 
                     const tile_x: i64 = (x_pos + x - (screen_width_in_tiles / 2) - chunk_coord_x);
                     const tile_y: i64 = (y_pos + y - (screen_height_in_tiles / 2) - chunk_coord_y);
 
                     // Skip if tile not on screen
                     if (x + x_pos - (screen_width_in_tiles / 2) < chunk_coord_x or
-                        x + x_pos - (screen_width_in_tiles / 2) >= chunk_coord_x + engine.world.Chunk.size or
+                        x + x_pos - (screen_width_in_tiles / 2) >= chunk_coord_x + engine.world.chunk_size or
                         y + y_pos - (screen_height_in_tiles / 2) < chunk_coord_y or
-                        y + y_pos - (screen_height_in_tiles / 2) >= chunk_coord_y + engine.world.Chunk.size) continue;
+                        y + y_pos - (screen_height_in_tiles / 2) >= chunk_coord_y + engine.world.chunk_size) continue;
 
                     // Only loop through the first half of chunk engine.tiles (floor level)
                     // If wall level tile exists, draw it instead
@@ -70,18 +71,19 @@ const Camera = struct {
                             const tile = chunk.getTileAtOffset(.floor, @intCast(tile_x), @intCast(tile_y));
 
                             engine.drawTexture(tile.texture(), .{
-                                .x = (x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2),
-                                .y = (y * engine.world.Tile.size) - remaining_y + screen_mod_y + 4 - (engine.world.Tile.size / 2),
-                            }, .{ .r = 200, .g = 200, .b = 200, .a = 255 });
+                                .x = (x * engine.world.tile_size) - remaining_x + screen_mod_x - (engine.world.tile_size / 2),
+                                .y = (y * engine.world.tile_size) - remaining_y + screen_mod_y + 4 - (engine.world.tile_size / 2),
+                            }, .{ .r = 204, .g = 204, .b = 204, .a = 255 });
+//                            }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                         },
                         else => {
-                            if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) continue;
+                            if ((y * engine.world.tile_size) - 1 >= engine.screen_height / 2) continue;
 
                             const tile = chunk.getTileAtOffset(.wall, @intCast(tile_x), @intCast(tile_y));
 
                             engine.drawTexture(tile.texture(), .{
-                                .x = (x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2),
-                                .y = (y * engine.world.Tile.size) - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2),
+                                .x = (x * engine.world.tile_size) - remaining_x + screen_mod_x - (engine.world.tile_size / 2),
+                                .y = (y * engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (engine.world.tile_size / 2),
                             }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                         },
                     }
@@ -123,9 +125,9 @@ const Camera = struct {
         while (y <= screen_height_in_tiles + 1) : (y += 1) {
             x = -1;
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
-                for (&engine.chunks) |*chunk| {
-                    const chunk_coord_x = chunk.x * engine.world.Chunk.size;
-                    const chunk_coord_y = chunk.y * engine.world.Chunk.size;
+                for (engine.chunks(TileIdType)) |*chunk| {
+                    const chunk_coord_x = chunk.x * engine.world.chunk_size;
+                    const chunk_coord_y = chunk.y * engine.world.chunk_size;
 
                     // Camera pos is in middle of the screen, so shift back half a screen
                     const tile_x_world_pos: i64 = (x_pos - (screen_width_in_tiles / 2) + x);
@@ -135,17 +137,17 @@ const Camera = struct {
                     const tile_y_chunk_off = std.math.cast(u16, tile_y_world_pos - chunk_coord_y) orelse continue;
 
                     // Skip if tile is beyond chunk border (negatives skipped with the math cast above)
-                    if (tile_x_chunk_off >= engine.world.Chunk.size) continue;
-                    if (tile_y_chunk_off >= engine.world.Chunk.size) continue;
+                    if (tile_x_chunk_off >= engine.world.chunk_size) continue;
+                    if (tile_y_chunk_off >= engine.world.chunk_size) continue;
 
                     // Only draw raised tiles
                     const wall_tile = chunk.getTileAtOffset(.wall, tile_x_chunk_off, tile_y_chunk_off);
                     if (wall_tile.id == .air) continue;
 
-                    if ((y * engine.world.Tile.size) - 1 >= engine.screen_height / 2) {
+                    if ((y * engine.world.tile_size) - 1 >= engine.screen_height / 2) {
                         engine.drawTexture(wall_tile.texture(), .{
-                            .x = (x * engine.world.Tile.size) - remaining_x + screen_mod_x - (engine.world.Tile.size / 2),
-                            .y = (y * engine.world.Tile.size) - remaining_y + screen_mod_y - 4 - (engine.world.Tile.size / 2),
+                            .x = (x * engine.world.tile_size) - remaining_x + screen_mod_x - (engine.world.tile_size / 2),
+                            .y = (y * engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (engine.world.tile_size / 2),
                         }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                     }
                 }
@@ -161,7 +163,7 @@ const DebugMenu = struct {
 
     x: f32 = 0,
     y: f32 = 0,
-    player: *engine.Player,
+    player: *engine.Player(TileIdType),
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
         // Print debug menu
@@ -245,6 +247,11 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
         debug_menu.enabled = !debug_menu.enabled;
     }
 
+//    std.debug.print("{}\n", .{engine.mousePosition()});
+//    engine.drawTexture(engine.textures.cursor, engine.mousePosition(), .{ .r = 255, .g = 255, .b = 255 });
+//    engine.drawTexture(engine.textures.hotbar_item, engine.mousePosition(), .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+    engine.drawTexture(engine.textures.cursor, engine.mousePosition(), .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+
     engine.endDrawing();
 }
 
@@ -258,7 +265,7 @@ fn mainLoop(allocator: std.mem.Allocator) !void {
     try onEveryFrame(allocator);
 }
 
-fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
+fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory(TileIdType)) !void {
     const hotbar_item_width = 16;
     const hotbar_item_spacing = 1;
 
@@ -268,7 +275,7 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
     for (inventory.items, 0..) |maybe_item, idx| {
         const hotbar_x: i16 = @intCast(hotbar_begin + idx * (hotbar_item_width + hotbar_item_spacing));
 
-        var tint = engine.Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+        var tint = engine.backend.Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
         if (idx == inventory.selected_slot) {
             tint = .{ .r = 102, .g = 191, .b = 255, .a = 255 };
         }
@@ -299,6 +306,45 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory) !void {
     }
 }
 
+pub const TileIdType = enum(u8) {
+    /// Categories should denote the basic qualities of a specific tile.
+    /// While different submaterials (eg: grass and sand or cobblestone and brick)
+    /// may have different hardnesses and sound, they're still collected with the
+    /// same type of tool
+    air = 0,
+
+    // Various kinds of soil, sand, gravel, etc.
+    dirt = 8,
+    grass,
+    sand,
+
+    // Logs, planks, bamboo
+    //wood = 16,
+
+    // Cobblestone, smooth stone, bricks, ore
+    stone = 32,
+
+    //metal = 48,
+
+    // Computers, wires, machines
+    //electronic = 64,
+
+    water = 80,
+
+    //misc = 240,
+
+    // Tile dedicated to the `placeholder` texture
+    placeholder = 255,
+
+    pub fn texture(self: TileIdType) engine.Texture {
+        return engine.textures.tiles[@intFromEnum(self)];
+    }
+
+    pub fn sound(self: TileIdType) engine.Sound {
+        return engine.tileSounds[@intFromEnum(self)];
+    }
+};
+
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
@@ -307,7 +353,8 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    try engine.init(allocator, onEveryTick, onChunkReload);
+    try engine.init(TileIdType, allocator, onEveryTick, onChunkReload);
+    try init.initTextures(TileIdType);
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     engine.Entity.walk_speed = std.fmt.parseFloat(f32, speed_env) catch engine.Entity.walk_speed;
@@ -324,7 +371,7 @@ pub fn main() !void {
         },
     );
 
-    player = try engine.Player.init(allocator, save_path);
+    player = try engine.Player(TileIdType).init(allocator, save_path);
     debug_menu = DebugMenu{ .player = &player };
 
     debug_menu.enabled = env_map.get("DEBUG_MODE") != null;
@@ -337,8 +384,8 @@ pub fn main() !void {
         std.debug.print("Error creating save directory: {}", .{err});
     };
 
-    var chunk_x = @divTrunc(player.entity.pos.x, engine.world.Chunk.size);
-    var chunk_y = @divTrunc(player.entity.pos.y, engine.world.Chunk.size);
+    var chunk_x = @divTrunc(player.entity.pos.x, engine.world.chunk_size);
+    var chunk_y = @divTrunc(player.entity.pos.y, engine.world.chunk_size);
 
     if (player.entity.pos.x < 0) {
         chunk_x = chunk_x - 1;
@@ -355,7 +402,7 @@ pub fn main() !void {
     var it: usize = 0;
     while (x_it <= chunk_x + 1) : (x_it += 1) {
         while (y_it <= chunk_y + 1) : (y_it += 1) {
-            engine.chunks[it] = try engine.world.Chunk.load(save_path, "vanilla0", x_it, y_it);
+            engine.chunks(TileIdType)[it] = try engine.world.Chunk(TileIdType).load(save_path, "vanilla0", x_it, y_it);
             it += 1;
         }
         y_it = @intCast(chunk_y - 1);
@@ -363,7 +410,7 @@ pub fn main() !void {
 
     try engine.run(allocator, mainLoop);
 
-    for (engine.chunks) |chunk| {
+    for (engine.chunks(TileIdType)) |chunk| {
         try chunk.save(allocator, player.save_path, "vanilla0");
     }
 

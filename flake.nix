@@ -21,7 +21,7 @@
     forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
   in {
     devShells = forAllSystems (system: {
-      default = import ./shell.nix { pkgs = pkgs.${system}; };
+      default = import ./nix/shell.nix { pkgs = pkgs.${system}; };
     });
 
     packages = forAllSystems (system: {

@@ -8,6 +8,7 @@ const tick = @import("tick.zig");
 const psf = @import("psf.zig");
 
 pub fn init(
+    comptime IdType: type,
     allocator: std.mem.Allocator,
     comptime onEveryTickFn: fn () anyerror!void,
     comptime onChunkReloadFn: fn () anyerror!void,
@@ -38,8 +39,8 @@ pub fn init(
     try engine.backend.init(allocator, w, h);
 
     try initFonts(allocator);
-    try initTextures();
-    try initSounds();
+    //try initTextures(IdType);
+    try initSounds(IdType);
 
     // Disable exit on keypress
     //rl.setExitKey(.null);
@@ -86,13 +87,13 @@ fn initFonts(allocator: std.mem.Allocator) !void {
     engine.font.atlas = engine.loadTextureFromImage(font_image);
 }
 
-fn initTextures() !void {
+fn initTextures(comptime IdType: type) !void {
     // UI elements
     engine.textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
 
     // Tiles
-    inline for (std.meta.fields(engine.world.Tile.Id)) |tile| {
-        const tile_id: engine.world.Tile.Id = @enumFromInt(tile.value);
+    inline for (std.meta.fields(IdType)) |tile| {
+        const tile_id: IdType = @enumFromInt(tile.value);
 
         // Exceptions
         switch (tile_id) {
@@ -106,10 +107,10 @@ fn initTextures() !void {
     }
 }
 
-fn initSounds() !void {
+fn initSounds(comptime IdType: type) !void {
     // Tiles
-    inline for (std.meta.fields(engine.world.Tile.Id)) |tile| {
-        const tile_id: engine.world.Tile.Id = @enumFromInt(tile.value);
+    inline for (std.meta.fields(IdType)) |tile| {
+        const tile_id: IdType = @enumFromInt(tile.value);
 
         // Exceptions
         switch (tile_id) {
