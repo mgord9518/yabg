@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const root = @import("root");
 const raylib = @cImport({
     @cInclude("raylib.h");
 });
@@ -28,6 +29,8 @@ pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32)
     raylib.InitWindow(@intCast(window_width), @intCast(window_height), title);
     raylib.SetWindowMinSize(@intCast(128 * engine.scale), @intCast(128 * engine.scale));
     raylib.HideCursor();
+
+    root.init();
 }
 
 const Rgba4 = packed struct(u16) {
@@ -136,6 +139,23 @@ pub fn getFps() usize {
     return @intCast(raylib.GetFPS());
 }
 
+pub export fn run() void {
+    while (!raylib.WindowShouldClose()) {
+        root.update();
+        engine.delta = deltaTime();
+
+        engine.screen_width = @divTrunc(
+            @as(u15, @intCast(screenWidth())),
+            engine.scale,
+        );
+
+        engine.screen_height = @divTrunc(
+            @as(u15, @intCast(screenHeight())),
+            engine.scale,
+        );
+    }
+}
+
 pub fn shouldContinueRunning() bool {
     return !raylib.WindowShouldClose();
 }
@@ -188,6 +208,10 @@ pub fn mousePosition() engine.Coordinate {
         .x = @divTrunc(unscaled_pos.x, engine.scale),
         .y = @divTrunc(unscaled_pos.y, engine.scale),
     };
+}
+
+pub fn drawImage(image: engine.ImageNew, pos: engine.Coordinate) void {
+    drawTexture(image.maybe_texture.?, pos, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
 }
 
 pub fn drawTexture(texture: engine.Texture, pos: engine.Coordinate, tint: Color) void {

@@ -8,6 +8,7 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = "yabg",
         .root_source_file = b.path("src/main.zig"),
+        //.root_source_file = b.path("src/wasm_test.zig"),
         .target = target,
         .optimize = optimize,
         // <https://github.com/Not-Nik/raylib-zig/issues/219>
@@ -19,38 +20,6 @@ pub fn build(b: *std.Build) void {
     const known_folders_dep = b.dependency("known-folders", .{});
     const perlin_dep = b.dependency("perlin", .{});
 
-    //    const psftools_dep = b.dependency("psftools", .{
-    //        .target = target,
-    //        .optimize = optimize,
-    //    });
-
-    // Only needed for building font
-    //    const txt2psf = b.addExecutable(.{
-    //        .name = "txt2psf",
-    //        .target = target,
-    //        .optimize = optimize,
-    //    });
-    //
-    //    txt2psf.addCSourceFiles(.{
-    //        .root = b.path("tools/psftools-1.1.2"),
-    //        .files = &.{
-    //            "tools/txt2psf.c",
-    //            "lib/psflib.c",
-    //            "lib/psfucs.c",
-    //            "lib/psfio.c",
-    //            "lib/psferror.c",
-    //        },
-    //    });
-    //
-    //    txt2psf.linkLibC();
-
-    const raylib_dep = b.dependency("raylib", .{
-        .target = target,
-        .optimize = optimize,
-        //.platform = .drm,
-        //.shared = true,
-    });
-
     const yabg_engine_module = b.addModule("engine", .{
         .root_source_file = b.path("lib/engine.zig"),
         .imports = &.{
@@ -61,11 +30,26 @@ pub fn build(b: *std.Build) void {
         },
     });
 
+    switch (target.result.cpu.arch) {
+        .wasm32 => {
+            exe.entry = .disabled;
+            exe.rdynamic = true;
+        },
+        else => {
+            const raylib_dep = b.dependency("raylib", .{
+                .target = target,
+                .optimize = optimize,
+                //.platform = .drm,
+                //.shared = true,
+            });
+
+            const raylib_artifact = raylib_dep.artifact("raylib");
+
+            yabg_engine_module.linkLibrary(raylib_artifact);
+        },
+    }
+
     exe.root_module.addImport("engine", yabg_engine_module);
-
-    const raylib_artifact = raylib_dep.artifact("raylib");
-
-    yabg_engine_module.linkLibrary(raylib_artifact);
 
     exe.root_module.addImport("known-folders", known_folders_dep.module("known-folders"));
     exe.root_module.addImport("perlin", perlin_dep.module("perlin"));
@@ -84,4 +68,18 @@ pub fn build(b: *std.Build) void {
     run_step.dependOn(&run_cmd.step);
 
     b.installArtifact(exe);
+}
+
+fn linkRaylib(b: *std.Build, mod: *std.Build.Module, options: std.Build.ExecutableOptions) void {
+    const raylib_dep = b.dependency("raylib", .{
+        .target = options.target,
+        .optimize = options.optimize,
+        //.platform = .drm,
+        //.shared = true,
+    });
+
+    const raylib_artifact = raylib_dep.artifact("raylib");
+
+   // yabg_engine_module.linkLibrary(raylib_artifact);
+    mod.linkLibrary(raylib_artifact);
 }

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=initial-scale=1.0, maximum-scale=1.0, user-scalable=0"/>
+        <title>YABG</title>
+        <script>
+            var importObject = {
+                env: {
+                    consoleLog: (arg) => console.log(arg),
+                    getWindowWidth: () => window.innerWidth,
+                    getWindowHeight: () => window.innerHeight,
+                    endDrawing: () => endDrawing(),
+                },
+            };
+
+            // Defined in `instantiateStreaming` body
+            // TODO: find a better way to do this
+            function endDrawing() {}
+
+            WebAssembly.instantiateStreaming(fetch("zig-out/bin/yabg.wasm"), importObject).then((result) => {
+                const exports = result.instance.exports;
+
+                exports.yabgEngine_init();
+
+                const canvas = document.getElementById("canvas");
+                canvas.width = exports.getCanvasWidth();
+                canvas.height = exports.getCanvasHeight();
+
+                const context = canvas.getContext("2d");
+
+                endDrawing = function() {
+                    const bufferOffset = exports.getCanvasBufferPointer();
+                    const imageDataArray = new Uint8ClampedArray(
+                        exports.memory.buffer,
+                        bufferOffset,
+                        canvas.width * canvas.height * 4
+                    );
+
+                    const imageData = new ImageData(imageDataArray, canvas.width, canvas.height);
+
+                    imageData.data.set(imageDataArray);
+
+                    context.putImageData(imageData, 0, 0);
+                }
+
+                const frameFn = (timestamp) => {
+                    exports.update();
+                    window.requestAnimationFrame(frameFn);
+                }
+
+                const resize = () => {
+                    exports.resetSize();
+                    canvas.width = exports.getCanvasWidth();
+                    canvas.height = exports.getCanvasHeight();
+                    canvas.style.width = ((exports.getCanvasWidth() + 1) * exports.engineScale()) + "px";
+                }
+
+                window.addEventListener("resize", resize, false);
+
+                window.requestAnimationFrame(frameFn);
+            });
+        </script>
+        <style>
+            html {
+              overflow-x: hidden;
+              overflow-y: hidden;
+            }
+            body {
+              margin: 0;
+              background-color: #101010;
+            }
+            canvas#canvas {
+                image-rendering: pixelated;
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas"/>
+    </body>
+</html>

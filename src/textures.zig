@@ -4,7 +4,7 @@ pub const tiles = struct {
     pub const grass = engine.ImageNew{
         .w = 12,
         .h = 20,
-        .palette = .{
+        .palette = &.{
             .{ .r = 1, .g = 3, .b = 1 },
             .{ .r = 1, .g = 4, .b = 0 },
             .{ .r = 2, .g = 5, .b = 1 },
@@ -16,7 +16,7 @@ pub const tiles = struct {
     pub const dirt = engine.ImageNew{
         .w = 12,
         .h = 20,
-        .palette = .{
+        .palette = &.{
             .{ .r = 2, .g = 2, .b = 0 },
             .{ .r = 3, .g = 2, .b = 0 },
             .{ .r = 4, .g = 3, .b = 0 },
@@ -28,7 +28,7 @@ pub const tiles = struct {
     pub const sand = engine.ImageNew{
         .w = 12,
         .h = 20,
-        .palette = .{
+        .palette = &.{
             .{ .r = 7, .g = 6, .b = 2 },
             .{ .r = 8, .g = 7, .b = 3 },
             .{ .r = 11, .g = 9, .b = 4 },
@@ -40,7 +40,7 @@ pub const tiles = struct {
     pub const stone = engine.ImageNew{
         .w = 12,
         .h = 20,
-        .palette = .{
+        .palette = &.{
             .{ .r = 2, .g = 2, .b = 2 },
             .{ .r = 3, .g = 3, .b = 3 },
             .{ .r = 4, .g = 4, .b = 4 },
@@ -52,7 +52,7 @@ pub const tiles = struct {
     pub const water = engine.ImageNew{
         .w = 12,
         .h = 20,
-        .palette = .{
+        .palette = &.{
             .{ .r = 0, .g = 0, .b = 0, .a = 0 },
             .{ .r = 4, .g = 6, .b = 9 },
             .{ .r = 5, .g = 6, .b = 9 },
@@ -127,7 +127,7 @@ pub const tiles = struct {
 pub const cursor = engine.ImageNew{
     .w = 4,
     .h = 4,
-    .palette = .{
+    .palette = &.{
         .{ .r = 0, .g = 0, .b = 0, .a = 0 },
         .{ .r = 15, .g = 7, .b = 6 },
         .{ .r = 0, .g = 0, .b = 0 },

@@ -1,6 +1,12 @@
 const std = @import("std");
-pub const backend = @import("engine/backends/raylib.zig");
+//pub const backend = @import("engine/backends/raylib.zig");
+//pub const backend = @import("engine/backends/wasm.zig");
+const builtin = @import("builtin");
 
+pub const backend = switch (builtin.cpu.arch) {
+    .wasm32 => @import("engine/backends/wasm.zig"),
+    else => @import("engine/backends/raylib.zig"),
+};
 const psf = @import("engine/psf.zig");
 
 pub const textures = @import("engine/textures.zig");
@@ -56,7 +62,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 63,
+    .patch = 64,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
@@ -67,9 +73,17 @@ pub var delta: f32 = 0;
 pub const Image = backend.Image;
 
 // Opaque types specific to the backend
-pub const Texture = backend.Texture;
+pub const Texture = DummyType("Texture");
 pub const Sound = backend.Sound;
 //pub const Color = backend.Color;
+
+fn DummyType(comptime maybe_type: []const u8) type {
+    if (@hasDecl(backend, maybe_type)) {
+        return @field(backend, maybe_type);
+    } else {
+        return u0;
+    }
+}
 
 pub const Rectangle = struct {
     x: i32,
@@ -79,14 +93,27 @@ pub const Rectangle = struct {
 };
 
 pub const ImageNew = struct {
-    data: []u2,
-    palette: [4]Color,
+    data: []const u2,
+    palette: *const [4]Color,
     w: u8,
     h: u8,
 
-    pub fn toTexture(self: ImageNew) !Texture {
-        // TODO
-        return try backend.textureFromImage(std.heap.page_allocator, self);
+    // Backend-dependent, field may be empty
+    maybe_texture: ?Texture = null,
+
+    pub fn toTexture(image: ImageNew) !Texture {
+        return try backend.textureFromImage(std.heap.page_allocator, image);
+    }
+
+    pub fn draw(image: *ImageNew, pos: Coordinate) void {
+        if (@hasDecl(backend, "textureFromImage") and image.maybe_texture == null) {
+            @branchHint(.unlikely);
+
+            // TODO
+            image.maybe_texture = backend.textureFromImage(std.heap.page_allocator, image.*) catch unreachable;
+        }
+
+        backend.drawImage(image.*, pos);
     }
 };
 
@@ -121,32 +148,14 @@ pub const screenHeight = backend.screenHeight;
 pub const loadTextureFromImage = backend.loadTextureFromImage;
 pub const isButtonPressed = backend.isButtonPressed;
 pub const isButtonDown = backend.isButtonDown;
+// TODO: remove drawTexture
 pub const drawTexture = backend.drawTexture;
+pub const drawImage = backend.drawImage;
 pub const drawTextureRect = backend.drawTextureRect;
 pub const drawRect = backend.drawRect;
 pub const closeWindow = backend.closeWindow;
 pub const mousePosition = backend.mousePosition;
-
-pub fn run(
-    allocator: std.mem.Allocator,
-    comptime onEveryTickFn: fn (allocator: std.mem.Allocator) anyerror!void,
-) !void {
-    while (shouldContinueRunning()) {
-        delta = deltaTime();
-
-        screen_width = @divTrunc(
-            @as(u15, @intCast(screenWidth())),
-            scale,
-        );
-
-        screen_height = @divTrunc(
-            @as(u15, @intCast(screenHeight())),
-            scale,
-        );
-
-        try onEveryTickFn(allocator);
-    }
-}
+pub const run = backend.run;
 
 pub fn playSound(sound: Sound) void {
     const pitch_offset = rand.random().float(f32) / 4;

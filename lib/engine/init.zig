@@ -11,7 +11,6 @@ pub fn init(
     comptime IdType: type,
     allocator: std.mem.Allocator,
     comptime onEveryTickFn: fn () anyerror!void,
-    comptime onChunkReloadFn: fn () anyerror!void,
 ) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
@@ -22,7 +21,6 @@ pub fn init(
     engine.entities = std.SegmentedList(engine.Entity, 0){};
 
     _ = try std.Thread.spawn(.{}, tick.tickMainThread, .{onEveryTickFn});
-    _ = try std.Thread.spawn(.{}, engine.world.load.loadChunksMainThread, .{onChunkReloadFn});
 
     engine.rand = std.Random.DefaultPrng.init(0);
 

@@ -3,7 +3,7 @@ const known_folders = @import("known-folders");
 const assert = std.debug.assert;
 
 const engine = @import("engine");
-const init = @import("init.zig");
+const textures = @import("textures.zig");
 
 const ui = engine.ui;
 
@@ -200,10 +200,6 @@ const DebugMenu = struct {
     }
 };
 
-pub fn onChunkReload() !void {
-    //try player.reloadChunks();
-}
-
 pub fn onEveryTick() !void {
     try player.reloadChunks();
 }
@@ -247,22 +243,50 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
         debug_menu.enabled = !debug_menu.enabled;
     }
 
-//    std.debug.print("{}\n", .{engine.mousePosition()});
-//    engine.drawTexture(engine.textures.cursor, engine.mousePosition(), .{ .r = 255, .g = 255, .b = 255 });
-//    engine.drawTexture(engine.textures.hotbar_item, engine.mousePosition(), .{ .r = 255, .g = 255, .b = 255, .a = 255 });
-    engine.drawTexture(engine.textures.cursor, engine.mousePosition(), .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+    engine.textures.cursor.draw(engine.mousePosition());
 
     engine.endDrawing();
 }
 
-fn mainLoop(allocator: std.mem.Allocator) !void {
+pub export fn update() void {
     player.updatePlayerFrames();
 
     player.updateAnimation();
 
-    try player.updateState();
+    player.updateState() catch unreachable;
 
-    try onEveryFrame(allocator);
+    onEveryFrame(std.heap.page_allocator) catch unreachable;
+}
+
+pub export fn init() void {
+    initTextures(TileIdType) catch unreachable;
+}
+
+pub fn initTextures(comptime IdType: type) !void {
+    // UI elements
+    engine.textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
+
+    engine.textures.cursor = textures.cursor;
+
+    inline for (std.meta.fields(IdType)) |tile| {
+        std.debug.print("loading {s}\n", .{tile.name});
+        const tile_id: IdType = @enumFromInt(tile.value);
+
+        // Exceptions
+        switch (tile_id) {
+            .air => continue,
+            else => {},
+        }
+
+        //const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
+
+        //engine.textures.tiles[tile.value] = tile_texture;
+
+        // TODO: replace all PNG files with in-code images
+        if (@hasDecl(textures.tiles, tile.name)) {
+            engine.textures.tiles[tile.value] = try @field(textures.tiles, tile.name).toTexture();
+        }
+    }
 }
 
 fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory(TileIdType)) !void {
@@ -353,8 +377,9 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    try engine.init(TileIdType, allocator, onEveryTick, onChunkReload);
-    try init.initTextures(TileIdType);
+    try engine.init(TileIdType, allocator, onEveryTick);
+    //try init.initTextures(TileIdType);
+    //init();
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     engine.Entity.walk_speed = std.fmt.parseFloat(f32, speed_env) catch engine.Entity.walk_speed;
@@ -408,7 +433,7 @@ pub fn main() !void {
         y_it = @intCast(chunk_y - 1);
     }
 
-    try engine.run(allocator, mainLoop);
+    engine.run();
 
     for (engine.chunks(TileIdType)) |chunk| {
         try chunk.save(allocator, player.save_path, "vanilla0");

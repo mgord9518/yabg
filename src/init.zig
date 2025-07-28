@@ -7,7 +7,7 @@ pub fn initTextures(comptime IdType: type) !void {
     // UI elements
     engine.textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
 
-    engine.textures.cursor = try textures.cursor.toTexture();
+    engine.textures.cursor = textures.cursor;
 
     inline for (std.meta.fields(IdType)) |tile| {
         std.debug.print("loading {s}\n", .{tile.name});
@@ -19,9 +19,9 @@ pub fn initTextures(comptime IdType: type) !void {
             else => {},
         }
 
-        const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
+        //const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
 
-        engine.textures.tiles[tile.value] = tile_texture;
+        //engine.textures.tiles[tile.value] = tile_texture;
 
         // TODO: replace all PNG files with in-code images
         if (@hasDecl(textures.tiles, tile.name)) {

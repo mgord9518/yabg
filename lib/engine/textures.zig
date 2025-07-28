@@ -1,7 +1,6 @@
 const engine = @import("../engine.zig");
-const Texture = engine.Texture;
 
-pub var hotbar_item: Texture = undefined;
-pub var cursor: Texture = undefined;
+pub var hotbar_item: engine.Texture = undefined;
+pub var cursor: engine.ImageNew = undefined;
 
-pub var tiles: [256]Texture = undefined;
+pub var tiles: [256]engine.Texture = undefined;
