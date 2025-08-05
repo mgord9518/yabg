@@ -131,26 +131,7 @@ pub fn Player(comptime IdType: type) type {
             if (engine.isButtonPressed(.primary)) {
                 target_tile.playSound();
 
-                // Apply damage to tile, break olnce it hits 3
-                switch (target_tile.damage) {
-                    3 => {
-                        const added = player.inventory.add(.{ .tile = target_tile.*.id }, 1);
-                        if (!added) {
-                            std.debug.print("failed to add item ({s}) to inventory!\n", .{@tagName(target_tile.*.id)});
-                        }
-
-                        target_tile.* = .{
-                            .id = .air,
-                            .naturally_generated = false,
-                        };
-                    },
-
-                    else => {
-                        if (target_tile.id != .air) {
-                            target_tile.damage +%= 1;
-                        }
-                    },
-                }
+                target_tile.callback(player);
 
                 if (floor_tile.id == .grass and target_tile.id != .air) {
                     floor_tile.id = .dirt;

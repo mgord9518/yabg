@@ -56,19 +56,25 @@
                     canvas.style.width = ((exports.getCanvasWidth() + 1) * exports.engineScale()) + "px";
                 }
 
+                const handleMouseMove = (pos) => {
+                    exports.yabgEngine_moveMouse(pos.pageX, pos.pageY);
+                }
+
                 window.addEventListener("resize", resize, false);
+                window.addEventListener("mousemove", handleMouseMove, false);
 
                 window.requestAnimationFrame(frameFn);
             });
         </script>
         <style>
             html {
-              overflow-x: hidden;
-              overflow-y: hidden;
+                overflow-x: hidden;
+                overflow-y: hidden;
+                cursor:     none;
             }
             body {
-              margin: 0;
-              background-color: #101010;
+                margin: 0;
+                background-color: #101010;
             }
             canvas#canvas {
                 image-rendering: pixelated;

@@ -17,7 +17,13 @@ const Event = enum {
     click,
 };
 
+var mouse_pos = engine.Coordinate{ .x = 0, .y = 0 };
+
 var fb: []TrueColor = undefined;
+
+pub fn init() void {
+    yabgEngine_init();
+}
 
 export fn yabgEngine_init() void {
     engine.screen_width = @intCast(imports.getWindowWidth() / engine.scale);
@@ -29,6 +35,17 @@ export fn yabgEngine_init() void {
     ) catch unreachable;
 
     //root.init();
+}
+
+export fn yabgEngine_moveMouse(x: i32, y: i32) void {
+    mouse_pos = .{
+        .x = @divTrunc(x, engine.scale),
+        .y = @divTrunc(y, engine.scale),
+    };
+}
+
+pub fn mousePosition() engine.Coordinate {
+    return mouse_pos;
 }
 
 pub fn beginDrawing() void {}

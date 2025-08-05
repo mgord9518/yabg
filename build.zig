@@ -15,13 +15,14 @@ pub fn build(b: *std.Build) void {
         //.use_lld = false,
     });
 
-    exe.linkLibC();
 
     const known_folders_dep = b.dependency("known-folders", .{});
     const perlin_dep = b.dependency("perlin", .{});
 
     const yabg_engine_module = b.addModule("engine", .{
         .root_source_file = b.path("lib/engine.zig"),
+        .target = target,
+        .optimize = optimize,
         .imports = &.{
             .{
                 .name = "perlin",
@@ -35,6 +36,12 @@ pub fn build(b: *std.Build) void {
             exe.entry = .disabled;
             exe.rdynamic = true;
         },
+//        .x86_64 => {
+//            yabg_engine_module.linkSystemLibrary("glfw", .{});
+//            yabg_engine_module.linkSystemLibrary("GL", .{});
+//            yabg_engine_module.addIncludePath(b.path("lib/engine/backends/glfw/glad/include"));
+//            yabg_engine_module.addCSourceFile(.{ .file = b.path("lib/engine/backends/glfw/glad/src/glad.c") });
+//        },
         else => {
             const raylib_dep = b.dependency("raylib", .{
                 .target = target,
@@ -46,6 +53,8 @@ pub fn build(b: *std.Build) void {
             const raylib_artifact = raylib_dep.artifact("raylib");
 
             yabg_engine_module.linkLibrary(raylib_artifact);
+
+            exe.linkLibC();
         },
     }
 

@@ -37,11 +37,7 @@ pub fn init(
     try engine.backend.init(allocator, w, h);
 
     try initFonts(allocator);
-    //try initTextures(IdType);
     try initSounds(IdType);
-
-    // Disable exit on keypress
-    //rl.setExitKey(.null);
 }
 
 fn initFonts(allocator: std.mem.Allocator) !void {
@@ -56,7 +52,7 @@ fn initFonts(allocator: std.mem.Allocator) !void {
     defer allocator.free(data);
     @memset(data, 0);
 
-    const font_image = engine.Image{
+    const font_image = engine.ImageOld{
         .data = data.ptr,
 
         .width = @intCast(font_image_w),
@@ -83,26 +79,6 @@ fn initFonts(allocator: std.mem.Allocator) !void {
         try engine.font.glyph_offsets.put(key.*, x_off);
     }
     engine.font.atlas = engine.loadTextureFromImage(font_image);
-}
-
-fn initTextures(comptime IdType: type) !void {
-    // UI elements
-    engine.textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
-
-    // Tiles
-    inline for (std.meta.fields(IdType)) |tile| {
-        const tile_id: IdType = @enumFromInt(tile.value);
-
-        // Exceptions
-        switch (tile_id) {
-            .air => continue,
-            else => {},
-        }
-
-        const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
-
-        engine.textures.tiles[tile.value] = tile_texture;
-    }
 }
 
 fn initSounds(comptime IdType: type) !void {

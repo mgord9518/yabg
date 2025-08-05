@@ -14,7 +14,8 @@ pkgs.mkShell {
     libxkbcommon
     pulseaudio
     wayland
-    #emscripten
+    glfw
+    python313Packages.glad
   ];
 
   LD_LIBRARY_PATH = with pkgs; pkgs.lib.makeLibraryPath [

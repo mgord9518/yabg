@@ -1,10 +1,9 @@
 const std = @import("std");
-//pub const backend = @import("engine/backends/raylib.zig");
-//pub const backend = @import("engine/backends/wasm.zig");
 const builtin = @import("builtin");
 
 pub const backend = switch (builtin.cpu.arch) {
     .wasm32 => @import("engine/backends/wasm.zig"),
+//    .x86_64 => @import("engine/backends/glfw.zig"),
     else => @import("engine/backends/raylib.zig"),
 };
 const psf = @import("engine/psf.zig");
@@ -37,9 +36,13 @@ pub const Button = enum {
     inventory_5,
 };
 
-const Font = struct {
+const FontOld = struct {
     atlas: Texture,
     glyph_offsets: std.AutoHashMap(u21, usize),
+};
+
+pub const Font = struct {
+    glyphs: std.AutoHashMap(u21, ImageNew),
 };
 
 pub const Coordinate = struct {
@@ -53,7 +56,7 @@ pub var scale: u15 = 4;
 pub const id = "io.github.mgord9518.yabg";
 
 pub const font_data = @embedFile("engine/fonts/5x8.psfu");
-pub var font: Font = undefined;
+pub var font: FontOld = undefined;
 
 pub var entities: std.SegmentedList(Entity, 0) = undefined;
 
@@ -62,7 +65,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 64,
+    .patch = 65,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
@@ -70,7 +73,7 @@ pub var rand: std.Random.DefaultPrng = undefined;
 pub const tps = 24;
 pub var delta: f32 = 0;
 
-pub const Image = backend.Image;
+pub const ImageOld = backend.Image;
 
 // Opaque types specific to the backend
 pub const Texture = DummyType("Texture");
@@ -105,7 +108,15 @@ pub const ImageNew = struct {
         return try backend.textureFromImage(std.heap.page_allocator, image);
     }
 
-    pub fn draw(image: *ImageNew, pos: Coordinate) void {
+    pub fn draw(image: ImageNew, pos: Coordinate) void {
+        if (@hasDecl(backend, "textureFromImage") and image.maybe_texture == null) {
+            unreachable;
+        }
+
+        backend.drawImage(image, pos);
+    }
+
+    pub fn drawMutable(image: *ImageNew, pos: Coordinate) void {
         if (@hasDecl(backend, "textureFromImage") and image.maybe_texture == null) {
             @branchHint(.unlikely);
 
@@ -219,7 +230,7 @@ pub fn debug(level: u2, str: []const u8) void {
     }
 }
 
-pub fn drawCharToImage(psf_font: psf.Font, image: Image, char: u21, pos: ui.Vec) !void {
+pub fn drawCharToImage(psf_font: psf.Font, image: ImageOld, char: u21, pos: ui.Vec) !void {
     const bitmap = psf_font.glyphs.get(char) orelse return;
 
     const imgw: usize = @intCast(image.width);

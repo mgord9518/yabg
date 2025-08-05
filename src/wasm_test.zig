@@ -5,14 +5,30 @@ const textures = @import("textures.zig");
 
 const allocator = std.heap.wasm_allocator;
 
-var x_off: usize = 0;
+var x_off: u32= 0;
 export fn callbacke(timestamp: f64) void {
     _ = timestamp;
     update();
 }
 
+pub fn main() void {
+    engine.backend.init();
+}
+
 // Called once at program initialization
 pub export fn init() void {
+}
+
+pub export fn updat() void {
+    engine.beginDrawing();
+
+    engine.backend.clearBackground(.{
+        .r = 0,
+        .g = 12,
+        .b = 12,
+    });
+
+    engine.endDrawing();
 }
 
 // Called on every frame
@@ -25,18 +41,19 @@ pub export fn update() void {
         .b = 12,
     });
 
-    @constCast(&textures.tiles.grass).draw(
+    textures.tiles.grass.draw(
         .{
             .x = x_off,
             .y = 15,
         },
     );
 
-    x_off += 1;
-
-    if (x_off > engine.screen_width) x_off = 0;
+    textures.cursor.draw(engine.mousePosition());
 
     engine.endDrawing();
+
+    x_off += 1;
+    if (x_off > engine.screen_width) x_off = 0;
 }
 
 fn updaw() void {

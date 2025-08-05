@@ -243,7 +243,7 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
         debug_menu.enabled = !debug_menu.enabled;
     }
 
-    engine.textures.cursor.draw(engine.mousePosition());
+    engine.textures.cursor.drawMutable(engine.mousePosition());
 
     engine.endDrawing();
 }
@@ -260,6 +260,29 @@ pub export fn update() void {
 
 pub export fn init() void {
     initTextures(TileIdType) catch unreachable;
+
+    engine.world.Tile(TileIdType).setCallback(.grass, basicTileCallback);
+    engine.world.Tile(TileIdType).setCallback(.stone, basicTileCallback);
+    engine.world.Tile(TileIdType).setCallback(.sand, basicTileCallback);
+}
+
+fn basicTileCallback(
+    self: *engine.world.Tile(TileIdType),
+    entity: *engine.Player(TileIdType),
+) void {
+    if (self.hp == 0) {
+        const added = entity.inventory.add(.{ .tile = self.*.id }, 1);
+        _ = added;
+
+        self.* = .{
+            .id = .air,
+            .naturally_generated = false,
+        };
+
+        return;
+    }
+
+    self.hp -= 1;
 }
 
 pub fn initTextures(comptime IdType: type) !void {
@@ -277,10 +300,6 @@ pub fn initTextures(comptime IdType: type) !void {
             .air => continue,
             else => {},
         }
-
-        //const tile_texture = engine.loadTextureEmbedded("tiles/" ++ tile.name);
-
-        //engine.textures.tiles[tile.value] = tile_texture;
 
         // TODO: replace all PNG files with in-code images
         if (@hasDecl(textures.tiles, tile.name)) {
@@ -421,7 +440,6 @@ pub fn main() !void {
     }
 
     // Init chunk array
-    // TODO: lower this number to 4 to so that less iterations have to be done
     var x_it: i32 = @intCast(chunk_x - 1);
     var y_it: i32 = @intCast(chunk_y - 1);
     var it: usize = 0;

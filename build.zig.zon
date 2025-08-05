@@ -1,6 +1,6 @@
 .{
     .name = .yabg,
-    .version = "0.0.64-alpha",
+    .version = "0.0.65-alpha",
     .fingerprint = 0xfa7b6cc348947ce5,
 
     .dependencies = .{
@@ -16,11 +16,6 @@
             .url = "git+https://github.com/mgord9518/perlin-zig#ccf62ddcbde9fd3b1572c5385e15062c72201f0a",
             .hash = "perlin-0.1.1-hiqlWGcZAABIllyOKMo6AM9TRX19iq_k6joT3fvRCFja",
         },
-        // TODO: Why does Zig say it has a bad GZip header?
-        //        .psftools = .{
-        //            .url = "http://www.seasip.info/Unix/PSF/psftools-1.1.2.tar.gz",
-        //            .hash = "12208b3a835f168e660e826f82d36a2b0ff3a1060fdeebd2b238d22bd24a8d1faaff",
-        //        },
     },
 
     .paths = [][]const u8{
