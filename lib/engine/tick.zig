@@ -10,11 +10,10 @@ pub fn tickMainThread(comptime onEveryTickFn: fn () anyerror!void) !void {
         try onEveryTickFn();
         const time_after = std.time.nanoTimestamp();
 
-        const ns_this_tick = time_after - time_before;
-        const ns_remaining = ns_per_tick - ns_this_tick;
+        engine.tick_time = @intCast(time_after - time_before);
+        const ns_remaining = ns_per_tick - engine.tick_time;
 
         if (ns_remaining > 0) {
-            //std.debug.print("remaining time = {d}\n", .{ns_remaining});
             std.time.sleep(@intCast(ns_remaining));
         } else {
             std.debug.print("{}::{} game tick took too long! {d} milliseconds longer than tick rate{}\n", .{

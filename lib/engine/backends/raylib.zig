@@ -42,7 +42,7 @@ const Rgba4 = packed struct(u16) {
 
 pub fn textureFromImage(allocator: std.mem.Allocator, image: engine.ImageNew) !Texture {
     // Won't need this after the texture has been loaded from the image
-    const data = try allocator.alloc(Rgba4, image.w * image.h);
+    const data = try allocator.alloc(Rgba4, @as(u31, image.w) * image.h);
     defer allocator.free(data);
 
     const temp_image = Image{

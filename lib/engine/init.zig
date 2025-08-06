@@ -10,7 +10,6 @@ const psf = @import("psf.zig");
 pub fn init(
     comptime IdType: type,
     allocator: std.mem.Allocator,
-    comptime onEveryTickFn: fn () anyerror!void,
 ) !void {
     var env_map = try std.process.getEnvMap(allocator);
     defer env_map.deinit();
@@ -19,8 +18,6 @@ pub fn init(
     defer initialization_arena.deinit();
 
     engine.entities = std.SegmentedList(engine.Entity, 0){};
-
-    _ = try std.Thread.spawn(.{}, tick.tickMainThread, .{onEveryTickFn});
 
     engine.rand = std.Random.DefaultPrng.init(0);
 
@@ -35,6 +32,10 @@ pub fn init(
     const h = std.fmt.parseInt(u15, h_env, 10) catch engine.screen_height * engine.scale;
 
     try engine.backend.init(allocator, w, h);
+
+    const Engine = engine.engine(IdType);
+
+    Engine.chunks = std.AutoHashMap(Engine.worldNew.ChunkCoordinate, Engine.worldNew.Chunk).init(allocator);
 
     try initFonts(allocator);
     try initSounds(IdType);

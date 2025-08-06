@@ -8,6 +8,47 @@ pub const backend = switch (builtin.cpu.arch) {
 };
 const psf = @import("engine/psf.zig");
 
+pub fn engine(TileIdType: type) type {
+    return struct {
+        pub const Player = @import("engine/Player.zig").Player(TileIdType);
+
+        pub var chunks: std.AutoHashMap(worldNew.ChunkCoordinate, worldNew.Chunk) = undefined;
+
+        pub const worldNew = struct {
+            pub const Chunk = @import("engine/world.zig").Chunk(TileIdType);
+            pub const Tile = @import("engine/world.zig").Tile(TileIdType);
+
+            pub const ChunkCoordinate = world.ChunkCoordinate;
+
+            // Load in all chunks that should be loaded (3x3) around a certain
+            // origin
+            pub fn loadChunks(save_path: []const u8, origin: ChunkCoordinate) !void {
+                var y = origin.y - 1;
+
+                while (y <= origin.y + 1) : (y += 1) {
+                    var x = origin.x - 1;
+
+                    while (x <= origin.x + 1) : (x += 1) {
+                        const result = try engine(TileIdType).chunks.getOrPut(.{
+                            .x = x,
+                            .y = y,
+                        });
+
+                        if (!result.found_existing) {
+                            result.value_ptr.* = try Chunk.load(
+                                save_path,
+                                "vanilla0",
+                                x,
+                                y,
+                            );
+                        }
+                    }
+                }
+            }
+        };
+    };
+}
+
 pub const textures = @import("engine/textures.zig");
 pub const ui = @import("engine/ui.zig");
 pub const world = @import("engine/world.zig");
@@ -15,6 +56,7 @@ pub const Player = @import("engine/Player.zig").Player;
 pub const Entity = @import("engine/Entity.zig");
 pub const Inventory = @import("engine/inventory.zig").Inventory;
 pub const Item = @import("engine/item.zig").Item;
+pub const tick = @import("engine/tick.zig");
 
 pub const init = @import("engine/init.zig").init;
 
@@ -65,12 +107,13 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 65,
+    .patch = 66,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
 
-pub const tps = 24;
+// The amount of nanoseconds the last tick took
+pub var tick_time: u32 = 0;
 pub var delta: f32 = 0;
 
 pub const ImageOld = backend.Image;
@@ -94,6 +137,14 @@ pub const Rectangle = struct {
     w: u31,
     h: u31,
 };
+
+pub fn run(
+    comptime onEveryTickFn: fn () anyerror!void,
+) !void {
+    _ = try std.Thread.spawn(.{}, tick.tickMainThread, .{onEveryTickFn});
+
+    backend.run();
+}
 
 pub const ImageNew = struct {
     data: []const u2,
@@ -139,9 +190,11 @@ pub const Color = packed struct(u16) {
 pub var tileSounds: [256]Sound = undefined;
 
 pub var chunk_mutex = std.Thread.Mutex{};
-pub fn chunks(comptime IdType: type) *[9]world.Chunk(IdType) {
+
+// TODO: remove in favor of chunk hashmap
+pub fn chunks(comptime IdType: type) *[9]*world.Chunk(IdType) {
     const Temp = struct {
-        var chunks: [9]world.Chunk(IdType) = undefined;
+        var chunks: [9]*world.Chunk(IdType) = undefined;
     };
 
     return &Temp.chunks;
@@ -166,7 +219,6 @@ pub const drawTextureRect = backend.drawTextureRect;
 pub const drawRect = backend.drawRect;
 pub const closeWindow = backend.closeWindow;
 pub const mousePosition = backend.mousePosition;
-pub const run = backend.run;
 
 pub fn playSound(sound: Sound) void {
     const pitch_offset = rand.random().float(f32) / 4;
@@ -265,3 +317,4 @@ pub fn drawCharToImage(psf_font: psf.Font, image: ImageOld, char: u21, pos: ui.V
         }
     }
 }
+

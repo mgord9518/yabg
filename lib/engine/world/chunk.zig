@@ -17,7 +17,6 @@ pub fn Chunk(comptime IdType: type) type {
 
         version: u8,
 
-
         const LoadError = error{
             BadMagic,
             InvalidFileSize,
@@ -151,7 +150,7 @@ pub fn Chunk(comptime IdType: type) type {
 
             var idx: usize = 0;
             while (idx < size * size) : (idx += 1) {
-                var t = &chunk.tiles[idx];
+                var tile = &chunk.tiles[idx];
 
                 t_x = (chunk.x * size) + @as(i32, @intCast(@mod(idx, size)));
                 t_y = (chunk.y * size) + @as(i32, @intCast(@divTrunc(idx, size)));
@@ -177,17 +176,25 @@ pub fn Chunk(comptime IdType: type) type {
 
                 // Inside of mountains
                 if (val > 0.60) {
-                    t.id = .stone;
+                    tile.id = .stone;
+                    tile.hp = 7;
                     chunk.tiles[idx + size * size].id = .stone;
+                    chunk.tiles[idx + size * size].hp = 7;
                 } else if (val > 0.3) {
-                    t.id = .dirt;
+                    tile.id = .dirt;
+                    tile.hp = 3;
                     chunk.tiles[idx + size * size].id = .grass;
+                    chunk.tiles[idx + size * size].hp = 4;
                 } else if (val > -0.6) {
-                    t.id = .grass;
+                    tile.id = .grass;
+                    tile.hp = 4;
+                    chunk.tiles[idx + size * size].hp = 4;
                 } else if (val > -0.90) {
-                    t.id = .sand;
+                    tile.id = .sand;
+                    tile.hp = 2;
+                    chunk.tiles[idx + size * size].hp = 2;
                 } else {
-                    t.id = .water;
+                    tile.id = .water;
                 }
             }
 

@@ -184,7 +184,7 @@ pub fn Player(comptime IdType: type) type {
             }
 
             if (player.entity.direction == .right and player.entity.remaining_x > 0 or player.entity.direction == .left and player.entity.remaining_x < 0) {
-                var x_speed = engine.tps * Entity.walk_speed * engine.delta;
+                var x_speed = engine.tick.ticks_per_second * Entity.walk_speed * engine.delta;
                 if (player.entity.direction == .left) x_speed = -x_speed;
 
                 player.entity.remaining_x -= x_speed;
@@ -203,7 +203,7 @@ pub fn Player(comptime IdType: type) type {
             }
 
             if (player.entity.direction == .down and player.entity.remaining_y > 0 or player.entity.direction == .up and player.entity.remaining_y < 0) {
-                player.entity.y_speed = engine.tps * Entity.walk_speed * engine.delta;
+                player.entity.y_speed = engine.tick.ticks_per_second * Entity.walk_speed * engine.delta;
                 if (player.entity.direction == .up) player.entity.y_speed = -player.entity.y_speed;
 
                 player.entity.remaining_y -= player.entity.y_speed;
@@ -250,33 +250,44 @@ pub fn Player(comptime IdType: type) type {
         };
 
         pub fn targetTile(player: *Self) TargetTile {
+            var chunk_x: i32 = @intCast(@divTrunc(player.entity.pos.x, engine.world.chunk_size));
+            var chunk_y: i32 = @intCast(@divTrunc(player.entity.pos.y, engine.world.chunk_size));
+
+            if (player.entity.pos.x < 0) {
+                chunk_x -= 1;
+            }
+
+            if (player.entity.pos.y < 0) {
+                chunk_y -= 1;
+            }
+
+            const start_x = chunk_x;
+            const start_y = chunk_y;
+
             // Collision detection
             var player_tile_offset_x: u15 = @intCast(@mod(player.entity.pos.x, engine.world.chunk_size));
             var player_tile_offset_y: u15 = @intCast(@mod(player.entity.pos.y, engine.world.chunk_size));
 
-            // Middle chunk
-            var target_chunk_num: usize = 4;
-
             // Find chunk player is looking at
             if (player_tile_offset_x == 0 and player.entity.direction == .left) {
                 if (player.entity.pos.x >= 0) {
-                    target_chunk_num -= 1;
+                    chunk_x -= 1;
                 }
 
                 player_tile_offset_x = engine.world.chunk_size;
             } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
                 if (player.entity.pos.y >= 0) {
-                    target_chunk_num -= 3;
+                    chunk_y -= 1;
                 }
 
                 player_tile_offset_y = engine.world.chunk_size;
             } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
                 if (player.entity.pos.x < 0) {
-                    target_chunk_num += 1;
+                    chunk_x += 1;
                 }
             } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
                 if (player.entity.pos.y < 0) {
-                    target_chunk_num += 3;
+                    chunk_y += 1;
                 }
             }
 
@@ -288,11 +299,14 @@ pub fn Player(comptime IdType: type) type {
             }
 
             if (player_tile_offset_x == engine.world.chunk_size and player.entity.direction == .right) {
-                target_chunk_num = 5;
+                //target_chunk_num = 5;
+                chunk_x = start_x + 1;
+                chunk_y = start_y;
 
                 player_tile_offset_x = 0;
             } else if (player_tile_offset_y == engine.world.chunk_size and player.entity.direction == .down) {
-                target_chunk_num = 7;
+                chunk_x = start_x;
+                chunk_y = start_y + 1;
 
                 player_tile_offset_y = 0;
             }
@@ -300,7 +314,8 @@ pub fn Player(comptime IdType: type) type {
             if (player_tile_offset_x == 0) {
                 if (player.entity.direction == .down or player.entity.direction == .up) {
                     if (player.entity.pos.x < 0) {
-                        target_chunk_num += 1;
+                        //target_chunk_num += 1;
+                        chunk_x += 1;
                     }
                 }
             }
@@ -308,13 +323,14 @@ pub fn Player(comptime IdType: type) type {
             if (player_tile_offset_y == 0) {
                 if (player.entity.direction == .left or player.entity.direction == .right) {
                     if (player.entity.pos.y < 0) {
-                        target_chunk_num += 3;
+                        //target_chunk_num += 3;
+                        chunk_y += 1;
                     }
                 }
             }
 
             return .{
-                .chunk = &engine.chunks(IdType)[target_chunk_num],
+                .chunk = engine.engine(IdType).chunks.getPtr(.{ .x = chunk_x, .y = chunk_y }).?,
                 .tile_x = player_tile_offset_x,
                 .tile_y = player_tile_offset_y,
             };
@@ -375,7 +391,7 @@ pub fn Player(comptime IdType: type) type {
             player: *Self,
         ) void {
             if (player.entity.remaining_x != 0 or player.entity.remaining_y != 0) {
-                player.entity.frame_sub += engine.tps * 0.4 * engine.delta;
+                player.entity.frame_sub += engine.tick.ticks_per_second * 0.4 * engine.delta;
             }
 
             if (player.entity.frame_sub >= 1) {
@@ -404,103 +420,27 @@ pub fn Player(comptime IdType: type) type {
                 chunk_y -= 1;
             }
 
-            const allocator = std.heap.page_allocator;
-
-            var chunk_list_to_load = std.ArrayList(engine.world.ChunkCoordinate).init(allocator);
-            defer chunk_list_to_load.deinit();
-
-            var chunk_list_to_unload = std.ArrayList(*Chunk).init(allocator);
-            defer chunk_list_to_unload.deinit();
-
-            var chunk_list_loaded = std.ArrayList(Chunk).init(allocator);
-            defer chunk_list_loaded.deinit();
-
             engine.chunk_mutex.lock();
 
-            // TODO: also load chunks in seperate thread
-            for (engine.chunks(IdType)) |*chunk| {
-                if (chunk.x > chunk_x + 1) {
-                    try chunk_list_to_load.append(.{ .x = chunk_x - 1, .y = chunk.y });
-                    try chunk_list_to_unload.append(chunk);
-                    chunk.*.valid = false;
-                } else if (chunk.x < chunk_x - 1) {
-                    try chunk_list_to_load.append(.{ .x = chunk_x + 1, .y = chunk.y });
-                    try chunk_list_to_unload.append(chunk);
-                    chunk.*.valid = false;
-                } else if (chunk.y > chunk_y + 1) {
-                    try chunk_list_to_load.append(.{ .x = chunk.x, .y = chunk_y - 1 });
-                    try chunk_list_to_unload.append(chunk);
-                    chunk.*.valid = false;
-                } else if (chunk.y < chunk_y - 1) {
-                    try chunk_list_to_load.append(.{ .x = chunk.x, .y = chunk_y + 1 });
-                    try chunk_list_to_unload.append(chunk);
-                    chunk.*.valid = false;
+            try engine.engine(IdType).worldNew.loadChunks(
+                player.save_path,
+                .{ .x = chunk_x, .y = chunk_y }
+            );
+
+            var y = chunk_y - 1;
+            var idx: usize = 0;
+
+            while (y <= chunk_y + 1) : (y += 1) {
+                var x = chunk_x - 1;
+
+                while (x <= chunk_x + 1) : (x += 1) {
+                    engine.chunks(IdType)[idx] = engine.engine(IdType).chunks.getPtr(.{ .x = x, .y = y }).?;
+
+                    idx += 1;
                 }
             }
 
             engine.chunk_mutex.unlock();
-
-            for (chunk_list_to_load.items) |chunk_coords| {
-                std.debug.print("{}::{} loading chunk {d}x{d}{}\n", .{
-                    engine.ColorName.magenta,
-                    engine.ColorName.default,
-                    chunk_coords.x,
-                    chunk_coords.y,
-                    engine.ColorName.default,
-                });
-
-                const chunk = try Chunk.load(
-                    player.save_path,
-                    "vanilla0",
-                    chunk_coords.x,
-                    chunk_coords.y,
-                );
-                try chunk_list_loaded.append(chunk);
-            }
-
-            engine.chunk_mutex.lock();
-
-            for (engine.chunks(IdType)) |*chunk| {
-                if (!chunk.*.valid) {
-                    chunk.* = chunk_list_loaded.pop() orelse break;
-                    chunk.*.valid = true;
-                }
-            }
-
-            // Sort chunks
-            // TODO: refactor
-            for (engine.chunks(IdType)) |*chunk| {
-                for (engine.chunks(IdType)) |*swap_chunk| {
-                    if (swap_chunk.y > chunk.y) {
-                        const tmp = chunk.*;
-
-                        chunk.* = swap_chunk.*;
-                        swap_chunk.* = tmp;
-                    }
-
-                    if (swap_chunk.y == chunk.y and swap_chunk.x > chunk.x) {
-                        const tmp = chunk.*;
-
-                        chunk.* = swap_chunk.*;
-                        swap_chunk.* = tmp;
-                    }
-                }
-            }
-
-            engine.chunk_mutex.unlock();
-
-            for (chunk_list_to_unload.items) |chunk| {
-                std.debug.print("{}::{} saving chunk {d}x{d}{}\n", .{
-                    engine.ColorName.cyan,
-                    engine.ColorName.default,
-                    chunk.x,
-                    chunk.y,
-                    engine.ColorName.default,
-                });
-
-                //std.time.sleep(100 * std.time.ns_per_ms);
-                chunk.save(allocator, player.save_path, "vanilla0") catch unreachable;
-            }
         }
     };
 }

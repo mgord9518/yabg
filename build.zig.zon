@@ -1,6 +1,6 @@
 .{
     .name = .yabg,
-    .version = "0.0.65-alpha",
+    .version = "0.0.66-alpha",
     .fingerprint = 0xfa7b6cc348947ce5,
 
     .dependencies = .{

@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 
 const engine = @import("engine");
 const textures = @import("textures.zig");
+const Engine = engine.engine(TileIdType);
 
 const ui = engine.ui;
 
@@ -12,7 +13,7 @@ const ChatLog = struct {
 };
 
 var debug_menu: DebugMenu = undefined;
-var player: engine.Player(TileIdType) = undefined;
+var player: Engine.Player = undefined;
 
 const Camera = struct {
     pos: Coordinate,
@@ -51,7 +52,7 @@ const Camera = struct {
             x = -1;
 
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
-                for (engine.chunks(TileIdType)) |*chunk| {
+                for (engine.chunks(TileIdType)) |chunk| {
                     const chunk_coord_x = chunk.x * engine.world.chunk_size;
                     const chunk_coord_y = chunk.y * engine.world.chunk_size;
 
@@ -125,7 +126,7 @@ const Camera = struct {
         while (y <= screen_height_in_tiles + 1) : (y += 1) {
             x = -1;
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
-                for (engine.chunks(TileIdType)) |*chunk| {
+                for (engine.chunks(TileIdType)) |chunk| {
                     const chunk_coord_x = chunk.x * engine.world.chunk_size;
                     const chunk_coord_y = chunk.y * engine.world.chunk_size;
 
@@ -163,7 +164,7 @@ const DebugMenu = struct {
 
     x: f32 = 0,
     y: f32 = 0,
-    player: *engine.Player(TileIdType),
+    player: *Engine.Player,
 
     fn draw(menu: *DebugMenu, allocator: std.mem.Allocator) !void {
         // Print debug menu
@@ -174,12 +175,17 @@ const DebugMenu = struct {
             \\
             \\X:{d:>3}
             \\Y:{d:>3}
+            \\
+            \\Loaded chunks: {d}
+            \\Tick duration: {d}ms
         ,
             .{
                 engine.version,
                 engine.getFps(),
                 menu.player.entity.pos.x,
                 menu.player.entity.pos.y,
+                Engine.chunks.count(),
+                engine.tick_time / 1000,
             },
         );
         defer allocator.free(string);
@@ -207,6 +213,15 @@ pub fn onEveryTick() !void {
 pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
     var arena_allocator = std.heap.ArenaAllocator.init(allocator);
     defer arena_allocator.deinit();
+
+    player.updatePlayerFrames();
+
+    player.updateAnimation();
+
+    //try player.reloadChunks();
+
+    player.updateState() catch unreachable;
+
 
     // Tile coordinate of player
     var x_num: f64 = @floatFromInt(player.entity.pos.x);
@@ -249,26 +264,40 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
 }
 
 pub export fn update() void {
-    player.updatePlayerFrames();
-
-    player.updateAnimation();
-
-    player.updateState() catch unreachable;
-
     onEveryFrame(std.heap.page_allocator) catch unreachable;
 }
 
 pub export fn init() void {
     initTextures(TileIdType) catch unreachable;
 
-    engine.world.Tile(TileIdType).setCallback(.grass, basicTileCallback);
+    engine.world.Tile(TileIdType).setCallback(.grass, grassTileCallback);
     engine.world.Tile(TileIdType).setCallback(.stone, basicTileCallback);
+    engine.world.Tile(TileIdType).setCallback(.dirt, basicTileCallback);
     engine.world.Tile(TileIdType).setCallback(.sand, basicTileCallback);
+}
+
+fn grassTileCallback(
+    self: *engine.world.Tile(TileIdType),
+    entity: *Engine.Player,
+) void {
+    if (self.hp == 0) {
+        const added = entity.inventory.add(.{ .tile = .dirt }, 1);
+        _ = added;
+
+        self.* = .{
+            .id = .air,
+            .naturally_generated = false,
+        };
+
+        return;
+    }
+
+    self.hp -= 1;
 }
 
 fn basicTileCallback(
     self: *engine.world.Tile(TileIdType),
-    entity: *engine.Player(TileIdType),
+    entity: *Engine.Player,
 ) void {
     if (self.hp == 0) {
         const added = entity.inventory.add(.{ .tile = self.*.id }, 1);
@@ -287,9 +316,10 @@ fn basicTileCallback(
 
 pub fn initTextures(comptime IdType: type) !void {
     // UI elements
-    engine.textures.hotbar_item = engine.loadTextureEmbedded("ui/hotbar_item");
+    engine.textures.hotbar_item = textures.ui.inventory_slot;
+    engine.textures.active_hotbar_item = textures.ui.active_inventory_slot;
 
-    engine.textures.cursor = textures.cursor;
+    engine.textures.cursor = textures.ui.cursor;
 
     inline for (std.meta.fields(IdType)) |tile| {
         std.debug.print("loading {s}\n", .{tile.name});
@@ -304,6 +334,7 @@ pub fn initTextures(comptime IdType: type) !void {
         // TODO: replace all PNG files with in-code images
         if (@hasDecl(textures.tiles, tile.name)) {
             engine.textures.tiles[tile.value] = try @field(textures.tiles, tile.name).toTexture();
+            engine.textures.tile_images[tile.value] = @field(textures.tiles, tile.name);
         }
     }
 }
@@ -318,25 +349,25 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory(TileIdTy
     for (inventory.items, 0..) |maybe_item, idx| {
         const hotbar_x: i16 = @intCast(hotbar_begin + idx * (hotbar_item_width + hotbar_item_spacing));
 
-        var tint = engine.backend.Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
         if (idx == inventory.selected_slot) {
-            tint = .{ .r = 102, .g = 191, .b = 255, .a = 255 };
+            engine.textures.active_hotbar_item.drawMutable(.{
+                .x = hotbar_x,
+                .y = hotbar_y,
+            });
+        } else {
+            engine.textures.hotbar_item.drawMutable(.{
+                .x = hotbar_x,
+                .y = hotbar_y,
+            });
         }
-
-        engine.drawTexture(
-            engine.textures.hotbar_item,
-            .{ .x = hotbar_x, .y = hotbar_y },
-            tint,
-        );
 
         const item = maybe_item orelse continue;
 
-        engine.drawTextureRect(
-            item.value.tile.texture(),
-            .{ .x = 0, .y = 0, .w = 12, .h = 12 },
-            .{ .x = hotbar_x + 2, .y = hotbar_y + 2 },
-            .{ .r = 255, .g = 255, .b = 255, .a = 255 },
-        );
+        // TODO: Stop drawing bottom of tile
+        engine.textures.tile_images[@intFromEnum(item.value.tile)].drawMutable(.{
+            .x = hotbar_x + 2,
+            .y = hotbar_y + 2,
+        });
 
         try ui.drawText(
             try std.fmt.allocPrint(allocator, "{d}", .{item.count}),
@@ -396,9 +427,7 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    try engine.init(TileIdType, allocator, onEveryTick);
-    //try init.initTextures(TileIdType);
-    //init();
+    try engine.init(TileIdType, allocator);
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     engine.Entity.walk_speed = std.fmt.parseFloat(f32, speed_env) catch engine.Entity.walk_speed;
@@ -415,7 +444,7 @@ pub fn main() !void {
         },
     );
 
-    player = try engine.Player(TileIdType).init(allocator, save_path);
+    player = try Engine.Player.init(allocator, save_path);
     debug_menu = DebugMenu{ .player = &player };
 
     debug_menu.enabled = env_map.get("DEBUG_MODE") != null;
@@ -428,33 +457,15 @@ pub fn main() !void {
         std.debug.print("Error creating save directory: {}", .{err});
     };
 
-    var chunk_x = @divTrunc(player.entity.pos.x, engine.world.chunk_size);
-    var chunk_y = @divTrunc(player.entity.pos.y, engine.world.chunk_size);
+    // Init chunks around player
+    try player.reloadChunks();
 
-    if (player.entity.pos.x < 0) {
-        chunk_x = chunk_x - 1;
-    }
+    try engine.run(onEveryTick);
 
-    if (player.entity.pos.y < 0) {
-        chunk_y = chunk_y - 1;
-    }
-
-    // Init chunk array
-    var x_it: i32 = @intCast(chunk_x - 1);
-    var y_it: i32 = @intCast(chunk_y - 1);
-    var it: usize = 0;
-    while (x_it <= chunk_x + 1) : (x_it += 1) {
-        while (y_it <= chunk_y + 1) : (y_it += 1) {
-            engine.chunks(TileIdType)[it] = try engine.world.Chunk(TileIdType).load(save_path, "vanilla0", x_it, y_it);
-            it += 1;
-        }
-        y_it = @intCast(chunk_y - 1);
-    }
-
-    engine.run();
-
-    for (engine.chunks(TileIdType)) |chunk| {
-        try chunk.save(allocator, player.save_path, "vanilla0");
+    var it = Engine.chunks.iterator();
+    while (it.next()) |entry| {
+        try entry.value_ptr.save(allocator, player.save_path, "vanilla0");
+        _ = Engine.chunks.remove(entry.key_ptr.*);
     }
 
     try player.save();
