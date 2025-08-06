@@ -6,6 +6,6 @@ pub const ChunkCoordinate = struct {
     y: i32,
 };
 
-pub const Chunk = @import("world/chunk.zig").Chunk;
+//pub const Chunk = @import("world/chunk.zig").Chunk;
 pub const Tile = @import("world/tile.zig").Tile;
 pub const load = @import("world/load.zig");

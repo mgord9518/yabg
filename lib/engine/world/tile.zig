@@ -4,12 +4,14 @@ const rl = @import("raylib");
 const engine = @import("../../engine.zig");
 
 // TODO: type check ID
-pub fn Tile(IdType: type) type {
+pub fn Tile(IdType: type, ItemIdType: type) type {
     return packed struct(u16) {
+        const Engine = engine.engine(IdType, ItemIdType);
+
         const Self = @This();
         pub const size = engine.world.tile_size;
 
-        var callbacks: [256]?*const fn (*Self, *engine.Player(IdType)) void = .{ null } ** 256;
+        var callbacks: [256]?*const fn (*Self, *Engine.Player) void = .{ null } ** 256;
 
         // 8 bits
         id: Id,
@@ -60,11 +62,11 @@ pub fn Tile(IdType: type) type {
             engine.playSound(snd);
         }
 
-        pub fn setCallback(id: Id, cb: *const fn (*Self, *engine.Player(IdType)) void) void {
+        pub fn setCallback(id: Id, cb: *const fn (*Self, *Engine.Player) void) void {
             callbacks[@intFromEnum(id)] = cb;
         }
 
-        pub fn callback(self: *Self, entity: *engine.Player(IdType)) void {
+        pub fn callback(self: *Self, entity: *Engine.Player) void {
             if (callbacks[@intFromEnum(self.id)]) |cb| {
                 cb(self, entity);
             }

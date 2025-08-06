@@ -1,5 +1,4 @@
 const engine = @import("../engine.zig");
-
 const Entity = @This();
 
 pub const Direction = enum(u2) {
@@ -18,8 +17,8 @@ pub const Animation = enum {
 };
 
 // Texels per game tick
-//pub var walk_speed: f32 = 2;
-pub var walk_speed: f32 = 0.1;
+pub var walk_speed: f32 = 3;
+//pub var walk_speed: f32 = 0.1;
 
 pos: engine.Coordinate = .{ .x = 0, .y = 0 },
 

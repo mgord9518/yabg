@@ -8,54 +8,109 @@ pub const backend = switch (builtin.cpu.arch) {
 };
 const psf = @import("engine/psf.zig");
 
-pub fn engine(TileIdType: type) type {
+pub fn engine(TileIdType: type, ItemIdType: type) type {
     return struct {
-        pub const Player = @import("engine/Player.zig").Player(TileIdType);
+        pub const Player = @import("engine/Player.zig").Player(TileIdType, ItemIdType);
 
-        pub var chunks: std.AutoHashMap(worldNew.ChunkCoordinate, worldNew.Chunk) = undefined;
+        pub var chunk_mutex = std.Thread.Mutex{};
+        pub var chunks: std.AutoHashMap(world.ChunkCoordinate, world.Chunk) = undefined;
 
-        pub const worldNew = struct {
-            pub const Chunk = @import("engine/world.zig").Chunk(TileIdType);
-            pub const Tile = @import("engine/world.zig").Tile(TileIdType);
+        pub const Item = @import("engine/item.zig").Item(TileIdType, ItemIdType);
+        pub const Inventory = @import("engine/inventory.zig").Inventory(TileIdType, ItemIdType);
 
-            pub const ChunkCoordinate = world.ChunkCoordinate;
+        pub const world = struct {
+            pub const chunk_size = 24;
+            pub const tile_size = 12;
+
+            pub const ChunkCoordinate = struct {
+                x: i32,
+                y: i32,
+
+                pub fn fromCoordinate(coordinate: Coordinate) ChunkCoordinate {
+                    var chunk_x: i32 = @intCast(@divTrunc(coordinate.x, chunk_size));
+                    var chunk_y: i32 = @intCast(@divTrunc(coordinate.y, chunk_size));
+
+                    if (coordinate.x < 0) {
+                        chunk_x -= 1;
+                    }
+
+                    if (coordinate.y < 0) {
+                        chunk_y -= 1;
+                    }
+
+                    return .{
+                        .x = chunk_x,
+                        .y = chunk_y
+                    };
+                }
+            };
+
+            pub const Chunk = @import("engine/world/chunk.zig").Chunk(TileIdType, ItemIdType);
+            pub const Tile = @import("engine/world/tile.zig").Tile(TileIdType, ItemIdType);
 
             // Load in all chunks that should be loaded (3x3) around a certain
             // origin
             pub fn loadChunks(save_path: []const u8, origin: ChunkCoordinate) !void {
-                var y = origin.y - 1;
+                var it = ChunkIterator{ .origin = origin };
 
-                while (y <= origin.y + 1) : (y += 1) {
-                    var x = origin.x - 1;
+                chunk_mutex.lock();
 
-                    while (x <= origin.x + 1) : (x += 1) {
-                        const result = try engine(TileIdType).chunks.getOrPut(.{
-                            .x = x,
-                            .y = y,
+                while (it.next()) |chunk_coordinate| {
+                    const result = try engine(TileIdType, ItemIdType).chunks.getOrPut(chunk_coordinate);
+
+                    if (!result.found_existing) {
+                        result.value_ptr.* = try Chunk.load(
+                            save_path,
+                            "vanilla0",
+                            chunk_coordinate.x,
+                            chunk_coordinate.y,
+                        );
+
+                        std.debug.print("{}::{} loaded chunk {d}, {d}\n", .{
+                            ColorName.green,
+                            ColorName.default,
+                            chunk_coordinate.x,
+                            chunk_coordinate.y,
                         });
-
-                        if (!result.found_existing) {
-                            result.value_ptr.* = try Chunk.load(
-                                save_path,
-                                "vanilla0",
-                                x,
-                                y,
-                            );
-                        }
                     }
                 }
+
+                chunk_mutex.unlock();
             }
+
+            pub const ChunkIterator = struct {
+                x: i3 = -1,
+                y: i3 = -1,
+
+                origin: ChunkCoordinate,
+
+                pub fn next(self: *ChunkIterator) ?ChunkCoordinate {
+                    if (self.x > 1) {
+                        self.x = -1;
+                        self.y += 1;
+                    }
+
+                    if (self.y > 1) {
+                        return null;
+                    }
+
+                    defer self.x += 1;
+
+                    return .{
+                        .x = self.origin.x + self.x,
+                        .y = self.origin.y + self.y
+                    };
+                }
+            };
         };
     };
 }
 
 pub const textures = @import("engine/textures.zig");
 pub const ui = @import("engine/ui.zig");
-pub const world = @import("engine/world.zig");
-pub const Player = @import("engine/Player.zig").Player;
+//pub const Player = @import("engine/Player.zig").Player;
 pub const Entity = @import("engine/Entity.zig");
 pub const Inventory = @import("engine/inventory.zig").Inventory;
-pub const Item = @import("engine/item.zig").Item;
 pub const tick = @import("engine/tick.zig");
 
 pub const init = @import("engine/init.zig").init;
@@ -107,7 +162,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 66,
+    .patch = 67,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
@@ -121,7 +176,6 @@ pub const ImageOld = backend.Image;
 // Opaque types specific to the backend
 pub const Texture = DummyType("Texture");
 pub const Sound = backend.Sound;
-//pub const Color = backend.Color;
 
 fn DummyType(comptime maybe_type: []const u8) type {
     if (@hasDecl(backend, maybe_type)) {
@@ -189,16 +243,6 @@ pub const Color = packed struct(u16) {
 
 pub var tileSounds: [256]Sound = undefined;
 
-pub var chunk_mutex = std.Thread.Mutex{};
-
-// TODO: remove in favor of chunk hashmap
-pub fn chunks(comptime IdType: type) *[9]*world.Chunk(IdType) {
-    const Temp = struct {
-        var chunks: [9]*world.Chunk(IdType) = undefined;
-    };
-
-    return &Temp.chunks;
-}
 
 pub const getFps = backend.getFps;
 pub const shouldContinueRunning = backend.shouldContinueRunning;

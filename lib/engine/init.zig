@@ -9,6 +9,7 @@ const psf = @import("psf.zig");
 
 pub fn init(
     comptime IdType: type,
+    comptime ItemIdType: type,
     allocator: std.mem.Allocator,
 ) !void {
     var env_map = try std.process.getEnvMap(allocator);
@@ -33,9 +34,9 @@ pub fn init(
 
     try engine.backend.init(allocator, w, h);
 
-    const Engine = engine.engine(IdType);
+    const Engine = engine.engine(IdType, ItemIdType);
 
-    Engine.chunks = std.AutoHashMap(Engine.worldNew.ChunkCoordinate, Engine.worldNew.Chunk).init(allocator);
+    Engine.chunks = std.AutoHashMap(Engine.world.ChunkCoordinate, Engine.world.Chunk).init(allocator);
 
     try initFonts(allocator);
     try initSounds(IdType);

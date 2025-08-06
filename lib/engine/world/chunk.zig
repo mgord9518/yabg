@@ -2,18 +2,16 @@ const std = @import("std");
 const perlin = @import("perlin");
 const engine = @import("../../engine.zig");
 
-pub fn Chunk(comptime IdType: type) type {
+pub fn Chunk(comptime IdType: type, ItemIdType: type) type {
     return struct {
+        const Engine = engine.engine(IdType, ItemIdType);
         const Self = @This();
-        pub const Tile = engine.world.Tile(IdType);
-
-        valid: bool = true,
 
         x: i32,
         y: i32,
 
         level: i32 = 0x80,
-        tiles: [size * size * 2]Tile,
+        tiles: [size * size * 2]Engine.world.Tile,
 
         version: u8,
 
@@ -27,7 +25,7 @@ pub fn Chunk(comptime IdType: type) type {
         pub const max_supported_version = 0;
 
         /// Width / height of chunk measured in tiles
-        pub const size = engine.world.chunk_size;
+        pub const size = Engine.world.chunk_size;
 
         pub fn save(self: *const Self, allocator: std.mem.Allocator, save_path: []const u8, mod_pack: []const u8) !void {
             const cwd = std.fs.cwd();
@@ -71,7 +69,7 @@ pub fn Chunk(comptime IdType: type) type {
             wall,
         };
 
-        pub fn getTileAtOffset(self: *Self, layer: Layer, x: u16, y: u16) *Tile {
+        pub fn getTileAtOffset(self: *Self, layer: Layer, x: u16, y: u16) *Engine.world.Tile {
             const offset: usize = if (layer == .wall) (Self.size * Self.size) else 0;
 
             return &self.tiles[@as(usize, x) + (@as(usize, y) * Self.size) + offset];
@@ -144,8 +142,8 @@ pub fn Chunk(comptime IdType: type) type {
             var t_x: i32 = undefined;
             var t_y: i32 = undefined;
 
-            for (chunk.tiles[0 .. size * size * 2]) |*t| {
-                t.* = Tile{ .id = .air };
+            for (chunk.tiles[0 .. size * size * 2]) |*tile| {
+                tile.* = Engine.world.Tile{ .id = .air };
             }
 
             var idx: usize = 0;
@@ -175,11 +173,16 @@ pub fn Chunk(comptime IdType: type) type {
                 });
 
                 // Inside of mountains
-                if (val > 0.60) {
+                if (val > 0.8) {
+                    tile.id = .galena;
+                    tile.hp = 6;
+                    chunk.tiles[idx + size * size].id = .galena;
+                    chunk.tiles[idx + size * size].hp = 6;
+                } else if (val > 0.6) {
                     tile.id = .stone;
-                    tile.hp = 7;
+                    tile.hp = 5;
                     chunk.tiles[idx + size * size].id = .stone;
-                    chunk.tiles[idx + size * size].hp = 7;
+                    chunk.tiles[idx + size * size].hp = 5;
                 } else if (val > 0.3) {
                     tile.id = .dirt;
                     tile.hp = 3;
@@ -189,7 +192,7 @@ pub fn Chunk(comptime IdType: type) type {
                     tile.id = .grass;
                     tile.hp = 4;
                     chunk.tiles[idx + size * size].hp = 4;
-                } else if (val > -0.90) {
+                } else if (val > -0.9) {
                     tile.id = .sand;
                     tile.hp = 2;
                     chunk.tiles[idx + size * size].hp = 2;

@@ -6,3 +6,4 @@ pub var cursor: engine.ImageNew = undefined;
 
 pub var tiles: [256]engine.Texture = undefined;
 pub var tile_images: [256]engine.ImageNew = undefined;
+pub var item_images: [256]engine.ImageNew = undefined;

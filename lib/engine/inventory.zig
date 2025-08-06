@@ -1,9 +1,9 @@
 const engine = @import("../engine.zig");
 
-pub fn Inventory(comptime IdType: type) type {
+pub fn Inventory(comptime IdType: type, comptime ItemIdType: type) type {
     return struct{
         const Self = @This();
-        const Item = engine.Item(IdType);
+        const Item = engine.engine(IdType, ItemIdType).Item;
         const stack_size = 96;
 
         items: [6]?ItemStack = .{null} ** 6,

@@ -4,7 +4,7 @@ const assert = std.debug.assert;
 
 const engine = @import("engine");
 const textures = @import("textures.zig");
-const Engine = engine.engine(TileIdType);
+const Engine = engine.engine(TileIdType, ItemIdType);
 
 const ui = engine.ui;
 
@@ -24,13 +24,13 @@ const Camera = struct {
     };
 
     pub fn draw(camera: *const Camera) !void {
-        engine.chunk_mutex.lock();
+        Engine.chunk_mutex.lock();
 
         const x_pos: i64 = @intFromFloat(@floor(camera.pos.x));
         const y_pos: i64 = @intFromFloat(@floor(camera.pos.y));
 
-        const x_subtile = (camera.pos.x - @floor(camera.pos.x)) * engine.world.tile_size;
-        const y_subtile = (camera.pos.y - @floor(camera.pos.y)) * engine.world.tile_size;
+        const x_subtile = (camera.pos.x - @floor(camera.pos.x)) * Engine.world.tile_size;
+        const y_subtile = (camera.pos.y - @floor(camera.pos.y)) * Engine.world.tile_size;
 
         const remaining_x: i32 = @intFromFloat(x_subtile);
 
@@ -39,11 +39,13 @@ const Camera = struct {
         // Screen modulo is to draw tiles offset depending on screen resolution
         // this only matters if the window resolution isn't a factor of 12
         // pixels, which may happen if the player resized the window
-        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), engine.world.tile_size);
-        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), engine.world.tile_size);
+        const screen_mod_x: u31 = @mod(@divTrunc(engine.screen_width, 2), Engine.world.tile_size);
+        const screen_mod_y: u31 = @mod(@divTrunc(engine.screen_height, 2), Engine.world.tile_size);
 
-        const screen_width_in_tiles = engine.screen_width / engine.world.tile_size;
-        const screen_height_in_tiles = engine.screen_height / engine.world.tile_size;
+        const screen_width_in_tiles = engine.screen_width / Engine.world.tile_size;
+        const screen_height_in_tiles = engine.screen_height / Engine.world.tile_size;
+
+        const origin = Engine.world.ChunkCoordinate.fromCoordinate(.{ .x = x_pos, .y = y_pos });
 
         // TODO: refactor
         var x: i32 = undefined;
@@ -52,18 +54,22 @@ const Camera = struct {
             x = -1;
 
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
-                for (engine.chunks(TileIdType)) |chunk| {
-                    const chunk_coord_x = chunk.x * engine.world.chunk_size;
-                    const chunk_coord_y = chunk.y * engine.world.chunk_size;
+                var it = Engine.world.ChunkIterator{ .origin = origin };
+
+                while (it.next()) |chunk_coordinate| {
+                    const chunk = Engine.chunks.getPtr(chunk_coordinate) orelse continue;
+
+                    const chunk_coord_x = chunk.x * Engine.world.chunk_size;
+                    const chunk_coord_y = chunk.y * Engine.world.chunk_size;
 
                     const tile_x: i64 = (x_pos + x - (screen_width_in_tiles / 2) - chunk_coord_x);
                     const tile_y: i64 = (y_pos + y - (screen_height_in_tiles / 2) - chunk_coord_y);
 
                     // Skip if tile not on screen
                     if (x + x_pos - (screen_width_in_tiles / 2) < chunk_coord_x or
-                        x + x_pos - (screen_width_in_tiles / 2) >= chunk_coord_x + engine.world.chunk_size or
+                        x + x_pos - (screen_width_in_tiles / 2) >= chunk_coord_x + Engine.world.chunk_size or
                         y + y_pos - (screen_height_in_tiles / 2) < chunk_coord_y or
-                        y + y_pos - (screen_height_in_tiles / 2) >= chunk_coord_y + engine.world.chunk_size) continue;
+                        y + y_pos - (screen_height_in_tiles / 2) >= chunk_coord_y + Engine.world.chunk_size) continue;
 
                     // Only loop through the first half of chunk engine.tiles (floor level)
                     // If wall level tile exists, draw it instead
@@ -72,19 +78,18 @@ const Camera = struct {
                             const tile = chunk.getTileAtOffset(.floor, @intCast(tile_x), @intCast(tile_y));
 
                             engine.drawTexture(tile.texture(), .{
-                                .x = (x * engine.world.tile_size) - remaining_x + screen_mod_x - (engine.world.tile_size / 2),
-                                .y = (y * engine.world.tile_size) - remaining_y + screen_mod_y + 4 - (engine.world.tile_size / 2),
+                                .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
+                                .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y + 4 - (Engine.world.tile_size / 2),
                             }, .{ .r = 204, .g = 204, .b = 204, .a = 255 });
-//                            }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                         },
                         else => {
-                            if ((y * engine.world.tile_size) - 1 >= engine.screen_height / 2) continue;
+                            if ((y * Engine.world.tile_size) - 1 >= engine.screen_height / 2) continue;
 
                             const tile = chunk.getTileAtOffset(.wall, @intCast(tile_x), @intCast(tile_y));
 
                             engine.drawTexture(tile.texture(), .{
-                                .x = (x * engine.world.tile_size) - remaining_x + screen_mod_x - (engine.world.tile_size / 2),
-                                .y = (y * engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (engine.world.tile_size / 2),
+                                .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
+                                .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (Engine.world.tile_size / 2),
                             }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                         },
                     }
@@ -126,9 +131,13 @@ const Camera = struct {
         while (y <= screen_height_in_tiles + 1) : (y += 1) {
             x = -1;
             while (x <= screen_width_in_tiles + 1) : (x += 1) {
-                for (engine.chunks(TileIdType)) |chunk| {
-                    const chunk_coord_x = chunk.x * engine.world.chunk_size;
-                    const chunk_coord_y = chunk.y * engine.world.chunk_size;
+                var it = Engine.world.ChunkIterator{ .origin = origin };
+
+                while (it.next()) |chunk_coordinate| {
+                    const chunk = Engine.chunks.getPtr(chunk_coordinate) orelse continue;
+
+                    const chunk_coord_x = chunk.x * Engine.world.chunk_size;
+                    const chunk_coord_y = chunk.y * Engine.world.chunk_size;
 
                     // Camera pos is in middle of the screen, so shift back half a screen
                     const tile_x_world_pos: i64 = (x_pos - (screen_width_in_tiles / 2) + x);
@@ -138,24 +147,24 @@ const Camera = struct {
                     const tile_y_chunk_off = std.math.cast(u16, tile_y_world_pos - chunk_coord_y) orelse continue;
 
                     // Skip if tile is beyond chunk border (negatives skipped with the math cast above)
-                    if (tile_x_chunk_off >= engine.world.chunk_size) continue;
-                    if (tile_y_chunk_off >= engine.world.chunk_size) continue;
+                    if (tile_x_chunk_off >= Engine.world.chunk_size) continue;
+                    if (tile_y_chunk_off >= Engine.world.chunk_size) continue;
 
                     // Only draw raised tiles
                     const wall_tile = chunk.getTileAtOffset(.wall, tile_x_chunk_off, tile_y_chunk_off);
                     if (wall_tile.id == .air) continue;
 
-                    if ((y * engine.world.tile_size) - 1 >= engine.screen_height / 2) {
+                    if ((y * Engine.world.tile_size) - 1 >= engine.screen_height / 2) {
                         engine.drawTexture(wall_tile.texture(), .{
-                            .x = (x * engine.world.tile_size) - remaining_x + screen_mod_x - (engine.world.tile_size / 2),
-                            .y = (y * engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (engine.world.tile_size / 2),
+                            .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
+                            .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (Engine.world.tile_size / 2),
                         }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
                     }
                 }
             }
         }
 
-        engine.chunk_mutex.unlock();
+        Engine.chunk_mutex.unlock();
     }
 };
 
@@ -216,9 +225,7 @@ pub fn onEveryFrame(allocator: std.mem.Allocator) !void {
 
     player.updatePlayerFrames();
 
-    player.updateAnimation();
-
-    //try player.reloadChunks();
+//    player.updateAnimation();
 
     player.updateState() catch unreachable;
 
@@ -268,16 +275,21 @@ pub export fn update() void {
 }
 
 pub export fn init() void {
+    std.debug.print("{}::{} loading textures\n", .{
+        engine.ColorName.magenta,
+        engine.ColorName.default,
+    });
     initTextures(TileIdType) catch unreachable;
 
-    engine.world.Tile(TileIdType).setCallback(.grass, grassTileCallback);
-    engine.world.Tile(TileIdType).setCallback(.stone, basicTileCallback);
-    engine.world.Tile(TileIdType).setCallback(.dirt, basicTileCallback);
-    engine.world.Tile(TileIdType).setCallback(.sand, basicTileCallback);
+    Engine.world.Tile.setCallback(.grass, grassTileCallback);
+    Engine.world.Tile.setCallback(.stone, basicTileCallback);
+    Engine.world.Tile.setCallback(.galena, basicTileCallback);
+    Engine.world.Tile.setCallback(.dirt, basicTileCallback);
+    Engine.world.Tile.setCallback(.sand, basicTileCallback);
 }
 
 fn grassTileCallback(
-    self: *engine.world.Tile(TileIdType),
+    self: *Engine.world.Tile,
     entity: *Engine.Player,
 ) void {
     if (self.hp == 0) {
@@ -296,7 +308,7 @@ fn grassTileCallback(
 }
 
 fn basicTileCallback(
-    self: *engine.world.Tile(TileIdType),
+    self: *Engine.world.Tile,
     entity: *Engine.Player,
 ) void {
     if (self.hp == 0) {
@@ -322,7 +334,6 @@ pub fn initTextures(comptime IdType: type) !void {
     engine.textures.cursor = textures.ui.cursor;
 
     inline for (std.meta.fields(IdType)) |tile| {
-        std.debug.print("loading {s}\n", .{tile.name});
         const tile_id: IdType = @enumFromInt(tile.value);
 
         // Exceptions
@@ -337,9 +348,13 @@ pub fn initTextures(comptime IdType: type) !void {
             engine.textures.tile_images[tile.value] = @field(textures.tiles, tile.name);
         }
     }
+
+    inline for (std.meta.fields(ItemIdType)) |item| {
+        engine.textures.item_images[item.value] = @field(textures.items, item.name);
+    }
 }
 
-fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory(TileIdType)) !void {
+fn drawHotbar(allocator: std.mem.Allocator, inventory: Engine.Inventory) !void {
     const hotbar_item_width = 16;
     const hotbar_item_spacing = 1;
 
@@ -363,11 +378,23 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: engine.Inventory(TileIdTy
 
         const item = maybe_item orelse continue;
 
-        // TODO: Stop drawing bottom of tile
-        engine.textures.tile_images[@intFromEnum(item.value.tile)].drawMutable(.{
-            .x = hotbar_x + 2,
-            .y = hotbar_y + 2,
-        });
+        switch (item.value) {
+            .tile => {
+                // TODO: Stop drawing bottom of tile
+                engine.textures.tile_images[@intFromEnum(item.value.tile)].drawMutable(.{
+                    .x = hotbar_x + 2,
+                    .y = hotbar_y + 2,
+                });
+            },
+            .item => {
+                // TODO: Stop drawing bottom of tile
+                engine.textures.item_images[@intFromEnum(item.value.item)].drawMutable(.{
+                    .x = hotbar_x + 2,
+                    .y = hotbar_y + 2,
+                });
+            },
+        }
+
 
         try ui.drawText(
             try std.fmt.allocPrint(allocator, "{d}", .{item.count}),
@@ -397,6 +424,7 @@ pub const TileIdType = enum(u8) {
 
     // Cobblestone, smooth stone, bricks, ore
     stone = 32,
+    galena,
 
     //metal = 48,
 
@@ -419,6 +447,10 @@ pub const TileIdType = enum(u8) {
     }
 };
 
+pub const ItemIdType = enum {
+    stone,
+};
+
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
@@ -427,7 +459,7 @@ pub fn main() !void {
 
     const env_map = try std.process.getEnvMap(initialization_arena.allocator());
 
-    try engine.init(TileIdType, allocator);
+    try engine.init(TileIdType, ItemIdType, allocator);
 
     const speed_env: []const u8 = env_map.get("PLAYER_SPEED") orelse "";
     engine.Entity.walk_speed = std.fmt.parseFloat(f32, speed_env) catch engine.Entity.walk_speed;
@@ -462,9 +494,22 @@ pub fn main() !void {
 
     try engine.run(onEveryTick);
 
+    std.debug.print("{}::{} shutting down\n", .{
+        engine.ColorName.magenta,
+        engine.ColorName.default,
+    });
+
     var it = Engine.chunks.iterator();
     while (it.next()) |entry| {
         try entry.value_ptr.save(allocator, player.save_path, "vanilla0");
+
+        std.debug.print("{}::{} saved chunk {d}, {d}\n", .{
+            engine.ColorName.magenta,
+            engine.ColorName.default,
+            entry.value_ptr.x,
+            entry.value_ptr.y,
+        });
+
         _ = Engine.chunks.remove(entry.key_ptr.*);
     }
 

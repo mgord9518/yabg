@@ -5,22 +5,24 @@ const known_folders = @import("known-folders");
 const engine = @import("../engine.zig");
 const Entity = @import("Entity.zig");
 
-pub fn Player(comptime IdType: type) type {
+pub fn Player(comptime IdType: type, comptime ItemIdType: type) type {
     return struct{
+        const Engine = engine.engine(IdType, ItemIdType);
+
         const Self = @This();
-        const Chunk = engine.world.Chunk(IdType);
+        const Chunk = Engine.world.Chunk;
 
         entity: Entity,
-        inventory: engine.Inventory(IdType),
+        inventory: engine.Inventory(IdType, ItemIdType),
 
-        standing_on: ?*const engine.world.Tile(IdType) = null,
+        standing_on: ?*const Engine.world.Tile = null,
 
         save_path: []const u8,
 
         const PlayerJson = struct {
             pos: engine.Coordinate,
 
-            inventory: engine.Inventory(IdType),
+            inventory: engine.Inventory(IdType, ItemIdType),
 
             direction: Entity.Direction,
         };
@@ -35,7 +37,7 @@ pub fn Player(comptime IdType: type) type {
                     .direction = .down,
                     .animation_texture = undefined,
                 },
-                .inventory = engine.Inventory(IdType){},
+                .inventory = engine.Inventory(IdType, ItemIdType){},
             };
 
             inline for (std.meta.fields(Entity.Animation)) |animation| {
@@ -144,7 +146,7 @@ pub fn Player(comptime IdType: type) type {
             {
                 if (player.inventory.items[player.inventory.selected_slot]) |*slot| {
                     if (slot.value == .tile) {
-                        const temp_tile = engine.world.Tile(IdType){ .id = slot.value.tile };
+                        const temp_tile = Engine.world.Tile{ .id = slot.value.tile };
 
                         if (floor_tile.id == .water) {
                             floor_tile.* = temp_tile;
@@ -184,7 +186,8 @@ pub fn Player(comptime IdType: type) type {
             }
 
             if (player.entity.direction == .right and player.entity.remaining_x > 0 or player.entity.direction == .left and player.entity.remaining_x < 0) {
-                var x_speed = engine.tick.ticks_per_second * Entity.walk_speed * engine.delta;
+//                var x_speed = engine.tick.ticks_per_second * Entity.walk_speed * engine.delta;
+                var x_speed = Entity.walk_speed * engine.delta;
                 if (player.entity.direction == .left) x_speed = -x_speed;
 
                 player.entity.remaining_x -= x_speed;
@@ -203,7 +206,7 @@ pub fn Player(comptime IdType: type) type {
             }
 
             if (player.entity.direction == .down and player.entity.remaining_y > 0 or player.entity.direction == .up and player.entity.remaining_y < 0) {
-                player.entity.y_speed = engine.tick.ticks_per_second * Entity.walk_speed * engine.delta;
+                player.entity.y_speed = Entity.walk_speed * engine.delta;
                 if (player.entity.direction == .up) player.entity.y_speed = -player.entity.y_speed;
 
                 player.entity.remaining_y -= player.entity.y_speed;
@@ -249,90 +252,22 @@ pub fn Player(comptime IdType: type) type {
             chunk: *Chunk,
         };
 
+        // TODO: move to function that returns arbitrary tile + chunk from coordinate
         pub fn targetTile(player: *Self) TargetTile {
-            var chunk_x: i32 = @intCast(@divTrunc(player.entity.pos.x, engine.world.chunk_size));
-            var chunk_y: i32 = @intCast(@divTrunc(player.entity.pos.y, engine.world.chunk_size));
-
-            if (player.entity.pos.x < 0) {
-                chunk_x -= 1;
-            }
-
-            if (player.entity.pos.y < 0) {
-                chunk_y -= 1;
-            }
-
-            const start_x = chunk_x;
-            const start_y = chunk_y;
-
-            // Collision detection
-            var player_tile_offset_x: u15 = @intCast(@mod(player.entity.pos.x, engine.world.chunk_size));
-            var player_tile_offset_y: u15 = @intCast(@mod(player.entity.pos.y, engine.world.chunk_size));
-
-            // Find chunk player is looking at
-            if (player_tile_offset_x == 0 and player.entity.direction == .left) {
-                if (player.entity.pos.x >= 0) {
-                    chunk_x -= 1;
-                }
-
-                player_tile_offset_x = engine.world.chunk_size;
-            } else if (player_tile_offset_y == 0 and player.entity.direction == .up) {
-                if (player.entity.pos.y >= 0) {
-                    chunk_y -= 1;
-                }
-
-                player_tile_offset_y = engine.world.chunk_size;
-            } else if (player_tile_offset_x == 0 and player.entity.direction == .right) {
-                if (player.entity.pos.x < 0) {
-                    chunk_x += 1;
-                }
-            } else if (player_tile_offset_y == 0 and player.entity.direction == .down) {
-                if (player.entity.pos.y < 0) {
-                    chunk_y += 1;
-                }
-            }
-
+            var player_pos = player.entity.pos;
             switch (player.entity.direction) {
-                .left => player_tile_offset_x -= 1,
-                .right => player_tile_offset_x += 1,
-                .up => player_tile_offset_y -= 1,
-                .down => player_tile_offset_y += 1,
-            }
-
-            if (player_tile_offset_x == engine.world.chunk_size and player.entity.direction == .right) {
-                //target_chunk_num = 5;
-                chunk_x = start_x + 1;
-                chunk_y = start_y;
-
-                player_tile_offset_x = 0;
-            } else if (player_tile_offset_y == engine.world.chunk_size and player.entity.direction == .down) {
-                chunk_x = start_x;
-                chunk_y = start_y + 1;
-
-                player_tile_offset_y = 0;
-            }
-
-            if (player_tile_offset_x == 0) {
-                if (player.entity.direction == .down or player.entity.direction == .up) {
-                    if (player.entity.pos.x < 0) {
-                        //target_chunk_num += 1;
-                        chunk_x += 1;
-                    }
-                }
-            }
-
-            if (player_tile_offset_y == 0) {
-                if (player.entity.direction == .left or player.entity.direction == .right) {
-                    if (player.entity.pos.y < 0) {
-                        //target_chunk_num += 3;
-                        chunk_y += 1;
-                    }
-                }
+                .left => player_pos.x -= 1,
+                .right => player_pos.x += 1,
+                .up => player_pos.y -= 1,
+                .down => player_pos.y += 1,
             }
 
             return .{
-                .chunk = engine.engine(IdType).chunks.getPtr(.{ .x = chunk_x, .y = chunk_y }).?,
-                .tile_x = player_tile_offset_x,
-                .tile_y = player_tile_offset_y,
+                .chunk = Engine.chunks.getPtr(
+                    Engine.world.ChunkCoordinate.fromCoordinate(player_pos)
+                ).?,
+                .tile_x = @intCast(@mod(player_pos.x, Engine.world.chunk_size)),
+                .tile_y = @intCast(@mod(player_pos.y, Engine.world.chunk_size)),
             };
         }
 
@@ -378,20 +313,18 @@ pub fn Player(comptime IdType: type) type {
             _ = try file.write(fbs_buf[0..fbs.pos]);
         }
 
-        pub fn updateAnimation(self: *Self) void {
-            self.entity.animation = switch (self.entity.direction) {
+        pub fn updatePlayerFrames(
+            player: *Self,
+        ) void {
+            player.entity.animation = switch (player.entity.direction) {
                 .right => .walk_right,
                 .left => .walk_left,
                 .down => .walk_down,
                 .up => .walk_up,
             };
-        }
 
-        pub fn updatePlayerFrames(
-            player: *Self,
-        ) void {
             if (player.entity.remaining_x != 0 or player.entity.remaining_y != 0) {
-                player.entity.frame_sub += engine.tick.ticks_per_second * 0.4 * engine.delta;
+                player.entity.frame_sub += Entity.walk_speed * 4 * engine.delta;
             }
 
             if (player.entity.frame_sub >= 1) {
@@ -409,38 +342,9 @@ pub fn Player(comptime IdType: type) type {
         // Checks and unloads any engine.chunks not surrounding the player in a 3x3 area
         // then loads new chunks into their pointers
         pub fn reloadChunks(player: *Self) !void {
-            var chunk_x: i32 = @intCast(@divTrunc(player.entity.pos.x, engine.world.chunk_size));
-            var chunk_y: i32 = @intCast(@divTrunc(player.entity.pos.y, engine.world.chunk_size));
+            const chunk_coordinate = Engine.world.ChunkCoordinate.fromCoordinate(player.entity.pos);
 
-            if (player.entity.pos.x < 0) {
-                chunk_x -= 1;
-            }
-
-            if (player.entity.pos.y < 0) {
-                chunk_y -= 1;
-            }
-
-            engine.chunk_mutex.lock();
-
-            try engine.engine(IdType).worldNew.loadChunks(
-                player.save_path,
-                .{ .x = chunk_x, .y = chunk_y }
-            );
-
-            var y = chunk_y - 1;
-            var idx: usize = 0;
-
-            while (y <= chunk_y + 1) : (y += 1) {
-                var x = chunk_x - 1;
-
-                while (x <= chunk_x + 1) : (x += 1) {
-                    engine.chunks(IdType)[idx] = engine.engine(IdType).chunks.getPtr(.{ .x = x, .y = y }).?;
-
-                    idx += 1;
-                }
-            }
-
-            engine.chunk_mutex.unlock();
+            try Engine.world.loadChunks(player.save_path, chunk_coordinate);
         }
     };
 }
