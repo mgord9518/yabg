@@ -166,7 +166,7 @@ pub const version = std.SemanticVersion{
 
     .major = 0,
     .minor = 0,
-    .patch = 67,
+    .patch = 68,
 };
 
 pub var rand: std.Random.DefaultPrng = undefined;
