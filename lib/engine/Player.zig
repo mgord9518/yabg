@@ -265,7 +265,7 @@ pub fn Player(comptime IdType: type, comptime ItemIdType: type) type {
             return .{
                 .chunk = Engine.chunks.getPtr(
                     Engine.world.ChunkCoordinate.fromCoordinate(player_pos)
-                ).?,
+                ).?.*,
                 .tile_x = @intCast(@mod(player_pos.x, Engine.world.chunk_size)),
                 .tile_y = @intCast(@mod(player_pos.y, Engine.world.chunk_size)),
             };

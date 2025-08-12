@@ -76,6 +76,9 @@ pub fn Chunk(comptime IdType: type, ItemIdType: type) type {
         }
 
         pub fn load(save_path: []const u8, mod_pack: []const u8, x: i32, y: i32) !Self {
+            // test slow loading
+//            std.time.sleep(1000 * std.time.ns_per_ms);
+
             var buf: [256]u8 = undefined;
             const path = try std.fmt.bufPrint(
                 &buf,

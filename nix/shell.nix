@@ -15,7 +15,7 @@ pkgs.mkShell {
     pulseaudio
     wayland
     glfw
-    python313Packages.glad
+    raylib
   ];
 
   LD_LIBRARY_PATH = with pkgs; pkgs.lib.makeLibraryPath [

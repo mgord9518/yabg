@@ -36,7 +36,7 @@ pub fn init(
 
     const Engine = engine.engine(IdType, ItemIdType);
 
-    Engine.chunks = std.AutoHashMap(Engine.world.ChunkCoordinate, Engine.world.Chunk).init(allocator);
+    Engine.chunks = std.AutoHashMap(Engine.world.ChunkCoordinate, *Engine.world.Chunk).init(allocator);
 
     try initFonts(allocator);
     try initSounds(IdType);

@@ -52,6 +52,10 @@ pub fn Tile(IdType: type, ItemIdType: type) type {
             return engine.textures.tiles[@intFromEnum(self.id)];
         }
 
+        pub fn image(self: *const Self) engine.ImageNew {
+            return engine.textures.tile_images[@intFromEnum(self.id)];
+        }
+
         pub fn sound(self: *const Self) engine.Sound {
             return engine.tileSounds[@intFromEnum(self.id)];
         }

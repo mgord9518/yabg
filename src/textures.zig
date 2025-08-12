@@ -154,7 +154,7 @@ pub const tiles = struct {
 
     pub const water = engine.ImageNew{
         .w = 12,
-        .h = 20,
+        .h = 13,
         .palette = &.{
             .{ .r = 0, .g = 0, .b = 0, .a = 0 },
             .{ .r = 4, .g = 6, .b = 9 },

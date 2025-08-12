@@ -57,7 +57,7 @@ const Camera = struct {
                 var it = Engine.world.ChunkIterator{ .origin = origin };
 
                 while (it.next()) |chunk_coordinate| {
-                    const chunk = Engine.chunks.getPtr(chunk_coordinate) orelse continue;
+                    const chunk = Engine.chunks.get(chunk_coordinate) orelse continue;
 
                     const chunk_coord_x = chunk.x * Engine.world.chunk_size;
                     const chunk_coord_y = chunk.y * Engine.world.chunk_size;
@@ -77,6 +77,11 @@ const Camera = struct {
                         .air => {
                             const tile = chunk.getTileAtOffset(.floor, @intCast(tile_x), @intCast(tile_y));
 
+                            tile.image().draw(.{
+                                .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
+                                .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y + 4 - (Engine.world.tile_size / 2),
+                            });
+
                             engine.drawTexture(tile.texture(), .{
                                 .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
                                 .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y + 4 - (Engine.world.tile_size / 2),
@@ -91,6 +96,11 @@ const Camera = struct {
                                 .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
                                 .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (Engine.world.tile_size / 2),
                             }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+
+                            tile.image().draw(.{
+                                .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
+                                .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (Engine.world.tile_size / 2),
+                            });
                         },
                     }
                 }
@@ -134,7 +144,7 @@ const Camera = struct {
                 var it = Engine.world.ChunkIterator{ .origin = origin };
 
                 while (it.next()) |chunk_coordinate| {
-                    const chunk = Engine.chunks.getPtr(chunk_coordinate) orelse continue;
+                    const chunk = Engine.chunks.get(chunk_coordinate) orelse continue;
 
                     const chunk_coord_x = chunk.x * Engine.world.chunk_size;
                     const chunk_coord_y = chunk.y * Engine.world.chunk_size;
@@ -159,6 +169,11 @@ const Camera = struct {
                             .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
                             .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (Engine.world.tile_size / 2),
                         }, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+
+                        wall_tile.image().draw(.{
+                            .x = (x * Engine.world.tile_size) - remaining_x + screen_mod_x - (Engine.world.tile_size / 2),
+                            .y = (y * Engine.world.tile_size) - remaining_y + screen_mod_y - 4 - (Engine.world.tile_size / 2),
+                        });
                     }
                 }
             }
@@ -395,7 +410,6 @@ fn drawHotbar(allocator: std.mem.Allocator, inventory: Engine.Inventory) !void {
             },
         }
 
-
         try ui.drawText(
             try std.fmt.allocPrint(allocator, "{d}", .{item.count}),
             .{
@@ -501,15 +515,18 @@ pub fn main() !void {
 
     var it = Engine.chunks.iterator();
     while (it.next()) |entry| {
-        try entry.value_ptr.save(allocator, player.save_path, "vanilla0");
+        const chunk = entry.value_ptr.*;
+
+        try chunk.save(allocator, player.save_path, "vanilla0");
 
         std.debug.print("{}::{} saved chunk {d}, {d}\n", .{
             engine.ColorName.magenta,
             engine.ColorName.default,
-            entry.value_ptr.x,
-            entry.value_ptr.y,
+            chunk.x,
+            chunk.y,
         });
 
+        Engine.chunk_allocator.destroy(chunk);
         _ = Engine.chunks.remove(entry.key_ptr.*);
     }
 

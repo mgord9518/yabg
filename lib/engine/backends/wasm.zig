@@ -33,8 +33,6 @@ export fn yabgEngine_init() void {
         TrueColor,
         @as(u32, engine.screen_width) * engine.screen_height,
     ) catch unreachable;
-
-    //root.init();
 }
 
 export fn yabgEngine_moveMouse(x: i32, y: i32) void {
@@ -48,21 +46,27 @@ pub fn mousePosition() engine.Coordinate {
     return mouse_pos;
 }
 
-pub fn beginDrawing() void {}
+pub fn beginDrawing() void {
+}
+
 pub fn endDrawing() void {
     imports.endDrawing();
 }
 
 export fn resetSize() void {
-    allocator.free(fb);
-
+    const old_width = engine.screen_width;
+    const old_height = engine.screen_height;
     engine.screen_width = @intCast(imports.getWindowWidth() / engine.scale);
     engine.screen_height = @intCast(imports.getWindowHeight() / engine.scale);
 
-    fb = allocator.alloc(
-        TrueColor,
-        @as(u32, engine.screen_width) * engine.screen_height,
-    ) catch unreachable;
+    if (old_width != engine.screen_width or old_height != engine.screen_height) {
+        allocator.free(fb);
+
+        fb = allocator.alloc(
+            TrueColor,
+            @as(u32, engine.screen_width) * engine.screen_height,
+        ) catch unreachable;
+    }
 }
 
 pub fn clearBackground(color: engine.Color) void {

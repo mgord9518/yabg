@@ -48,7 +48,7 @@ pub export fn update() void {
         },
     );
 
-    textures.cursor.draw(engine.mousePosition());
+    textures.ui.cursor.draw(engine.mousePosition());
 
     engine.endDrawing();
 

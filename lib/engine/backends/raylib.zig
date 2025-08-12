@@ -17,7 +17,28 @@ pub const ImageFormat = enum(c_int) {
 const engine = @import("../../engine.zig");
 const resource_root = "../../engine/";
 
-pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !void {
+var allocator: std.mem.Allocator = undefined;
+
+var fb: []TrueColor = undefined;
+
+pub const TrueColor = packed struct(u16) {
+    a: u4,
+    b: u4,
+    g: u4,
+    r: u4,
+
+    pub fn fromColor(color: engine.Color) TrueColor {
+        return .{
+            .r = color.r,
+            .g = color.g,
+            .b = color.b,
+            .a = 15,
+        };
+    }
+};
+
+pub fn init(a: std.mem.Allocator, window_width: u32, window_height: u32) !void {
+    allocator = a;
     raylib.SetConfigFlags(raylib.FLAG_VSYNC_HINT | raylib.FLAG_WINDOW_RESIZABLE);
 
     raylib.SetTraceLogLevel(raylib.LOG_ERROR);
@@ -30,7 +51,27 @@ pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32)
     raylib.SetWindowMinSize(@intCast(128 * engine.scale), @intCast(128 * engine.scale));
     raylib.HideCursor();
 
+    // TODO: remove hacky fix
+    engine.screen_width = 0;
+    resetSize();
+
     root.init();
+}
+
+fn resetSize() void {
+    const old_width = engine.screen_width;
+    const old_height = engine.screen_height;
+    engine.screen_width = @intCast(@divTrunc(raylib.GetScreenWidth(), engine.scale));
+    engine.screen_height = @intCast(@divTrunc(raylib.GetScreenHeight(), engine.scale));
+
+    if (old_width != engine.screen_width or old_height != engine.screen_height) {
+        allocator.free(fb);
+
+        fb = allocator.alloc(
+            TrueColor,
+            @as(u32, engine.screen_width) * engine.screen_height,
+        ) catch unreachable;
+    }
 }
 
 const Rgba4 = packed struct(u16) {
@@ -40,7 +81,8 @@ const Rgba4 = packed struct(u16) {
     r: u4,
 };
 
-pub fn textureFromImage(allocator: std.mem.Allocator, image: engine.ImageNew) !Texture {
+pub fn textureFromImage(a: std.mem.Allocator, image: engine.ImageNew) !Texture {
+    _ = a;
     // Won't need this after the texture has been loaded from the image
     const data = try allocator.alloc(Rgba4, @as(u31, image.w) * image.h);
     defer allocator.free(data);
@@ -73,9 +115,29 @@ pub fn textureFromImage(allocator: std.mem.Allocator, image: engine.ImageNew) !T
 pub fn beginDrawing() void {
     raylib.BeginDrawing();
     raylib.ClearBackground(raylib.BLACK);
+    clearBackground(.{ .r = 15, .g = 0, .b = 15 });
+}
+
+pub fn clearBackground(color: engine.Color) void {
+    const true_color = TrueColor.fromColor(color);
+
+    @memset(fb, true_color);
 }
 
 pub fn endDrawing() void {
+    const fb_image = raylib.Image{
+        .data = @ptrCast(fb.ptr),
+        .width = engine.screen_width,
+        .height = engine.screen_height,
+        .mipmaps = 1,
+        .format = raylib.PIXELFORMAT_UNCOMPRESSED_R4G4B4A4,
+    };
+
+    const fb_texture = raylib.LoadTextureFromImage(fb_image);
+    defer raylib.UnloadTexture(fb_texture);
+
+//    raylib.DrawTexture(fb_texture, 0, 0, raylib.WHITE);
+
     raylib.EndDrawing();
 }
 
@@ -127,37 +189,17 @@ pub fn deltaTime() f32 {
     return raylib.GetFrameTime();
 }
 
-pub fn screenWidth() u32 {
-    return @intCast(raylib.GetScreenWidth());
-}
-
-pub fn screenHeight() u32 {
-    return @intCast(raylib.GetScreenHeight());
-}
-
 pub fn getFps() usize {
     return @intCast(raylib.GetFPS());
 }
 
 pub export fn run() void {
     while (!raylib.WindowShouldClose()) {
+        resetSize();
         root.update();
         engine.delta = deltaTime();
 
-        engine.screen_width = @divTrunc(
-            @as(u15, @intCast(screenWidth())),
-            engine.scale,
-        );
-
-        engine.screen_height = @divTrunc(
-            @as(u15, @intCast(screenHeight())),
-            engine.scale,
-        );
     }
-}
-
-pub fn shouldContinueRunning() bool {
-    return !raylib.WindowShouldClose();
 }
 
 pub fn playSound(sound: Sound, pitch: f32) void {
@@ -210,8 +252,47 @@ pub fn mousePosition() engine.Coordinate {
     };
 }
 
-pub fn drawImage(image: engine.ImageNew, pos: engine.Coordinate) void {
+pub fn drawImageOld(image: engine.ImageNew, pos: engine.Coordinate) void {
     drawTexture(image.maybe_texture.?, pos, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
+}
+
+pub fn drawImage(image: engine.ImageNew, pos: engine.Coordinate) void {
+    if (image.maybe_texture != null) {
+        drawImageOld(image, pos);
+    }
+
+    const x: i32 = @intCast(pos.x);
+    const y: i32 = @intCast(pos.y);
+
+    // Skip drawing if completely off screen
+    if (@as(i32, image.w) +| x < 0) return;
+    if (@as(i32, image.h) +| y < 0) return;
+    if (x >= engine.screen_width) return;
+    if (y >= engine.screen_height) return;
+
+    var x_idx: usize = @intCast(@max(0, x));
+    var y_idx: usize = @intCast(@max(0, y));
+    var img_x_offset: usize = @intCast(@abs(@min(x, 0)));
+    var img_y_offset: usize = @intCast(@abs(@min(y, 0)));
+
+    while (img_x_offset < image.w and img_y_offset < image.h and y_idx < engine.screen_height) {
+        const palette_idx = image.data[@as(u32, @intCast(img_y_offset)) * image.w + @as(u32, @intCast(img_x_offset))];
+        const color = TrueColor.fromColor(image.palette[palette_idx]);
+
+        if (image.palette[palette_idx].a > 0) {
+            fb[(y_idx * engine.screen_width) + x_idx] = color;
+        }
+
+        x_idx += 1;
+        img_x_offset += 1;
+
+        if (img_x_offset == image.w or x_idx == engine.screen_width) {
+            img_y_offset += 1;
+            x_idx = @max(x, 0);
+            y_idx += 1;
+            img_x_offset = @abs(@min(x, 0));
+        }
+    }
 }
 
 pub fn drawTexture(texture: engine.Texture, pos: engine.Coordinate, tint: Color) void {

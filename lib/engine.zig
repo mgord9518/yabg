@@ -12,8 +12,9 @@ pub fn engine(TileIdType: type, ItemIdType: type) type {
     return struct {
         pub const Player = @import("engine/Player.zig").Player(TileIdType, ItemIdType);
 
+        pub var chunk_allocator = std.heap.page_allocator;
         pub var chunk_mutex = std.Thread.Mutex{};
-        pub var chunks: std.AutoHashMap(world.ChunkCoordinate, world.Chunk) = undefined;
+        pub var chunks: std.AutoHashMap(world.ChunkCoordinate, *world.Chunk) = undefined;
 
         pub const Item = @import("engine/item.zig").Item(TileIdType, ItemIdType);
         pub const Inventory = @import("engine/inventory.zig").Inventory(TileIdType, ItemIdType);
@@ -30,11 +31,11 @@ pub fn engine(TileIdType: type, ItemIdType: type) type {
                     var chunk_x: i32 = @intCast(@divTrunc(coordinate.x, chunk_size));
                     var chunk_y: i32 = @intCast(@divTrunc(coordinate.y, chunk_size));
 
-                    if (coordinate.x < 0) {
+                    if (coordinate.x < 0 and @mod(coordinate.x, chunk_size) != 0) {
                         chunk_x -= 1;
                     }
 
-                    if (coordinate.y < 0) {
+                    if (coordinate.y < 0 and @mod(coordinate.y, chunk_size) != 0) {
                         chunk_y -= 1;
                     }
 
@@ -53,18 +54,21 @@ pub fn engine(TileIdType: type, ItemIdType: type) type {
             pub fn loadChunks(save_path: []const u8, origin: ChunkCoordinate) !void {
                 var it = ChunkIterator{ .origin = origin };
 
-                chunk_mutex.lock();
-
                 while (it.next()) |chunk_coordinate| {
-                    const result = try engine(TileIdType, ItemIdType).chunks.getOrPut(chunk_coordinate);
 
-                    if (!result.found_existing) {
-                        result.value_ptr.* = try Chunk.load(
+                    const maybe_chunk = engine(TileIdType, ItemIdType).chunks.get(chunk_coordinate);
+                    if (maybe_chunk == null) {
+                        const chunk_ptr = try chunk_allocator.create(Chunk);
+                        chunk_ptr.* = try Chunk.load(
                             save_path,
                             "vanilla0",
                             chunk_coordinate.x,
                             chunk_coordinate.y,
                         );
+
+                        chunk_mutex.lock();
+                        try engine(TileIdType, ItemIdType).chunks.put(chunk_coordinate, chunk_ptr);
+                        chunk_mutex.unlock();
 
                         std.debug.print("{}::{} loaded chunk {d}, {d}\n", .{
                             ColorName.green,
@@ -72,10 +76,10 @@ pub fn engine(TileIdType: type, ItemIdType: type) type {
                             chunk_coordinate.x,
                             chunk_coordinate.y,
                         });
+
                     }
                 }
 
-                chunk_mutex.unlock();
             }
 
             pub const ChunkIterator = struct {
@@ -196,7 +200,6 @@ pub fn run(
     comptime onEveryTickFn: fn () anyerror!void,
 ) !void {
     _ = try std.Thread.spawn(.{}, tick.tickMainThread, .{onEveryTickFn});
-
     backend.run();
 }
 
@@ -215,7 +218,7 @@ pub const ImageNew = struct {
 
     pub fn draw(image: ImageNew, pos: Coordinate) void {
         if (@hasDecl(backend, "textureFromImage") and image.maybe_texture == null) {
-            unreachable;
+//            unreachable;
         }
 
         backend.drawImage(image, pos);

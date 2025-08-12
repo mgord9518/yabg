@@ -10,8 +10,10 @@ pub fn tickMainThread(comptime onEveryTickFn: fn () anyerror!void) !void {
         try onEveryTickFn();
         const time_after = std.time.nanoTimestamp();
 
-        engine.tick_time = @intCast(time_after - time_before);
-        const ns_remaining = ns_per_tick - engine.tick_time;
+//        engine.tick_time = @intCast(time_after - time_before);
+        const time_this_tick  = time_after - time_before;
+        const ns_remaining = ns_per_tick - time_this_tick;
+        engine.tick_time = @intCast(@divFloor(time_this_tick, std.time.ns_per_ms));
 
         if (ns_remaining > 0) {
             std.time.sleep(@intCast(ns_remaining));
